@@ -243,6 +243,1098 @@ create trigger sales_post_validation_trg before insert or update on public.sales
 create or replace function private.validate_payment_allocation() returns trigger language plpgsql set search_path='' as $$ declare pa numeric(30,8); ps text; allocated numeric(30,8); ok boolean:=false; begin select amount,status into pa,ps from public.payments where id=new.payment_id and organization_id=new.organization_id; if ps is null then raise exception 'payment not found'; end if; if ps<>'posted' then raise exception 'payment must be posted before allocation'; end if; if new.document_type in('purchase','purchase_return') then select exists(select 1 from public.purchase_invoices where id=new.document_id and organization_id=new.organization_id and status='posted') into ok; elsif new.document_type in('sale','sale_return') then select exists(select 1 from public.sales_invoices where id=new.document_id and organization_id=new.organization_id and status='posted') into ok; else select exists(select 1 from public.expenses where id=new.document_id and organization_id=new.organization_id and status='posted') into ok; end if; if not ok then raise exception 'allocation target must be posted'; end if; select coalesce(sum(allocated_amount),0) into allocated from public.payment_allocations where organization_id=new.organization_id and payment_id=new.payment_id and id<>coalesce(new.id,'00000000-0000-0000-0000-000000000000'::uuid); if allocated+new.allocated_amount>pa then raise exception 'payment allocations exceed payment amount'; end if; return new; end; $$;
 create trigger payment_allocations_validation_trg before insert or update on public.payment_allocations for each row execute function private.validate_payment_allocation();
 
+
+-- =============================================================================
+-- TRANSACTIONAL POSTING / RPC LAYER
+-- =============================================================================
+-- All financial/inventory mutations below are SECURITY DEFINER database
+-- operations. They execute atomically: an exception rolls back the complete
+-- posting, including document status, inventory state, inventory ledger,
+-- journal header/lines, and payment allocations.
+-- =============================================================================
+
+create unique index journal_entries_one_reversal_uq
+  on public.journal_entries(organization_id,reversal_of_id)
+  where reversal_of_id is not null;
+
+create or replace function private.next_number(p_org_id uuid,p_document_type text)
+returns text
+language plpgsql
+security definer
+set search_path=''
+as $
+declare
+  v_prefix text;
+  v_next bigint;
+  v_padding integer;
+begin
+  if not private.has_org_role(p_org_id,array['owner','admin','manager','staff']) then
+    raise exception 'not authorized for organization';
+  end if;
+
+  select prefix,next_number,padding
+    into v_prefix,v_next,v_padding
+  from public.number_sequences
+  where organization_id=p_org_id and document_type=p_document_type and is_active
+  for update;
+
+  if not found then
+    insert into public.number_sequences(organization_id,document_type,prefix,next_number,padding)
+    values(p_org_id,p_document_type,case p_document_type
+      when 'journal' then 'JE-'
+      when 'inventory' then 'INV-'
+      when 'purchase' then 'PUR-'
+      when 'sale' then 'SAL-'
+      when 'expense' then 'EXP-'
+      when 'payment' then 'PAY-'
+      else upper(left(p_document_type,3))||'-'
+    end,2,6)
+    on conflict(organization_id,document_type) do nothing;
+
+    select prefix,next_number,padding
+      into v_prefix,v_next,v_padding
+    from public.number_sequences
+    where organization_id=p_org_id and document_type=p_document_type
+    for update;
+  end if;
+
+  update public.number_sequences
+  set next_number=v_next+1
+  where organization_id=p_org_id and document_type=p_document_type;
+
+  return v_prefix||lpad(v_next::text,v_padding,'0');
+end;
+$;
+
+create or replace function private.require_postable_account(
+  p_org_id uuid,
+  p_account_id uuid,
+  p_expected_type text default null
+)
+returns void
+language plpgsql
+security definer
+set search_path=''
+as $
+declare
+  v_type text;
+begin
+  select account_type
+    into v_type
+  from public.accounts
+  where id=p_account_id
+    and organization_id=p_org_id
+    and is_active
+    and is_postable;
+
+  if v_type is null then
+    raise exception 'account is not active/postable';
+  end if;
+
+  if p_expected_type is not null and v_type<>p_expected_type then
+    raise exception 'account type mismatch: expected %, got %',p_expected_type,v_type;
+  end if;
+end;
+$;
+
+create or replace function private.open_period_for_date(
+  p_org_id uuid,
+  p_date date
+)
+returns uuid
+language plpgsql
+security definer
+set search_path=''
+as $
+declare
+  v_period uuid;
+begin
+  select id into v_period
+  from public.accounting_periods
+  where organization_id=p_org_id
+    and status='open'
+    and p_date between start_date and end_date;
+
+  if v_period is null then
+    raise exception 'no open accounting period covers %',p_date;
+  end if;
+
+  return v_period;
+end;
+$;
+
+create or replace function private.create_posted_journal(
+  p_org_id uuid,
+  p_date date,
+  p_entry_type text,
+  p_reference_type text,
+  p_reference_id uuid,
+  p_description text,
+  p_lines jsonb,
+  p_reversal_of_id uuid default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path=''
+as $
+declare
+  v_journal_id uuid;
+  v_period_id uuid;
+  v_entry_number text;
+  v_line record;
+  v_count integer:=0;
+begin
+  v_period_id:=private.open_period_for_date(p_org_id,p_date);
+  v_entry_number:=private.next_number(p_org_id,'journal');
+
+  if jsonb_typeof(p_lines)<>'array' or jsonb_array_length(p_lines)<2 then
+    raise exception 'journal requires at least two lines';
+  end if;
+
+  insert into public.journal_entries(
+    organization_id,entry_number,accounting_period_id,entry_date,
+    entry_type,status,reference_type,reference_id,description,
+    reversal_of_id,created_by
+  )
+  values(
+    p_org_id,v_entry_number,v_period_id,p_date,
+    p_entry_type,'draft',p_reference_type,p_reference_id,p_description,
+    p_reversal_of_id,(select auth.uid())
+  )
+  returning id into v_journal_id;
+
+  for v_line in
+    select *
+    from jsonb_to_recordset(p_lines) as x(
+      account_id uuid,
+      debit numeric,
+      credit numeric,
+      description text,
+      contact_id uuid
+    )
+  loop
+    v_count:=v_count+1;
+
+    if coalesce(v_line.debit,0)<0 or coalesce(v_line.credit,0)<0
+       or ((coalesce(v_line.debit,0)=0)=(coalesce(v_line.credit,0)=0))
+    then
+      raise exception 'invalid journal line %',v_count;
+    end if;
+
+    insert into public.account_transactions(
+      organization_id,journal_entry_id,account_id,line_number,
+      description,debit,credit,contact_id
+    )
+    values(
+      p_org_id,v_journal_id,v_line.account_id,v_count,
+      v_line.description,coalesce(v_line.debit,0),
+      coalesce(v_line.credit,0),v_line.contact_id
+    );
+  end loop;
+
+  update public.journal_entries
+  set status='posted'
+  where id=v_journal_id and organization_id=p_org_id;
+
+  return v_journal_id;
+end;
+$;
+
+-- Strengthen direct document posting: only a matching posted journal may post a
+-- business document. This prevents an authenticated client from posting a
+-- document by merely changing status through the table policy.
+create or replace function private.guard_posted_document()
+returns trigger
+language plpgsql
+security definer
+set search_path=''
+as $
+declare
+  v_journal_status text;
+  v_ref_type text;
+  v_entry_type text;
+begin
+  if tg_op='DELETE' then
+    if old.status='posted' then
+      raise exception 'posted documents cannot be deleted';
+    end if;
+    return old;
+  end if;
+
+  if old.status='posted' then
+    raise exception 'posted documents cannot be modified';
+  end if;
+
+  if old.status='cancelled' and new.status<>'cancelled' then
+    raise exception 'cancelled documents cannot be reopened';
+  end if;
+
+  if new.status='draft' and new.posted_journal_entry_id is not null then
+    raise exception 'draft document cannot reference a posted journal';
+  end if;
+
+  if new.status='posted' then
+    if new.posted_journal_entry_id is null then
+      raise exception 'posted document requires posted_journal_entry_id';
+    end if;
+
+    select status,reference_type,entry_type
+      into v_journal_status,v_ref_type,v_entry_type
+    from public.journal_entries
+    where id=new.posted_journal_entry_id
+      and organization_id=new.organization_id;
+
+    if v_journal_status<>'posted' then
+      raise exception 'document journal must be posted';
+    end if;
+
+    if tg_table_name='purchase_invoices' then
+      v_ref_type:='purchase_invoice';
+      if v_entry_type<>case when new.document_type='return' then 'purchase_return' else 'purchase' end then
+        raise exception 'purchase journal entry type mismatch';
+      end if;
+    elsif tg_table_name='sales_invoices' then
+      v_ref_type:='sales_invoice';
+      if v_entry_type<>case when new.document_type='return' then 'sale_return' else 'sale' end then
+        raise exception 'sales journal entry type mismatch';
+      end if;
+    elsif tg_table_name='expenses' then
+      v_ref_type:='expense';
+      if v_entry_type<>'expense' then
+        raise exception 'expense journal entry type mismatch';
+      end if;
+    elsif tg_table_name='payments' then
+      v_ref_type:='payment';
+      if v_entry_type not in('payment','refund') then
+        raise exception 'payment journal entry type mismatch';
+      end if;
+    end if;
+
+    if (select reference_type from public.journal_entries
+        where id=new.posted_journal_entry_id
+          and organization_id=new.organization_id)<>v_ref_type
+       or
+       (select reference_id from public.journal_entries
+        where id=new.posted_journal_entry_id
+          and organization_id=new.organization_id)<>new.id
+    then
+      raise exception 'document journal reference mismatch';
+    end if;
+  end if;
+
+  return new;
+end;
+$;
+
+-- Purchase posting: inventory/AP and purchase-return/AP reversal.
+create or replace function public.post_purchase_invoice(
+  p_invoice_id uuid,
+  p_payable_account_id uuid
+)
+returns uuid
+language plpgsql
+security definer
+set search_path=''
+as $
+declare
+  v_invoice public.purchase_invoices%rowtype;
+  v_item record;
+  v_balance public.inventory_balances%rowtype;
+  v_journal_id uuid;
+  v_lines jsonb:='[]'::jsonb;
+  v_amount numeric(20,8);
+  v_old_value numeric(20,8);
+  v_new_qty numeric(20,8);
+  v_new_value numeric(20,8);
+  v_new_avg numeric(20,16);
+  v_total numeric(20,8):=0;
+begin
+  select * into v_invoice
+  from public.purchase_invoices
+  where id=p_invoice_id
+  for update;
+
+  if not found then raise exception 'purchase invoice not found'; end if;
+  if not private.has_org_role(v_invoice.organization_id,array['owner','admin','manager','staff']) then
+    raise exception 'not authorized';
+  end if;
+  if v_invoice.status<>'draft' then raise exception 'purchase invoice is not draft'; end if;
+
+  perform private.require_postable_account(v_invoice.organization_id,p_payable_account_id,'liability');
+
+  if v_invoice.document_type='return' and v_invoice.original_invoice_id is null then
+    raise exception 'purchase return requires original invoice';
+  end if;
+
+  if v_invoice.document_type='return' and not exists(
+    select 1 from public.purchase_invoices
+    where id=v_invoice.original_invoice_id
+      and organization_id=v_invoice.organization_id
+      and status='posted'
+  ) then
+    raise exception 'purchase return requires posted original invoice';
+  end if;
+
+  for v_item in
+    select pi.*,p.inventory_account_id
+    from public.purchase_items pi
+    join public.products p on p.id=pi.product_id and p.organization_id=pi.organization_id
+    where pi.purchase_invoice_id=v_invoice.id
+      and pi.organization_id=v_invoice.organization_id
+    order by pi.product_id,pi.line_number
+  loop
+    insert into public.inventory_balances(organization_id,product_id)
+    values(v_invoice.organization_id,v_item.product_id)
+    on conflict(organization_id,product_id) do nothing;
+
+    select * into v_balance
+    from public.inventory_balances
+    where organization_id=v_invoice.organization_id and product_id=v_item.product_id
+    for update;
+
+    if v_invoice.document_type='purchase' then
+      v_amount:=v_item.line_total;
+      v_old_value:=v_balance.inventory_value;
+      v_new_qty:=v_balance.quantity+v_item.quantity;
+      v_new_value:=round(v_old_value+v_amount,8);
+      v_new_avg:=case when v_new_qty=0 then 0 else v_new_value/v_new_qty end;
+
+      v_lines:=v_lines||jsonb_build_array(jsonb_build_object(
+        'account_id',v_item.inventory_account_id,
+        'debit',v_amount,'credit',0,
+        'description','Inventory receipt - '||v_item.line_number
+      ));
+
+      insert into public.inventory_transactions(
+        organization_id,transaction_number,product_id,transaction_date,
+        transaction_type,direction,quantity,unit_cost,total_value,
+        reference_type,reference_id,unit_cost_before,average_cost_after,created_by
+      )
+      values(
+        v_invoice.organization_id,private.next_number(v_invoice.organization_id,'inventory'),
+        v_item.product_id,v_invoice.invoice_date,'purchase','in',
+        v_item.quantity,v_item.net_unit_cost,v_amount,
+        'purchase_invoice',v_invoice.id,v_balance.average_cost,v_new_avg,(select auth.uid())
+      );
+    else
+      if v_item.original_item_id is null then raise exception 'purchase return line requires original_item_id'; end if;
+      v_amount:=v_item.line_total;
+      if v_item.quantity>v_balance.quantity then
+        raise exception 'purchase return would make stock negative for product %',v_item.product_id;
+      end if;
+      v_old_value:=v_balance.inventory_value;
+      v_new_qty:=v_balance.quantity-v_item.quantity;
+      v_new_value:=round(v_old_value-v_amount,8);
+      if v_new_value<0 then
+        raise exception 'purchase return would make inventory value negative for product %',v_item.product_id;
+      end if;
+      v_new_avg:=case when v_new_qty=0 then 0 else v_new_value/v_new_qty end;
+
+      v_lines:=v_lines||jsonb_build_array(jsonb_build_object(
+        'account_id',v_item.inventory_account_id,
+        'debit',0,'credit',v_amount,
+        'description','Inventory return - '||v_item.line_number
+      ));
+
+      insert into public.inventory_transactions(
+        organization_id,transaction_number,product_id,transaction_date,
+        transaction_type,direction,quantity,unit_cost,total_value,
+        reference_type,reference_id,unit_cost_before,average_cost_after,created_by
+      )
+      values(
+        v_invoice.organization_id,private.next_number(v_invoice.organization_id,'inventory'),
+        v_item.product_id,v_invoice.invoice_date,'purchase_return','out',
+        v_item.quantity,v_item.net_unit_cost,v_amount,
+        'purchase_invoice',v_invoice.id,v_balance.average_cost,v_new_avg,(select auth.uid())
+      );
+    end if;
+
+    update public.inventory_balances
+    set quantity=v_new_qty,average_cost=v_new_avg,
+        inventory_value=v_new_value,updated_at=now()
+    where id=v_balance.id;
+
+    v_total:=v_total+v_amount;
+  end loop;
+
+  if v_total<>v_invoice.total_amount then
+    raise exception 'purchase inventory total does not equal invoice total';
+  end if;
+
+  if v_invoice.document_type='purchase' then
+    v_lines:=v_lines||jsonb_build_array(jsonb_build_object(
+      'account_id',p_payable_account_id,'debit',0,'credit',v_invoice.total_amount,
+      'description','Accounts payable - '||v_invoice.invoice_number,
+      'contact_id',v_invoice.supplier_id
+    ));
+    v_journal_id:=private.create_posted_journal(
+      v_invoice.organization_id,v_invoice.invoice_date,'purchase',
+      'purchase_invoice',v_invoice.id,'Purchase invoice '||v_invoice.invoice_number,v_lines
+    );
+  else
+    v_lines:=v_lines||jsonb_build_array(jsonb_build_object(
+      'account_id',p_payable_account_id,'debit',v_invoice.total_amount,'credit',0,
+      'description','Purchase return payable reversal - '||v_invoice.invoice_number,
+      'contact_id',v_invoice.supplier_id
+    ));
+    v_journal_id:=private.create_posted_journal(
+      v_invoice.organization_id,v_invoice.invoice_date,'purchase_return',
+      'purchase_invoice',v_invoice.id,'Purchase return '||v_invoice.invoice_number,v_lines
+    );
+  end if;
+
+  update public.purchase_invoices
+  set posted_journal_entry_id=v_journal_id,status='posted'
+  where id=v_invoice.id and organization_id=v_invoice.organization_id;
+
+  return v_journal_id;
+end;
+$;
+
+-- Sales posting: WAC/COGS plus AR/revenue; sales returns reverse both.
+create or replace function public.post_sales_invoice(
+  p_invoice_id uuid,
+  p_receivable_account_id uuid
+)
+returns uuid
+language plpgsql
+security definer
+set search_path=''
+as $
+declare
+  v_invoice public.sales_invoices%rowtype;
+  v_group record;
+  v_item record;
+  v_balance public.inventory_balances%rowtype;
+  v_journal_id uuid;
+  v_lines jsonb:='[]'::jsonb;
+  v_cogs numeric(20,8);
+  v_total_cogs numeric(20,8):=0;
+  v_qty numeric(20,8);
+  v_new_qty numeric(20,8);
+  v_new_value numeric(20,8);
+  v_new_avg numeric(20,16);
+  v_wac numeric(20,16);
+  v_inventory_account uuid;
+  v_cogs_account uuid;
+  v_sales_account uuid;
+begin
+  select * into v_invoice
+  from public.sales_invoices
+  where id=p_invoice_id
+  for update;
+
+  if not found then raise exception 'sales invoice not found'; end if;
+  if not private.has_org_role(v_invoice.organization_id,array['owner','admin','manager','staff']) then
+    raise exception 'not authorized';
+  end if;
+  if v_invoice.status<>'draft' then raise exception 'sales invoice is not draft'; end if;
+
+  perform private.require_postable_account(v_invoice.organization_id,p_receivable_account_id,'asset');
+
+  if v_invoice.document_type='return' and not exists(
+    select 1 from public.sales_invoices
+    where id=v_invoice.original_invoice_id
+      and organization_id=v_invoice.organization_id
+      and status='posted'
+  ) then
+    raise exception 'sales return requires posted original invoice';
+  end if;
+
+  -- Normal sales: one WAC snapshot per product, even when the invoice has
+  -- multiple lines for the same product.
+  if v_invoice.document_type='sale' then
+    for v_group in
+      select product_id,sum(quantity) qty
+      from public.sales_items
+      where sales_invoice_id=v_invoice.id and organization_id=v_invoice.organization_id
+      group by product_id
+      order by product_id
+    loop
+      insert into public.inventory_balances(organization_id,product_id)
+      values(v_invoice.organization_id,v_group.product_id)
+      on conflict(organization_id,product_id) do nothing;
+
+      select * into v_balance
+      from public.inventory_balances
+      where organization_id=v_invoice.organization_id and product_id=v_group.product_id
+      for update;
+
+      if v_group.qty>v_balance.quantity then
+        raise exception 'insufficient stock for product %',v_group.product_id;
+      end if;
+
+      v_wac:=v_balance.average_cost;
+
+      select inventory_account_id,cogs_account_id
+        into v_inventory_account,v_cogs_account
+      from public.products
+      where id=v_group.product_id and organization_id=v_invoice.organization_id;
+
+      for v_item in
+        select * from public.sales_items
+        where sales_invoice_id=v_invoice.id
+          and organization_id=v_invoice.organization_id
+          and product_id=v_group.product_id
+        order by line_number
+      loop
+        v_cogs:=round(v_wac*v_item.quantity,8);
+        update public.sales_items
+        set cogs_unit_cost=v_wac,cogs_total=v_cogs
+        where id=v_item.id and organization_id=v_invoice.organization_id;
+        v_total_cogs:=v_total_cogs+v_cogs;
+      end loop;
+
+      v_new_qty:=v_balance.quantity-v_group.qty;
+      v_new_value:=round(v_balance.inventory_value-(v_wac*v_group.qty),8);
+      if v_new_value<0 then raise exception 'inventory value would become negative'; end if;
+      v_new_avg:=case when v_new_qty=0 then 0 else v_new_value/v_new_qty end;
+
+      insert into public.inventory_transactions(
+        organization_id,transaction_number,product_id,transaction_date,
+        transaction_type,direction,quantity,unit_cost,total_value,
+        reference_type,reference_id,unit_cost_before,average_cost_after,created_by
+      )
+      values(
+        v_invoice.organization_id,private.next_number(v_invoice.organization_id,'inventory'),
+        v_group.product_id,v_invoice.invoice_date,'sale','out',
+        v_group.qty,v_wac,round(v_wac*v_group.qty,8),
+        'sales_invoice',v_invoice.id,v_balance.average_cost,v_new_avg,(select auth.uid())
+      );
+
+      v_lines:=v_lines||jsonb_build_array(
+        jsonb_build_object('account_id',v_cogs_account,'debit',round(v_wac*v_group.qty,8),'credit',0,'description','COGS - '||v_group.product_id),
+        jsonb_build_object('account_id',v_inventory_account,'debit',0,'credit',round(v_wac*v_group.qty,8),'description','Inventory relief - '||v_group.product_id)
+      );
+
+      update public.inventory_balances
+      set quantity=v_new_qty,average_cost=v_new_avg,
+          inventory_value=v_new_value,updated_at=now()
+      where id=v_balance.id;
+    end loop;
+  else
+    for v_group in
+      select product_id,sum(quantity) qty
+      from public.sales_items
+      where sales_invoice_id=v_invoice.id and organization_id=v_invoice.organization_id
+      group by product_id
+      order by product_id
+    loop
+      insert into public.inventory_balances(organization_id,product_id)
+      values(v_invoice.organization_id,v_group.product_id)
+      on conflict(organization_id,product_id) do nothing;
+
+      select * into v_balance
+      from public.inventory_balances
+      where organization_id=v_invoice.organization_id and product_id=v_group.product_id
+      for update;
+
+      select inventory_account_id,cogs_account_id,sales_account_id
+        into v_inventory_account,v_cogs_account,v_sales_account
+      from public.products
+      where id=v_group.product_id and organization_id=v_invoice.organization_id;
+
+      for v_item in
+        select * from public.sales_items
+        where sales_invoice_id=v_invoice.id
+          and organization_id=v_invoice.organization_id
+          and product_id=v_group.product_id
+        order by line_number
+      loop
+        if v_item.cogs_unit_cost is null then
+          raise exception 'sales return requires historical COGS';
+        end if;
+        v_cogs:=v_item.cogs_total;
+        v_total_cogs:=v_total_cogs+v_cogs;
+      end loop;
+
+      v_new_qty:=v_balance.quantity+v_group.qty;
+      v_new_value:=round(v_balance.inventory_value+v_total_cogs,8);
+      v_new_avg:=case when v_new_qty=0 then 0 else v_new_value/v_new_qty end;
+
+      insert into public.inventory_transactions(
+        organization_id,transaction_number,product_id,transaction_date,
+        transaction_type,direction,quantity,unit_cost,total_value,
+        reference_type,reference_id,unit_cost_before,average_cost_after,created_by
+      )
+      values(
+        v_invoice.organization_id,private.next_number(v_invoice.organization_id,'inventory'),
+        v_group.product_id,v_invoice.invoice_date,'sale_return','in',
+        v_group.qty,case when v_group.qty=0 then 0 else v_total_cogs/v_group.qty end,
+        v_total_cogs,'sales_invoice',v_invoice.id,v_balance.average_cost,v_new_avg,(select auth.uid())
+      );
+
+      v_lines:=v_lines||jsonb_build_array(
+        jsonb_build_object('account_id',v_inventory_account,'debit',v_total_cogs,'credit',0,'description','Sales return inventory - '||v_group.product_id),
+        jsonb_build_object('account_id',v_cogs_account,'debit',0,'credit',v_total_cogs,'description','Reverse COGS - '||v_group.product_id)
+      );
+
+      update public.inventory_balances
+      set quantity=v_new_qty,average_cost=v_new_avg,
+          inventory_value=v_new_value,updated_at=now()
+      where id=v_balance.id;
+    end loop;
+  end if;
+
+  if v_invoice.document_type='sale' then
+    for v_item in
+      select si.product_id,si.line_total,p.sales_account_id
+      from public.sales_items si
+      join public.products p on p.id=si.product_id and p.organization_id=si.organization_id
+      where si.sales_invoice_id=v_invoice.id
+      order by si.line_number
+    loop
+      v_lines:=v_lines||jsonb_build_array(jsonb_build_object(
+        'account_id',v_item.sales_account_id,'debit',0,'credit',v_item.line_total,
+        'description','Sales revenue - '||v_item.product_id,
+        'contact_id',v_invoice.customer_id
+      ));
+    end loop;
+    v_lines:=v_lines||jsonb_build_array(jsonb_build_object(
+      'account_id',p_receivable_account_id,'debit',v_invoice.total_amount,'credit',0,
+      'description','Accounts receivable - '||v_invoice.invoice_number,
+      'contact_id',v_invoice.customer_id
+    ));
+    v_journal_id:=private.create_posted_journal(
+      v_invoice.organization_id,v_invoice.invoice_date,'sale',
+      'sales_invoice',v_invoice.id,'Sales invoice '||v_invoice.invoice_number,v_lines
+    );
+  else
+    for v_item in
+      select si.product_id,si.line_total,p.sales_account_id
+      from public.sales_items si
+      join public.products p on p.id=si.product_id and p.organization_id=si.organization_id
+      where si.sales_invoice_id=v_invoice.id
+      order by si.line_number
+    loop
+      v_lines:=v_lines||jsonb_build_array(jsonb_build_object(
+        'account_id',v_item.sales_account_id,'debit',v_item.line_total,
+        'credit',0,'description','Sales return revenue reversal - '||v_item.product_id,
+        'contact_id',v_invoice.customer_id
+      ));
+    end loop;
+    v_lines:=v_lines||jsonb_build_array(jsonb_build_object(
+      'account_id',p_receivable_account_id,'debit',0,'credit',v_invoice.total_amount,
+      'description','Accounts receivable return reversal - '||v_invoice.invoice_number,
+      'contact_id',v_invoice.customer_id
+    ));
+    v_journal_id:=private.create_posted_journal(
+      v_invoice.organization_id,v_invoice.invoice_date,'sale_return',
+      'sales_invoice',v_invoice.id,'Sales return '||v_invoice.invoice_number,v_lines
+    );
+  end if;
+
+  update public.sales_invoices
+  set posted_journal_entry_id=v_journal_id,status='posted'
+  where id=v_invoice.id and organization_id=v_invoice.organization_id;
+
+  return v_journal_id;
+end;
+$;
+
+-- Expense posting: expense debit against a payable/cash/liability account.
+create or replace function public.post_expense(
+  p_expense_id uuid,
+  p_credit_account_id uuid
+)
+returns uuid
+language plpgsql
+security definer
+set search_path=''
+as $
+declare
+  v_exp public.expenses%rowtype;
+  v_expense_account uuid;
+  v_journal_id uuid;
+  v_lines jsonb;
+begin
+  select * into v_exp from public.expenses where id=p_expense_id for update;
+  if not found then raise exception 'expense not found'; end if;
+  if not private.has_org_role(v_exp.organization_id,array['owner','admin','manager','staff']) then raise exception 'not authorized'; end if;
+  if v_exp.status<>'draft' then raise exception 'expense is not draft'; end if;
+
+  select expense_account_id into v_expense_account
+  from public.expense_categories
+  where id=v_exp.expense_category_id and organization_id=v_exp.organization_id and is_active;
+
+  if v_expense_account is null then raise exception 'expense category/account is inactive or missing'; end if;
+  perform private.require_postable_account(v_exp.organization_id,v_expense_account,'expense');
+  perform private.require_postable_account(v_exp.organization_id,p_credit_account_id,null);
+
+  v_lines:=jsonb_build_array(
+    jsonb_build_object('account_id',v_expense_account,'debit',v_exp.amount,'credit',0,'description',coalesce(v_exp.description,'Expense'),'contact_id',v_exp.contact_id),
+    jsonb_build_object('account_id',p_credit_account_id,'debit',0,'credit',v_exp.amount,'description','Expense settlement','contact_id',v_exp.contact_id)
+  );
+
+  v_journal_id:=private.create_posted_journal(
+    v_exp.organization_id,v_exp.expense_date,'expense',
+    'expense',v_exp.id,'Expense '||v_exp.expense_number,v_lines
+  );
+
+  update public.expenses
+  set posted_journal_entry_id=v_journal_id,status='posted'
+  where id=v_exp.id and organization_id=v_exp.organization_id;
+
+  return v_journal_id;
+end;
+$;
+
+-- Payment posting is atomic with its allocations. This avoids the classic
+-- "payment posted first, allocation added later" race and lets the journal be
+-- generated from the exact settlement event.
+create or replace function public.post_payment(
+  p_payment_id uuid,
+  p_settlement_account_id uuid,
+  p_allocations jsonb default '[]'::jsonb
+)
+returns uuid
+language plpgsql
+security definer
+set search_path=''
+as $
+declare
+  v_payment public.payments%rowtype;
+  v_alloc record;
+  v_journal_id uuid;
+  v_lines jsonb:='[]'::jsonb;
+  v_allocated numeric(20,8):=0;
+  v_remaining numeric(20,8);
+  v_debit numeric(20,8):=0;
+  v_credit numeric(20,8):=0;
+  v_expected_type text;
+  v_cash_side text;
+begin
+  select * into v_payment from public.payments where id=p_payment_id for update;
+  if not found then raise exception 'payment not found'; end if;
+  if not private.has_org_role(v_payment.organization_id,array['owner','admin','manager','staff']) then raise exception 'not authorized'; end if;
+  if v_payment.status<>'draft' then raise exception 'payment is not draft'; end if;
+  if jsonb_typeof(p_allocations)<>'array' then raise exception 'allocations must be a JSON array'; end if;
+
+  perform private.require_postable_account(v_payment.organization_id,v_payment.account_id,'asset');
+
+  if v_payment.payment_type in('receipt','refund_out') then
+    v_expected_type:='asset';
+  else
+    v_expected_type:='liability';
+  end if;
+  perform private.require_postable_account(v_payment.organization_id,p_settlement_account_id,v_expected_type);
+
+  if v_payment.payment_type in('receipt','payment') then
+    v_cash_side:=case when v_payment.payment_type='receipt' then 'debit' else 'credit' end;
+  else
+    v_cash_side:=case when v_payment.payment_type='refund_in' then 'debit' else 'credit' end;
+  end if;
+
+  if v_cash_side='debit' then
+    v_lines:=jsonb_build_array(jsonb_build_object(
+      'account_id',v_payment.account_id,'debit',v_payment.amount,'credit',0,
+      'description','Cash/bank receipt '||v_payment.payment_number,'contact_id',v_payment.contact_id
+    ));
+  else
+    v_lines:=jsonb_build_array(jsonb_build_object(
+      'account_id',v_payment.account_id,'debit',0,'credit',v_payment.amount,
+      'description','Cash/bank payment '||v_payment.payment_number,'contact_id',v_payment.contact_id
+    ));
+  end if;
+
+  for v_alloc in
+    select *
+    from jsonb_to_recordset(p_allocations) as x(
+      document_type text,
+      document_id uuid,
+      allocated_amount numeric
+    )
+  loop
+    if v_alloc.allocated_amount is null or v_alloc.allocated_amount<=0 then
+      raise exception 'allocation amount must be positive';
+    end if;
+
+    if v_payment.payment_type='receipt' and v_alloc.document_type<>'sale' then
+      raise exception 'receipt can allocate only to sales invoices';
+    elsif v_payment.payment_type='payment' and v_alloc.document_type not in('purchase','expense') then
+      raise exception 'payment can allocate only to purchase invoices or expenses';
+    elsif v_payment.payment_type='refund_in' and v_alloc.document_type<>'purchase_return' then
+      raise exception 'refund_in can allocate only to purchase returns';
+    elsif v_payment.payment_type='refund_out' and v_alloc.document_type<>'sale_return' then
+      raise exception 'refund_out can allocate only to sales returns';
+    end if;
+
+    v_allocated:=v_allocated+v_alloc.allocated_amount;
+
+    if v_payment.payment_type in('receipt','refund_in') then
+      v_lines:=v_lines||jsonb_build_array(jsonb_build_object(
+        'account_id',p_settlement_account_id,'debit',0,'credit',v_alloc.allocated_amount,
+        'description','Settlement allocation - '||v_alloc.document_type,
+        'contact_id',v_payment.contact_id
+      ));
+    else
+      v_lines:=v_lines||jsonb_build_array(jsonb_build_object(
+        'account_id',p_settlement_account_id,'debit',v_alloc.allocated_amount,'credit',0,
+        'description','Settlement allocation - '||v_alloc.document_type,
+        'contact_id',v_payment.contact_id
+      ));
+    end if;
+  end loop;
+
+  if v_allocated>v_payment.amount then
+    raise exception 'payment allocations exceed payment amount';
+  end if;
+
+  v_remaining:=round(v_payment.amount-v_allocated,8);
+  if v_remaining>0 then
+    if v_cash_side='debit' then
+      v_lines:=v_lines||jsonb_build_array(jsonb_build_object(
+        'account_id',p_settlement_account_id,'debit',0,'credit',v_remaining,
+        'description','Unallocated settlement balance','contact_id',v_payment.contact_id
+      ));
+    else
+      v_lines:=v_lines||jsonb_build_array(jsonb_build_object(
+        'account_id',p_settlement_account_id,'debit',v_remaining,'credit',0,
+        'description','Unallocated settlement balance','contact_id',v_payment.contact_id
+      ));
+    end if;
+  end if;
+
+  v_journal_id:=private.create_posted_journal(
+    v_payment.organization_id,v_payment.payment_date,
+    case when v_payment.payment_type in('refund_in','refund_out') then 'refund' else 'payment' end,
+    'payment',v_payment.id,'Payment '||v_payment.payment_number,v_lines
+  );
+
+  update public.payments
+  set posted_journal_entry_id=v_journal_id,status='posted'
+  where id=v_payment.id and organization_id=v_payment.organization_id;
+
+  -- Allocation trigger revalidates document status, compatibility and ceiling.
+  for v_alloc in
+    select *
+    from jsonb_to_recordset(p_allocations) as x(
+      document_type text,
+      document_id uuid,
+      allocated_amount numeric
+    )
+  loop
+    insert into public.payment_allocations(
+      organization_id,payment_id,document_type,document_id,allocated_amount
+    )
+    values(
+      v_payment.organization_id,v_payment.id,
+      v_alloc.document_type,v_alloc.document_id,v_alloc.allocated_amount
+    );
+  end loop;
+
+  return v_journal_id;
+end;
+$;
+
+-- Manual/opening journal entry. Owner/admin only; still passes the same
+-- period, account, balance and immutability gates as operational journals.
+create or replace function public.post_manual_journal(
+  p_org_id uuid,
+  p_entry_date date,
+  p_description text,
+  p_lines jsonb,
+  p_entry_type text default 'manual'
+)
+returns uuid
+language plpgsql
+security definer
+set search_path=''
+as $
+declare
+  v_journal_id uuid;
+begin
+  if not private.has_org_role(p_org_id,array['owner','admin']) then
+    raise exception 'not authorized';
+  end if;
+  if p_entry_type not in('manual','opening') then
+    raise exception 'manual journal entry type is invalid';
+  end if;
+
+  v_journal_id:=private.create_posted_journal(
+    p_org_id,p_entry_date,p_entry_type,null,null,p_description,p_lines
+  );
+  return v_journal_id;
+end;
+$;
+
+-- Reverse a posted journal into the current open period. The original remains
+-- untouched; the reversal is a new immutable posted journal.
+create or replace function public.reverse_journal(
+  p_journal_id uuid,
+  p_reversal_date date,
+  p_description text default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path=''
+as $
+declare
+  v_original public.journal_entries%rowtype;
+  v_new_id uuid;
+  v_lines jsonb:='[]'::jsonb;
+  v_line record;
+  v_period_id uuid;
+  v_entry_number text;
+begin
+  select * into v_original
+  from public.journal_entries
+  where id=p_journal_id
+  for update;
+
+  if not found then raise exception 'journal not found'; end if;
+  if not private.has_org_role(v_original.organization_id,array['owner','admin']) then raise exception 'not authorized'; end if;
+  if v_original.status<>'posted' then raise exception 'only posted journals can be reversed'; end if;
+  if exists(select 1 from public.journal_entries where organization_id=v_original.organization_id and reversal_of_id=v_original.id) then
+    raise exception 'journal has already been reversed';
+  end if;
+
+  v_period_id:=private.open_period_for_date(v_original.organization_id,p_reversal_date);
+  v_entry_number:=private.next_number(v_original.organization_id,'journal');
+
+  insert into public.journal_entries(
+    organization_id,entry_number,accounting_period_id,entry_date,
+    entry_type,status,reference_type,reference_id,description,
+    reversal_of_id,created_by
+  )
+  values(
+    v_original.organization_id,v_entry_number,v_period_id,p_reversal_date,
+    'reversal','draft','journal_entry',v_original.id,
+    coalesce(p_description,'Reversal of '||v_original.entry_number),
+    v_original.id,(select auth.uid())
+  )
+  returning id into v_new_id;
+
+  for v_line in
+    select * from public.account_transactions
+    where organization_id=v_original.organization_id
+      and journal_entry_id=v_original.id
+    order by line_number
+  loop
+    v_lines:=v_lines||jsonb_build_array(jsonb_build_object(
+      'account_id',v_line.account_id,
+      'debit',v_line.credit,
+      'credit',v_line.debit,
+      'description','Reversal of line '||v_line.line_number,
+      'contact_id',v_line.contact_id
+    ));
+  end loop;
+
+  -- Reuse the already-created header rather than creating a second header.
+  for v_line in
+    select *
+    from jsonb_to_recordset(v_lines) as x(
+      account_id uuid,debit numeric,credit numeric,description text,contact_id uuid
+    )
+  loop
+    insert into public.account_transactions(
+      organization_id,journal_entry_id,account_id,line_number,
+      description,debit,credit,contact_id
+    )
+    values(
+      v_original.organization_id,v_new_id,
+      v_line.account_id,
+      (select coalesce(max(line_number),0)+1 from public.account_transactions where journal_entry_id=v_new_id),
+      v_line.description,v_line.debit,v_line.credit,v_line.contact_id
+    );
+  end loop;
+
+  update public.journal_entries set status='posted' where id=v_new_id;
+  return v_new_id;
+end;
+$;
+
+-- Strengthen payment allocations with payment-type compatibility and a
+-- document-level ceiling, not merely a payment-level ceiling.
+create or replace function private.validate_payment_allocation()
+returns trigger
+language plpgsql
+security definer
+set search_path=''
+as $
+declare
+  pa numeric(30,8);
+  ps text;
+  pt text;
+  allocated numeric(30,8);
+  doc_allocated numeric(30,8);
+  doc_total numeric(30,8);
+  ok boolean:=false;
+begin
+  select amount,status,payment_type into pa,ps,pt
+  from public.payments
+  where id=new.payment_id and organization_id=new.organization_id;
+
+  if ps is null then raise exception 'payment not found'; end if;
+  if ps<>'posted' then raise exception 'payment must be posted before allocation'; end if;
+
+  if pt='receipt' and new.document_type<>'sale' then raise exception 'receipt allocation type mismatch'; end if;
+  if pt='payment' and new.document_type not in('purchase','expense') then raise exception 'payment allocation type mismatch'; end if;
+  if pt='refund_in' and new.document_type<>'purchase_return' then raise exception 'refund_in allocation type mismatch'; end if;
+  if pt='refund_out' and new.document_type<>'sale_return' then raise exception 'refund_out allocation type mismatch'; end if;
+
+  if new.document_type in('purchase','purchase_return','expense') then
+    if new.document_type='expense' then
+      select exists(select 1 from public.expenses where id=new.document_id and organization_id=new.organization_id and status='posted'),
+             coalesce((select amount from public.expenses where id=new.document_id and organization_id=new.organization_id),0)
+        into ok,doc_total;
+    else
+      select exists(select 1 from public.purchase_invoices where id=new.document_id and organization_id=new.organization_id and status='posted'),
+             coalesce((select total_amount from public.purchase_invoices where id=new.document_id and organization_id=new.organization_id),0)
+        into ok,doc_total;
+    end if;
+  else
+    select exists(select 1 from public.sales_invoices where id=new.document_id and organization_id=new.organization_id and status='posted'),
+           coalesce((select total_amount from public.sales_invoices where id=new.document_id and organization_id=new.organization_id),0)
+      into ok,doc_total;
+  end if;
+
+  if not ok then raise exception 'allocation target must be posted'; end if;
+
+  select coalesce(sum(allocated_amount),0)
+    into allocated
+  from public.payment_allocations
+  where organization_id=new.organization_id
+    and payment_id=new.payment_id
+    and id<>coalesce(new.id,'00000000-0000-0000-0000-000000000000'::uuid);
+
+  if allocated+new.allocated_amount>pa then
+    raise exception 'payment allocations exceed payment amount';
+  end if;
+
+  select coalesce(sum(allocated_amount),0)
+    into doc_allocated
+  from public.payment_allocations
+  where organization_id=new.organization_id
+    and document_type=new.document_type
+    and document_id=new.document_id
+    and id<>coalesce(new.id,'00000000-0000-0000-0000-000000000000'::uuid);
+
+  if doc_allocated+new.allocated_amount>doc_total then
+    raise exception 'document allocations exceed document amount';
+  end if;
+
+  return new;
+end;
+$;
+
+-- Public RPC execution boundary.
+revoke all on function public.post_purchase_invoice(uuid,uuid) from public;
+revoke all on function public.post_sales_invoice(uuid,uuid) from public;
+revoke all on function public.post_expense(uuid,uuid) from public;
+revoke all on function public.post_payment(uuid,uuid,jsonb) from public;
+revoke all on function public.post_manual_journal(uuid,date,text,jsonb,text) from public;
+revoke all on function public.reverse_journal(uuid,date,text) from public;
+
+grant execute on function public.post_purchase_invoice(uuid,uuid) to authenticated;
+grant execute on function public.post_sales_invoice(uuid,uuid) to authenticated;
+grant execute on function public.post_expense(uuid,uuid) to authenticated;
+grant execute on function public.post_payment(uuid,uuid,jsonb) to authenticated;
+grant execute on function public.post_manual_journal(uuid,date,text,jsonb,text) to authenticated;
+grant execute on function public.reverse_journal(uuid,date,text) to authenticated;
+
 -- RLS boundary for all 21 public tables.
 do $ declare t text; begin foreach t in array array['profiles','organizations','organization_users','units_of_measure','products','contacts','number_sequences','accounts','journal_entries','account_transactions','accounting_periods','purchase_invoices','purchase_items','sales_invoices','sales_items','inventory_balances','inventory_transactions','expense_categories','expenses','payments','payment_allocations'] loop execute format('alter table public.%I enable row level security',t); execute format('revoke all on table public.%I from anon,authenticated',t); execute format('grant select on table public.%I to authenticated',t); end loop; end $$;
 
