@@ -417,7 +417,7 @@ returns text
 language plpgsql
 security definer
 set search_path=''
-as $sequence_guard$
+as $next_number$
 declare
   v_prefix text;
   v_next bigint;
