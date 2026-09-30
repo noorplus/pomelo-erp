@@ -1266,7 +1266,8 @@ declare
 begin
   select amount,status,payment_type into pa,ps,pt
   from public.payments
-  where id=new.payment_id and organization_id=new.organization_id;
+  where id=new.payment_id and organization_id=new.organization_id
+  for update;
 
   if ps is null then raise exception 'payment not found'; end if;
   if ps<>'posted' then raise exception 'payment must be posted before allocation'; end if;
@@ -1293,6 +1294,16 @@ begin
   end if;
 
   if not ok then raise exception 'allocation target must be posted'; end if;
+
+  if pt in('receipt','refund_out') and new.document_type in('sale','sale_return') then
+    if (select customer_id from public.sales_invoices where id=new.document_id and organization_id=new.organization_id) is distinct from (select contact_id from public.payments where id=new.payment_id and organization_id=new.organization_id) then
+      raise exception 'payment contact does not match sales customer';
+    end if;
+  elsif pt in('payment','refund_in') and new.document_type in('purchase','purchase_return') then
+    if (select supplier_id from public.purchase_invoices where id=new.document_id and organization_id=new.organization_id) is distinct from (select contact_id from public.payments where id=new.payment_id and organization_id=new.organization_id) then
+      raise exception 'payment contact does not match purchase supplier';
+    end if;
+  end if;
 
   select coalesce(sum(allocated_amount),0)
     into allocated
