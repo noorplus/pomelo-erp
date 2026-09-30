@@ -1,0 +1,75 @@
+"use client";
+
+import { FormEvent, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/browser";
+
+export default function LoginPage() {
+  const searchParams = useSearchParams();
+  const next = searchParams.get("next") || "/dashboard";
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPending(true);
+    setError("");
+
+    const supabase = createClient();
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (signInError) {
+      setError(signInError.message);
+      setPending(false);
+      return;
+    }
+
+    window.location.assign(next);
+  }
+
+  return (
+    <main className="auth-shell">
+      <section className="auth-card">
+        <div className="brand-mark">P</div>
+        <p className="eyebrow">Pomelo ERP</p>
+        <h1>Sign in</h1>
+        <p className="auth-copy">Access your inventory, sales, purchasing, and accounting workspace.</p>
+
+        <form onSubmit={handleSubmit} className="form-stack">
+          <label>
+            Email
+            <input
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              autoComplete="email"
+              required
+            />
+          </label>
+
+          <label>
+            Password
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              autoComplete="current-password"
+              required
+            />
+          </label>
+
+          {error ? <p className="form-error" role="alert">{error}</p> : null}
+
+          <button className="primary-button" type="submit" disabled={pending}>
+            {pending ? "Signing in…" : "Sign in"}
+          </button>
+        </form>
+      </section>
+    </main>
+  );
+}
