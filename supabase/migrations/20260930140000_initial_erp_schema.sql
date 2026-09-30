@@ -460,8 +460,7 @@ begin
 
   return v_prefix||lpad(v_next::text,v_padding,'0');
 end;
-$$;
-
+$next_number$;
 create or replace function private.require_postable_account(
   p_org_id uuid,
   p_account_id uuid,
