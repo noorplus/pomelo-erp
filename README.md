@@ -23,3 +23,6 @@ Core domains:
 - Inventory valuation and accounting inventory must reconcile.
 - Debit and credit totals must balance for every journal entry.
 - Build and test each domain incrementally before integrating the next one.
+
+
+<!-- CI validation trigger: final isolated database validation -->
