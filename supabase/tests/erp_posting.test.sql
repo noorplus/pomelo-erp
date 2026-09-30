@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(25);
+select plan(27);
 
 do $seed$
 declare
@@ -366,13 +366,35 @@ select is(
 );
 
 select throws_ok(
-  $$
+  $
   update public.sales_invoices
   set status='posted'
   where id=current_setting('erp.test.sale')::uuid
-  $$,
+  $,
   'P0001',
   'posted documents cannot be modified'
+);
+
+select throws_ok(
+  $
+  update public.number_sequences
+  set next_number=999999
+  where organization_id=current_setting('erp.test.org')::uuid
+    and document_type='journal'
+  $,
+  'P0001',
+  'sequence counters cannot be directly modified'
+);
+
+select throws_ok(
+  $
+  delete from public.organization_users
+  where organization_id=current_setting('erp.test.org')::uuid
+    and role='owner'
+    and is_active
+  $,
+  'P0001',
+  'organization cannot lose its last active owner'
 );
 
 select is(
