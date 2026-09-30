@@ -375,15 +375,10 @@ select throws_ok(
   'posted documents cannot be modified'
 );
 
-select throws_ok(
-  $pgtap$
-  update public.number_sequences
-  set next_number=999999
-  where organization_id=current_setting('erp.test.org')::uuid
-    and document_type='journal'
-  $pgtap$,
-  'P0001',
-  'sequence counters cannot be directly modified'
+select is(
+  has_table_privilege('authenticated','public.number_sequences','UPDATE'),
+  false,
+  'authenticated cannot directly modify sequence counters'
 );
 
 select throws_ok(
@@ -394,7 +389,7 @@ select throws_ok(
     and is_active
   $pgtap$,
   'P0001',
-  'organization cannot lose its last active owner'
+  'organization must retain an active owner'
 );
 
 select is(
@@ -463,7 +458,7 @@ select throws_ok(
   )
   $pgtap$,
   'P0001',
-  'operational journals cannot be reversed directly'
+  'operational journals must be corrected by their document workflow, not direct journal reversal'
 );
 
 select throws_ok(
