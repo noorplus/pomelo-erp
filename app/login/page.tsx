@@ -6,7 +6,9 @@ import { createClient } from "@/lib/supabase/browser";
 
 function LoginPageContent() {
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") || "/dashboard";
+  const nextParam = searchParams.get("next");
+  const next = nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/dashboard";
+  const authError = searchParams.get("error");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
@@ -63,6 +65,8 @@ function LoginPageContent() {
             />
           </label>
 
+          {authError === "invalid_confirmation" ? <p className="form-error" role="alert">The email confirmation link is invalid or incomplete.</p> : null}
+          {authError === "confirmation_failed" ? <p className="form-error" role="alert">The email confirmation link has expired or is no longer valid.</p> : null}
           {error ? <p className="form-error" role="alert">{error}</p> : null}
 
           <button className="primary-button" type="submit" disabled={pending}>
