@@ -11,6 +11,7 @@ type User = { email?: string | null };
 const navigation = [
   { href: "/", label: "Dashboard", icon: "▥" },
   { href: "/products", label: "Products", icon: "▦" },
+  { href: "/contacts", label: "Contacts", icon: "◎" },
   { href: "/sales", label: "Sales", icon: "↗" },
   { href: "/purchases", label: "Purchases", icon: "↙" },
   { href: "/inventory", label: "Inventory", icon: "▤" },
