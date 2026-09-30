@@ -836,6 +836,9 @@ begin
       from public.products
       where id=v_group.product_id and organization_id=v_invoice.organization_id;
 
+      v_new_qty:=v_balance.quantity;
+      v_new_value:=v_balance.inventory_value;
+
       for v_item in
         select * from public.sales_items
         where sales_invoice_id=v_invoice.id
@@ -846,25 +849,27 @@ begin
         if v_item.cogs_unit_cost is null then
           raise exception 'sales return requires historical COGS';
         end if;
+
         v_cogs:=v_item.cogs_total;
         v_total_cogs:=v_total_cogs+v_cogs;
+        v_new_qty:=v_new_qty+v_item.quantity;
+        v_new_value:=round(v_new_value+v_cogs,8);
+        v_new_avg:=case when v_new_qty=0 then 0 else v_new_value/v_new_qty end;
+
+        insert into public.inventory_transactions(
+          organization_id,transaction_number,product_id,transaction_date,
+          transaction_type,direction,quantity,unit_cost,total_value,
+          reference_type,reference_id,unit_cost_before,average_cost_after,created_by
+        )
+        values(
+          v_invoice.organization_id,private.next_number(v_invoice.organization_id,'inventory'),
+          v_group.product_id,v_invoice.invoice_date,'sale_return','in',
+          v_item.quantity,v_item.cogs_unit_cost,v_cogs,
+          'sales_invoice',v_invoice.id,v_balance.average_cost,v_new_avg,(select auth.uid())
+        );
+
+        v_balance.average_cost:=v_new_avg;
       end loop;
-
-      v_new_qty:=v_balance.quantity+v_group.qty;
-      v_new_value:=round(v_balance.inventory_value+v_total_cogs,8);
-      v_new_avg:=case when v_new_qty=0 then 0 else v_new_value/v_new_qty end;
-
-      insert into public.inventory_transactions(
-        organization_id,transaction_number,product_id,transaction_date,
-        transaction_type,direction,quantity,unit_cost,total_value,
-        reference_type,reference_id,unit_cost_before,average_cost_after,created_by
-      )
-      values(
-        v_invoice.organization_id,private.next_number(v_invoice.organization_id,'inventory'),
-        v_group.product_id,v_invoice.invoice_date,'sale_return','in',
-        v_group.qty,case when v_group.qty=0 then 0 else v_total_cogs/v_group.qty end,
-        v_total_cogs,'sales_invoice',v_invoice.id,v_balance.average_cost,v_new_avg,(select auth.uid())
-      );
 
       v_lines:=v_lines||jsonb_build_array(
         jsonb_build_object('account_id',v_inventory_account,'debit',v_total_cogs,'credit',0,'description','Sales return inventory - '||v_group.product_id),
