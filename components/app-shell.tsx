@@ -9,8 +9,7 @@ type Organization = { id: string; name: string; role: "owner" | "admin" | "manag
 type User = { email?: string | null };
 
 const navigation = [
-  { href: "/", label: "Home", icon: "⌂" },
-  { href: "/dashboard", label: "Dashboard", icon: "▥" },
+  { href: "/", label: "Dashboard", icon: "▥" },
   { href: "/dashboard/products", label: "Products", icon: "▦" },
   { href: "/dashboard/sales", label: "Sales", icon: "↗" },
   { href: "/dashboard/purchases", label: "Purchases", icon: "↙" },
