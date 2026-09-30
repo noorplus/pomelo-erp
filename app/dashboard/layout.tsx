@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { SignOutButton } from "@/components/sign-out-button";
+import { findCurrentOrganization } from "@/lib/supabase/organization";
+import { redirect } from "next/navigation";
 
 const navigation = [
   { href: "/dashboard", label: "Overview", icon: "⌂" },
@@ -19,6 +21,9 @@ export default async function DashboardLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+  const organization = await findCurrentOrganization();
+
+  if (!organization) redirect("/onboarding");
 
   return (
     <div className="erp-shell">
@@ -27,7 +32,7 @@ export default async function DashboardLayout({
           <div className="brand-mark small">P</div>
           <div>
             <strong>Pomelo ERP</strong>
-            <span>Business management</span>
+            <span>{organization.name}</span>
           </div>
         </div>
 
@@ -57,7 +62,7 @@ export default async function DashboardLayout({
         <header className="topbar">
           <div>
             <p className="topbar-kicker">ERP workspace</p>
-            <strong>Operations & Finance</strong>
+            <strong>{organization.name} · Operations & Finance</strong>
           </div>
           <div className="topbar-status"><span /> System connected</div>
         </header>
