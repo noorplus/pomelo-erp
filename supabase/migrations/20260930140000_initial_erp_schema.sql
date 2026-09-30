@@ -194,6 +194,12 @@ create or replace function private.bootstrap_organization_owner() returns trigge
 revoke all on function private.bootstrap_organization_owner() from public;
 create trigger organizations_bootstrap_owner_trg after insert on public.organizations for each row execute function private.bootstrap_organization_owner();
 
+-- Tenant-bound rows can never be moved between organizations.
+create or replace function private.guard_tenant_id_change() returns trigger language plpgsql set search_path='' as $ begin if tg_op='UPDATE' and old.organization_id is distinct from new.organization_id then raise exception 'organization_id cannot be changed'; end if; return new; end; $;
+revoke all on function private.guard_tenant_id_change() from public;
+grant execute on function private.guard_tenant_id_change() to authenticated;
+do $ declare t text; begin foreach t in array array['organization_users','units_of_measure','accounting_periods','accounts','products','contacts','number_sequences','journal_entries','account_transactions','purchase_invoices','purchase_items','sales_invoices','sales_items','inventory_balances','inventory_transactions','expense_categories','expenses','payments','payment_allocations'] loop execute format('create trigger %I_tenant_guard_trg before update on public.%I for each row execute function private.guard_tenant_id_change()',t,t); end loop; end $;
+
 -- Prevent destructive mutation of posted journals.
 create or replace function private.guard_journal_mutation() returns trigger language plpgsql set search_path='' as $$ begin if tg_op='DELETE' then if old.status='posted' then raise exception 'posted journals cannot be deleted'; end if; return old; end if; if old.status='posted' then raise exception 'posted journals are immutable; use a reversal'; end if; return new; end; $$;
 create trigger journal_entries_immutable_trg before update or delete on public.journal_entries for each row execute function private.guard_journal_mutation();
