@@ -1484,11 +1484,11 @@ returns trigger
 language plpgsql
 security definer
 set search_path=''
-as $
+as $$
 begin
   raise exception 'payment allocations are immutable';
 end;
-$;
+$$;
 revoke all on function private.guard_payment_allocation_mutation() from public,authenticated;
 create trigger payment_allocations_immutable_trg
 before update or delete on public.payment_allocations
