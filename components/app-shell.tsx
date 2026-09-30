@@ -10,15 +10,15 @@ type User = { email?: string | null };
 
 const navigation = [
   { href: "/", label: "Dashboard", icon: "▥" },
-  { href: "/dashboard/products", label: "Products", icon: "▦" },
-  { href: "/dashboard/sales", label: "Sales", icon: "↗" },
-  { href: "/dashboard/purchases", label: "Purchases", icon: "↙" },
-  { href: "/dashboard/inventory", label: "Inventory", icon: "▤" },
-  { href: "/dashboard/accounting", label: "Accounting", icon: "◎" },
-  { href: "/dashboard/payments", label: "Payments", icon: "৳" },
-  { href: "/dashboard/expenses", label: "Expenses", icon: "−" },
-  { href: "/dashboard/reports", label: "Reports", icon: "▥" },
-  { href: "/dashboard/settings", label: "Settings", icon: "⚙" },
+  { href: "/products", label: "Products", icon: "▦" },
+  { href: "/sales", label: "Sales", icon: "↗" },
+  { href: "/purchases", label: "Purchases", icon: "↙" },
+  { href: "/inventory", label: "Inventory", icon: "▤" },
+  { href: "/accounting", label: "Accounting", icon: "◎" },
+  { href: "/payments", label: "Payments", icon: "৳" },
+  { href: "/expenses", label: "Expenses", icon: "−" },
+  { href: "/reports", label: "Reports", icon: "▥" },
+  { href: "/settings", label: "Settings", icon: "⚙" },
 ];
 
 function Navigation({ onNavigate }: { onNavigate: () => void }) {
