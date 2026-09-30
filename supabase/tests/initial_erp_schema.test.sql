@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(74);
+select plan(75);
 select has_schema('public','public schema');
 select has_table('public','profiles','profiles');
 select has_table('public','organizations','organizations');
@@ -80,5 +80,6 @@ select has_trigger('public','sales_invoices','sales_invoices_immutable_trg','sal
 select has_trigger('public','payments','payments_immutable_trg','payment document guard');
 select has_trigger('public','expenses','expenses_immutable_trg','expense document guard');
 select has_trigger('public','payment_allocations','payment_allocations_immutable_trg','allocation immutability');
+select is(has_table_privilege('authenticated','public.number_sequences','UPDATE'),false,'sequence counter update privilege revoked');
 select * from finish();
 rollback;
