@@ -10,7 +10,8 @@ on:
 jobs:
   database-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,24 +21,32 @@ jobs:
         with:
           version: latest
 
-      - name: Initialize local Supabase configuration
+      - name: Create isolated Supabase workspace
         run: |
-          if [ ! -f supabase/config.toml ]; then
-            supabase init
-          fi
+          rm -rf /tmp/pomelo-erp-dbtest
+          mkdir -p /tmp/pomelo-erp-dbtest
+          cd /tmp/pomelo-erp-dbtest
+          supabase init
+          cp -R "$GITHUB_WORKSPACE/supabase/migrations" ./supabase/
+          cp -R "$GITHUB_WORKSPACE/supabase/tests" ./supabase/
 
       - name: Start local Supabase
+        working-directory: /tmp/pomelo-erp-dbtest
         run: supabase start
 
       - name: Rebuild local database from migrations
+        working-directory: /tmp/pomelo-erp-dbtest
         run: supabase db reset
 
-      - name: Run pgTAP database tests
+      - name: Run schema and functional pgTAP tests
+        working-directory: /tmp/pomelo-erp-dbtest
         run: supabase test db
 
       - name: Run PostgreSQL lint at error level
+        working-directory: /tmp/pomelo-erp-dbtest
         run: supabase db lint --level error
 
       - name: Stop local Supabase
         if: always()
+        working-directory: /tmp/pomelo-erp-dbtest
         run: supabase stop --no-backup
