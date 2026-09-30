@@ -23,6 +23,7 @@ declare
   v_sale uuid;
   v_sale_item uuid;
   v_payment uuid;
+  v_overpay uuid;
   v_return_purchase uuid;
   v_return_purchase_item uuid;
   v_return_sale uuid;
@@ -397,19 +398,35 @@ select is(
   'no invalid zero/negative allocations exist'
 );
 
+do $test$
+begin
+  insert into public.payments(
+    organization_id,payment_number,payment_type,contact_id,payment_date,amount,account_id
+  )
+  values(current_setting('erp.test.org')::uuid,'PAY-TEST-CEILING','payment',
+         (select contact_id from public.payments where organization_id=current_setting('erp.test.org')::uuid limit 1),
+         '2026-09-07',100,
+         (select id from public.accounts where organization_id=current_setting('erp.test.org')::uuid and account_code='1000'))
+  returning id into v_overpay;
+
+  perform public.post_payment(
+    v_overpay,
+    (select id from public.accounts where organization_id=current_setting('erp.test.org')::uuid and account_code='2000'),
+    '[]'::jsonb
+  );
+end;
+$test$;
+
 select throws_ok(
-  $$
+  $
   insert into public.payment_allocations(
     organization_id,payment_id,document_type,document_id,allocated_amount
   )
-  select organization_id,payment_id,'sale',document_id,allocated_amount+1
-  from public.payment_allocations
-  where organization_id=current_setting('erp.test.org')::uuid
-    and document_type='sale'
-  limit 1
-  $$,
+  select current_setting('erp.test.org')::uuid,v_overpay,'purchase',
+         current_setting('erp.test.purchase')::uuid,81
+  $,
   'P0001',
-  'document allocation ceiling blocks over-allocation'
+  'document allocations exceed document amount'
 );
 
 select is(
