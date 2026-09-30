@@ -1489,6 +1489,10 @@ begin
   raise exception 'payment allocations are immutable';
 end;
 $$;
+create trigger payment_allocations_validation_trg
+before insert or update on public.payment_allocations
+for each row execute function private.validate_payment_allocation();
+
 revoke all on function private.guard_payment_allocation_mutation() from public,authenticated;
 create trigger payment_allocations_immutable_trg
 before update or delete on public.payment_allocations
