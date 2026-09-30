@@ -19,7 +19,7 @@ export default async function ModulePage({ params }: { params: Promise<{ module:
 
   return (
     <section className="module-workspace">
-      <Link href="/dashboard" className="back-link">← Overview</Link>
+      <Link href="/" className="back-link">← Overview</Link>
       <div className="workspace-card">
         <p className="eyebrow">ERP module</p>
         <h1>{item.title}</h1>
