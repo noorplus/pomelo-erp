@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(61);
+select plan(62);
 select has_schema('public','public schema');
 select has_table('public','profiles','profiles');
 select has_table('public','organizations','organizations');
@@ -23,6 +23,11 @@ select has_table('public','expense_categories','expense categories');
 select has_table('public','expenses','expenses');
 select has_table('public','payments','payments');
 select has_table('public','payment_allocations','allocations');
+select is(
+  (select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r'),
+  21::bigint,
+  'exactly 21 public ERP tables exist'
+);
 select has_function('private','is_org_member',ARRAY['uuid']);
 select has_function('private','has_org_role',ARRAY['uuid','text[]']);
 select has_function('private','validate_journal_post',ARRAY[]::text[],'journal posting validator');
