@@ -794,7 +794,8 @@ begin
   end if;
 
   update public.purchase_invoices
-  set posted_journal_entry_id=v_journal_id,status='posted'
+  set payable_account_id=p_payable_account_id,
+      posted_journal_entry_id=v_journal_id,status='posted'
   where id=v_invoice.id and organization_id=v_invoice.organization_id;
 
   return v_journal_id;
@@ -1041,7 +1042,8 @@ begin
   end if;
 
   update public.sales_invoices
-  set posted_journal_entry_id=v_journal_id,status='posted'
+  set receivable_account_id=p_receivable_account_id,
+      posted_journal_entry_id=v_journal_id,status='posted'
   where id=v_invoice.id and organization_id=v_invoice.organization_id;
 
   return v_journal_id;
@@ -1088,7 +1090,8 @@ begin
   );
 
   update public.expenses
-  set posted_journal_entry_id=v_journal_id,status='posted'
+  set payable_account_id=p_credit_account_id,
+      posted_journal_entry_id=v_journal_id,status='posted'
   where id=v_exp.id and organization_id=v_exp.organization_id;
 
   return v_journal_id;
@@ -1218,7 +1221,8 @@ begin
   );
 
   update public.payments
-  set posted_journal_entry_id=v_journal_id,status='posted'
+  set settlement_account_id=p_settlement_account_id,
+      posted_journal_entry_id=v_journal_id,status='posted'
   where id=v_payment.id and organization_id=v_payment.organization_id;
 
   -- Allocation trigger revalidates document status, compatibility and ceiling.
