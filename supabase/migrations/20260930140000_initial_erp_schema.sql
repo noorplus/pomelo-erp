@@ -537,6 +537,8 @@ declare
   v_journal_status text;
   v_ref_type text;
   v_entry_type text;
+  v_settlement_account_id uuid;
+  v_expected_type text;
 begin
   if tg_op='DELETE' then
     if old.status='posted' then
@@ -573,21 +575,45 @@ begin
     end if;
 
     if tg_table_name='purchase_invoices' then
+      v_settlement_account_id:=new.payable_account_id;
+      v_expected_type:='liability';
+      if v_settlement_account_id is null then raise exception 'posted purchase requires payable account'; end if;
+      perform private.require_postable_account(new.organization_id,v_settlement_account_id,v_expected_type);
+      if new.document_type='return' and v_settlement_account_id is distinct from
+         (select payable_account_id from public.purchase_invoices where id=new.original_invoice_id and organization_id=new.organization_id)
+      then raise exception 'purchase return must use original payable account'; end if;
       v_ref_type:='purchase_invoice';
       if v_entry_type<>case when new.document_type='return' then 'purchase_return' else 'purchase' end then
         raise exception 'purchase journal entry type mismatch';
       end if;
     elsif tg_table_name='sales_invoices' then
+      v_settlement_account_id:=new.receivable_account_id;
+      v_expected_type:='asset';
+      if v_settlement_account_id is null then raise exception 'posted sale requires receivable account'; end if;
+      perform private.require_postable_account(new.organization_id,v_settlement_account_id,v_expected_type);
+      if new.document_type='return' and v_settlement_account_id is distinct from
+         (select receivable_account_id from public.sales_invoices where id=new.original_invoice_id and organization_id=new.organization_id)
+      then raise exception 'sales return must use original receivable account'; end if;
       v_ref_type:='sales_invoice';
       if v_entry_type<>case when new.document_type='return' then 'sale_return' else 'sale' end then
         raise exception 'sales journal entry type mismatch';
       end if;
     elsif tg_table_name='expenses' then
+      v_settlement_account_id:=new.payable_account_id;
+      if v_settlement_account_id is null then raise exception 'posted expense requires payable account'; end if;
+      perform private.require_postable_account(new.organization_id,v_settlement_account_id,'liability');
       v_ref_type:='expense';
       if v_entry_type<>'expense' then
         raise exception 'expense journal entry type mismatch';
       end if;
     elsif tg_table_name='payments' then
+      v_settlement_account_id:=new.settlement_account_id;
+      if v_settlement_account_id is null then raise exception 'posted payment requires settlement account'; end if;
+      if new.payment_type in('receipt','refund_out') then
+        perform private.require_postable_account(new.organization_id,v_settlement_account_id,'asset');
+      else
+        perform private.require_postable_account(new.organization_id,v_settlement_account_id,'liability');
+      end if;
       v_ref_type:='payment';
       if v_entry_type not in('payment','refund') then
         raise exception 'payment journal entry type mismatch';
