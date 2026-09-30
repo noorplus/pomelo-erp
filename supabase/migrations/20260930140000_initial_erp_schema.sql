@@ -122,8 +122,12 @@ Committing this file changes GitHub only. It does not apply any database change.
 
 -- Required PostgreSQL extension for UUID generation.
 create extension if not exists pgcrypto;
--- Required for the non-overlapping accounting-period exclusion constraint.
-create extension if not exists btree_gist;
+-- Keep btree_gist out of the exposed public schema.
+create schema if not exists extensions;
+create extension if not exists btree_gist with schema extensions;
+-- Make extension-provided GiST operator classes resolvable when creating
+-- the accounting-period exclusion constraint below.
+set local search_path = extensions, public;
 -- Private security-definer helpers; intentionally outside the public API surface.
 create schema if not exists private;
 
