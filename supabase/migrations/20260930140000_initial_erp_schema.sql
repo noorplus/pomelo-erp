@@ -677,6 +677,9 @@ begin
 
   perform private.require_postable_account(v_invoice.organization_id,p_payable_account_id,'liability');
 
+  if v_invoice.payable_account_id is null then v_invoice.payable_account_id:=p_payable_account_id; end if;
+  if v_invoice.payable_account_id<>p_payable_account_id then raise exception 'purchase settlement account does not match historical mapping'; end if;
+
   if v_invoice.document_type='return' and v_invoice.original_invoice_id is null then
     raise exception 'purchase return requires original invoice';
   end if;
@@ -847,6 +850,9 @@ begin
   if v_invoice.status<>'draft' then raise exception 'sales invoice is not draft'; end if;
 
   perform private.require_postable_account(v_invoice.organization_id,p_receivable_account_id,'asset');
+
+  if v_invoice.receivable_account_id is null then v_invoice.receivable_account_id:=p_receivable_account_id; end if;
+  if v_invoice.receivable_account_id<>p_receivable_account_id then raise exception 'sales settlement account does not match historical mapping'; end if;
 
   if v_invoice.document_type='return' and not exists(
     select 1 from public.sales_invoices
@@ -1075,6 +1081,8 @@ begin
   if not found then raise exception 'expense not found'; end if;
   if not private.has_org_role(v_exp.organization_id,array['owner','admin','manager','staff']) then raise exception 'not authorized'; end if;
   if v_exp.status<>'draft' then raise exception 'expense is not draft'; end if;
+  if v_exp.payable_account_id is null then v_exp.payable_account_id:=p_credit_account_id; end if;
+  if v_exp.payable_account_id<>p_credit_account_id then raise exception 'expense settlement account does not match historical mapping'; end if;
 
   select expense_account_id into v_expense_account
   from public.expense_categories
@@ -1132,6 +1140,8 @@ begin
   if not found then raise exception 'payment not found'; end if;
   if not private.has_org_role(v_payment.organization_id,array['owner','admin','manager','staff']) then raise exception 'not authorized'; end if;
   if v_payment.status<>'draft' then raise exception 'payment is not draft'; end if;
+  if v_payment.settlement_account_id is null then v_payment.settlement_account_id:=p_settlement_account_id; end if;
+  if v_payment.settlement_account_id<>p_settlement_account_id then raise exception 'payment settlement account does not match historical mapping'; end if;
   if jsonb_typeof(p_allocations)<>'array' then raise exception 'allocations must be a JSON array'; end if;
 
   perform private.require_postable_account(v_payment.organization_id,v_payment.account_id,'asset');
