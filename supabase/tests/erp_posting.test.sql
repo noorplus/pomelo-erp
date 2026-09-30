@@ -29,7 +29,7 @@ declare
 begin
   insert into auth.users(id,email) values(v_user,'erp-test-101@example.com');
 
-  set local request.jwt.claim.sub = '00000000-0000-0000-0000-000000000101';
+  perform set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000101',true);
 
   insert into public.organizations(name,base_currency)
   values('ERP Functional Test','BDT')
