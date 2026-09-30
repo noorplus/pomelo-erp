@@ -231,6 +231,7 @@ begin
   perform set_config('erp.test.org',v_org::text,true);
   perform set_config('erp.test.product',v_product::text,true);
   perform set_config('erp.test.sale',v_sale::text,true);
+  perform set_config('erp.test.purchase',v_purchase::text,true);
 end;
 $seed$;
 
@@ -408,6 +409,7 @@ begin
          '2026-09-07',100,
          (select id from public.accounts where organization_id=current_setting('erp.test.org')::uuid and account_code='1000'))
   returning id into v_overpay;
+  perform set_config('erp.test.overpay',v_overpay::text,true);
 
   perform public.post_payment(
     v_overpay,
@@ -422,7 +424,7 @@ select throws_ok(
   insert into public.payment_allocations(
     organization_id,payment_id,document_type,document_id,allocated_amount
   )
-  select current_setting('erp.test.org')::uuid,v_overpay,'purchase',
+  select current_setting('erp.test.org')::uuid,current_setting('erp.test.overpay')::uuid,'purchase',
          current_setting('erp.test.purchase')::uuid,81
   $,
   'P0001',
