@@ -1332,6 +1332,35 @@ begin
 end;
 $$;
 
+-- Private posting helpers are never part of the client API surface.
+revoke all on function private.next_number(uuid,text) from public,authenticated;
+revoke all on function private.require_postable_account(uuid,uuid,text) from public,authenticated;
+revoke all on function private.open_period_for_date(uuid,date) from public,authenticated;
+revoke all on function private.create_posted_journal(uuid,date,text,text,uuid,text,jsonb,uuid) from public,authenticated;
+revoke all on function private.guard_posted_document() from public,authenticated;
+revoke all on function private.validate_payment_allocation() from public,authenticated;
+revoke all on function private.validate_purchase_post() from public,authenticated;
+revoke all on function private.validate_sale_post() from public,authenticated;
+revoke all on function private.validate_journal_post() from public,authenticated;
+
+-- Posted payment allocations are settlement history and are immutable. A
+-- correction is performed by reversing/replacing the payment event, not by
+-- editing historical allocation rows.
+create or replace function private.guard_payment_allocation_mutation()
+returns trigger
+language plpgsql
+security definer
+set search_path=''
+as $
+begin
+  raise exception 'payment allocations are immutable';
+end;
+$;
+revoke all on function private.guard_payment_allocation_mutation() from public,authenticated;
+create trigger payment_allocations_immutable_trg
+before update or delete on public.payment_allocations
+for each row execute function private.guard_payment_allocation_mutation();
+
 -- Public RPC execution boundary.
 revoke all on function public.post_purchase_invoice(uuid,uuid) from public;
 revoke all on function public.post_sales_invoice(uuid,uuid) from public;
