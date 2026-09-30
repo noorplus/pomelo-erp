@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(76);
+select plan(78);
 select has_schema('public','public schema');
 select has_table('public','profiles','profiles');
 select has_table('public','organizations','organizations');
@@ -52,6 +52,22 @@ select has_function('public','post_expense',ARRAY['uuid','uuid'],'expense postin
 select has_function('public','post_payment',ARRAY['uuid','uuid','jsonb'],'payment posting RPC');
 select has_function('public','post_manual_journal',ARRAY['uuid','date','text','jsonb','text'],'manual journal RPC');
 select has_function('public','reverse_journal',ARRAY['uuid','date','text'],'reversal RPC');
+select ok(not exists(
+  select 1
+  from pg_proc p
+  join pg_namespace n on n.oid=p.pronamespace
+  where n.nspname='public'
+    and p.proname in('post_purchase_invoice','post_sales_invoice','post_expense','post_payment','post_manual_journal','reverse_journal')
+    and has_function_privilege('anon',p.oid,'execute')
+),'anonymous role cannot execute privileged posting RPCs');
+select ok((
+  select count(*)=6
+  from pg_proc p
+  join pg_namespace n on n.oid=p.pronamespace
+  where n.nspname='public'
+    and p.proname in('post_purchase_invoice','post_sales_invoice','post_expense','post_payment','post_manual_journal','reverse_journal')
+    and has_function_privilege('authenticated',p.oid,'execute')
+),'authenticated role can execute all six posting RPCs');
 select ok(exists(select 1 from information_schema.columns where table_schema='public' and table_name='purchase_items' and column_name='discount_per_unit' and is_nullable='NO'),'purchase discount allocation');
 select ok(exists(select 1 from information_schema.columns where table_schema='public' and table_name='purchase_items' and column_name='net_unit_cost' and is_nullable='NO'),'purchase net cost');
 select ok(exists(select 1 from information_schema.columns where table_schema='public' and table_name='sales_items' and column_name='discount_per_unit' and is_nullable='NO'),'sales discount allocation');
