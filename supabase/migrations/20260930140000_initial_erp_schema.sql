@@ -240,9 +240,92 @@ create or replace function private.validate_sale_post() returns trigger language
 create trigger sales_post_validation_trg before insert or update on public.sales_invoices for each row execute function private.validate_sale_post();
 
 -- Payment allocation: posted target and allocation ceiling.
-create or replace function private.validate_payment_allocation() returns trigger language plpgsql set search_path='' as $$ declare pa numeric(30,8); ps text; allocated numeric(30,8); ok boolean:=false; begin select amount,status into pa,ps from public.payments where id=new.payment_id and organization_id=new.organization_id; if ps is null then raise exception 'payment not found'; end if; if ps<>'posted' then raise exception 'payment must be posted before allocation'; end if; if new.document_type in('purchase','purchase_return') then select exists(select 1 from public.purchase_invoices where id=new.document_id and organization_id=new.organization_id and status='posted') into ok; elsif new.document_type in('sale','sale_return') then select exists(select 1 from public.sales_invoices where id=new.document_id and organization_id=new.organization_id and status='posted') into ok; else select exists(select 1 from public.expenses where id=new.document_id and organization_id=new.organization_id and status='posted') into ok; end if; if not ok then raise exception 'allocation target must be posted'; end if; select coalesce(sum(allocated_amount),0) into allocated from public.payment_allocations where organization_id=new.organization_id and payment_id=new.payment_id and id<>coalesce(new.id,'00000000-0000-0000-0000-000000000000'::uuid); if allocated+new.allocated_amount>pa then raise exception 'payment allocations exceed payment amount'; end if; return new; end; $$;
-create trigger payment_allocations_validation_trg before insert or update on public.payment_allocations for each row execute function private.validate_payment_allocation();
+create or replace function private.validate_payment_allocation()
+returns trigger
+language plpgsql
+security definer
+set search_path=''
+as $$
+declare
+  pa numeric(30,8);
+  ps text;
+  pt text;
+  allocated numeric(30,8);
+  doc_allocated numeric(30,8);
+  doc_total numeric(30,8);
+  doc_contact uuid;
+  doc_status text;
+begin
+  select amount,status,payment_type
+    into pa,ps,pt
+  from public.payments
+  where id=new.payment_id and organization_id=new.organization_id
+  for update;
 
+  if ps is null then raise exception 'payment not found'; end if;
+  if ps<>'posted' then raise exception 'payment must be posted before allocation'; end if;
+
+  if pt='receipt' and new.document_type<>'sale' then raise exception 'receipt allocation type mismatch'; end if;
+  if pt='payment' and new.document_type not in('purchase','expense') then raise exception 'payment allocation type mismatch'; end if;
+  if pt='refund_in' and new.document_type<>'purchase_return' then raise exception 'refund_in allocation type mismatch'; end if;
+  if pt='refund_out' and new.document_type<>'sale_return' then raise exception 'refund_out allocation type mismatch'; end if;
+
+  if new.document_type in('purchase','purchase_return') then
+    select status,total_amount,supplier_id
+      into doc_status,doc_total,doc_contact
+    from public.purchase_invoices
+    where id=new.document_id and organization_id=new.organization_id
+    for update;
+  elsif new.document_type in('sale','sale_return') then
+    select status,total_amount,customer_id
+      into doc_status,doc_total,doc_contact
+    from public.sales_invoices
+    where id=new.document_id and organization_id=new.organization_id
+    for update;
+  else
+    select status,amount,contact_id
+      into doc_status,doc_total,doc_contact
+    from public.expenses
+    where id=new.document_id and organization_id=new.organization_id
+    for update;
+  end if;
+
+  if doc_status is distinct from 'posted' then
+    raise exception 'allocation target must be posted';
+  end if;
+
+  if (select contact_id from public.payments where id=new.payment_id and organization_id=new.organization_id)
+     is distinct from doc_contact
+  then
+    raise exception 'payment contact does not match allocation target';
+  end if;
+
+  select coalesce(sum(allocated_amount),0)
+    into allocated
+  from public.payment_allocations
+  where organization_id=new.organization_id
+    and payment_id=new.payment_id
+    and id<>coalesce(new.id,'00000000-0000-0000-0000-000000000000'::uuid);
+
+  if allocated+new.allocated_amount>pa then
+    raise exception 'payment allocations exceed payment amount';
+  end if;
+
+  select coalesce(sum(allocated_amount),0)
+    into doc_allocated
+  from public.payment_allocations
+  where organization_id=new.organization_id
+    and document_type=new.document_type
+    and document_id=new.document_id
+    and id<>coalesce(new.id,'00000000-0000-0000-0000-000000000000'::uuid);
+
+  if doc_allocated+new.allocated_amount>doc_total then
+    raise exception 'document allocations exceed document amount';
+  end if;
+
+  return new;
+end;
+$$;
 
 -- =============================================================================
 -- TRANSACTIONAL POSTING / RPC LAYER
