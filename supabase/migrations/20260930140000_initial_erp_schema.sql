@@ -1567,6 +1567,16 @@ grant execute on function public.post_payment(uuid,uuid,jsonb) to authenticated;
 grant execute on function public.post_manual_journal(uuid,date,text,jsonb,text) to authenticated;
 grant execute on function public.reverse_journal(uuid,date,text) to authenticated;
 
+-- Anonymous clients must never reach privileged accounting/inventory posting RPCs.
+-- Signed-in users remain the intended API caller; the functions retain their
+-- SECURITY DEFINER boundary and perform their own organization/role checks.
+revoke execute on function public.post_purchase_invoice(uuid,uuid) from anon;
+revoke execute on function public.post_sales_invoice(uuid,uuid) from anon;
+revoke execute on function public.post_expense(uuid,uuid) from anon;
+revoke execute on function public.post_payment(uuid,uuid,jsonb) from anon;
+revoke execute on function public.post_manual_journal(uuid,date,text,jsonb,text) from anon;
+revoke execute on function public.reverse_journal(uuid,date,text) from anon;
+
 -- RLS boundary for all 21 public tables.
 do $$ declare t text; begin foreach t in array array['profiles','organizations','organization_users','units_of_measure','products','contacts','number_sequences','accounts','journal_entries','account_transactions','accounting_periods','purchase_invoices','purchase_items','sales_invoices','sales_items','inventory_balances','inventory_transactions','expense_categories','expenses','payments','payment_allocations'] loop execute format('alter table public.%I enable row level security',t); execute format('revoke all on table public.%I from anon,authenticated',t); execute format('grant select on table public.%I to authenticated',t); end loop; end $$;
 
