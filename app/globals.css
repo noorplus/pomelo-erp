@@ -121,3 +121,13 @@ button { cursor: pointer; }
   .module-grid { grid-template-columns: 1fr; }
   .metric-grid { grid-template-columns: 1fr 1fr; }
 }
+
+.module-workspace { max-width: 900px; }
+.back-link { display: inline-block; margin-bottom: 18px; color: #6b7280; font-size: 12px; font-weight: 700; }
+.back-link:hover { color: #111827; }
+.workspace-card { padding: 30px; background: #fff; border: 1px solid var(--line); border-radius: 14px; }
+.workspace-card h1 { margin: 0; font-size: 32px; letter-spacing: -.03em; }
+.workspace-card > p:not(.eyebrow) { max-width: 680px; margin: 10px 0 24px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.workspace-note { display: grid; gap: 5px; padding: 16px; border-radius: 10px; background: var(--soft); border: 1px solid var(--line); }
+.workspace-note strong { font-size: 12px; }
+.workspace-note span { color: var(--muted); font-size: 11px; }
