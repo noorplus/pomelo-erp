@@ -422,13 +422,13 @@ end;
 $test$;
 
 select throws_ok(
-  $
+  $$
   insert into public.payment_allocations(
     organization_id,payment_id,document_type,document_id,allocated_amount
   )
   select current_setting('erp.test.org')::uuid,current_setting('erp.test.overpay')::uuid,'purchase',
          current_setting('erp.test.purchase')::uuid,81
-  $,
+  $$,
   'P0001',
   'document allocations exceed document amount'
 );
