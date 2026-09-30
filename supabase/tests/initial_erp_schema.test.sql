@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(57);
+select plan(61);
 select has_schema('public','public schema');
 select has_table('public','profiles','profiles');
 select has_table('public','organizations','organizations');
@@ -40,6 +40,10 @@ select col_not_null('public.sales_items','discount_per_unit','sales discount all
 select col_not_null('public.sales_items','net_unit_price','sales net price');
 select col_type_is('public.purchase_items','unit_cost','numeric','purchase unit cost precision');
 select col_type_is('public.sales_items','unit_price','numeric','sales unit price precision');
+select col_type_is('public.purchase_invoices','payable_account_id','uuid','purchase payable account');
+select col_type_is('public.sales_invoices','receivable_account_id','uuid','sales receivable account');
+select col_type_is('public.expenses','payable_account_id','uuid','expense payable account');
+select col_type_is('public.payments','settlement_account_id','uuid','payment settlement account');
 select has_index('public','organization_users_one_owner_uq','one active owner');
 select has_index('public','accounting_periods_no_overlap_excl','no overlapping periods');
 select has_index('public','products_organization_id_product_code_key','product code unique');
