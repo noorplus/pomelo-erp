@@ -14,6 +14,7 @@ const navigation = [
   { href: "/dashboard/payments", label: "Payments", icon: "৳" },
   { href: "/dashboard/expenses", label: "Expenses", icon: "−" },
   { href: "/dashboard/reports", label: "Reports", icon: "▥" },
+  { href: "/dashboard/settings", label: "Settings", icon: "⚙" },
 ];
 
 export default async function DashboardLayout({
