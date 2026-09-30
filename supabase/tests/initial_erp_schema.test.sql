@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(62);
+select plan(74);
 select has_schema('public','public schema');
 select has_table('public','profiles','profiles');
 select has_table('public','organizations','organizations');
@@ -28,6 +28,19 @@ select is(
   21::bigint,
   'exactly 21 public ERP tables exist'
 );
+select is((select count(*) from pg_class where relnamespace='public'::regnamespace and relkind='r' and relrowsecurity),21::bigint,'RLS is enabled on all 21 public tables');
+select ok(exists(select 1 from pg_indexes where schemaname='public' and indexname='account_transactions_account_idx'),'account transaction account index');
+select ok(exists(select 1 from pg_indexes where schemaname='public' and indexname='purchase_invoices_supplier_idx'),'purchase supplier index');
+select ok(exists(select 1 from pg_indexes where schemaname='public' and indexname='purchase_items_product_idx'),'purchase item product index');
+select ok(exists(select 1 from pg_indexes where schemaname='public' and indexname='sales_invoices_customer_idx'),'sales customer index');
+select ok(exists(select 1 from pg_indexes where schemaname='public' and indexname='sales_items_product_idx'),'sales item product index');
+select ok(exists(select 1 from pg_indexes where schemaname='public' and indexname='payments_contact_idx'),'payment contact index');
+select ok(exists(select 1 from pg_indexes where schemaname='public' and indexname='payment_allocations_document_idx'),'allocation document index');
+select ok(exists(select 1 from pg_constraint where conname='journal_entries_posted_state_ck'),'journal posted-state invariant');
+select ok(exists(select 1 from pg_constraint where conname='purchase_invoices_posted_state_ck'),'purchase posted-state invariant');
+select ok(exists(select 1 from pg_constraint where conname='sales_invoices_posted_state_ck'),'sales posted-state invariant');
+select ok(exists(select 1 from pg_constraint where conname='expenses_posted_state_ck'),'expense posted-state invariant');
+select ok(exists(select 1 from pg_constraint where conname='payments_posted_state_ck'),'payment posted-state invariant');
 select has_function('private','is_org_member',ARRAY['uuid']);
 select has_function('private','has_org_role',ARRAY['uuid','text[]']);
 select has_function('private','validate_journal_post',ARRAY[]::text[],'journal posting validator');
