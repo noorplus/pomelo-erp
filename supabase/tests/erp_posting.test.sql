@@ -370,7 +370,7 @@ select throws_ok(
   where id=current_setting('erp.test.sale')::uuid
   $$,
   'P0001',
-  'posted invoice cannot be re-posted directly without a matching journal'
+  'posted documents cannot be modified'
 );
 
 select is(
@@ -402,7 +402,7 @@ select throws_ok(
   insert into public.payment_allocations(
     organization_id,payment_id,document_type,document_id,allocated_amount
   )
-  select organization_id,payment_id,'sale',document_id,1
+  select organization_id,payment_id,'sale',document_id,allocated_amount+1
   from public.payment_allocations
   where organization_id=current_setting('erp.test.org')::uuid
     and document_type='sale'
