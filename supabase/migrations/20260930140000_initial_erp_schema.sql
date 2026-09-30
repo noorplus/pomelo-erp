@@ -1536,8 +1536,9 @@ do $$
 declare
   t text;
   v_roles text[] := array['owner','admin','manager','staff'];
+  v_tables text[] := array['purchase_invoices','purchase_items','sales_invoices','sales_items','expenses','payments','payment_allocations'];
 begin
-  foreach t in array['purchase_invoices','purchase_items','sales_invoices','sales_items','expenses','payments','payment_allocations'] loop
+  foreach t in array v_tables loop
     execute format(
       'create policy %I_write on public.%I for all to authenticated using ((select private.has_org_role(organization_id,%L::text[]))) with check ((select private.has_org_role(organization_id,%L::text[])))',
       t,t,v_roles,v_roles
