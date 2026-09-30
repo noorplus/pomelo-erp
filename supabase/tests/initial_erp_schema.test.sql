@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(45);
+select plan(56);
 select has_schema('public','public schema');
 select has_table('public','profiles','profiles');
 select has_table('public','organizations','organizations');
@@ -28,6 +28,12 @@ select has_function('private','has_org_role',ARRAY['uuid','text[]']);
 select has_function('private','validate_journal_post',ARRAY[]::text[],'journal posting validator');
 select has_function('private','validate_purchase_post',ARRAY[]::text[],'purchase posting validator');
 select has_function('private','validate_sale_post',ARRAY[]::text[],'sales posting validator');
+select has_function('public','post_purchase_invoice',ARRAY['uuid','uuid'],'purchase posting RPC');
+select has_function('public','post_sales_invoice',ARRAY['uuid','uuid'],'sales posting RPC');
+select has_function('public','post_expense',ARRAY['uuid','uuid'],'expense posting RPC');
+select has_function('public','post_payment',ARRAY['uuid','uuid','jsonb'],'payment posting RPC');
+select has_function('public','post_manual_journal',ARRAY['uuid','date','text','jsonb','text'],'manual journal RPC');
+select has_function('public','reverse_journal',ARRAY['uuid','date','text'],'reversal RPC');
 select col_not_null('public.purchase_items','discount_per_unit','purchase discount allocation');
 select col_not_null('public.purchase_items','net_unit_cost','purchase net cost');
 select col_not_null('public.sales_items','discount_per_unit','sales discount allocation');
@@ -37,6 +43,7 @@ select col_type_is('public.sales_items','unit_price','numeric','sales unit price
 select has_index('public','organization_users_one_owner_uq','one active owner');
 select has_index('public','accounting_periods_no_overlap_excl','no overlapping periods');
 select has_index('public','products_organization_id_product_code_key','product code unique');
+select has_index('public','journal_entries_one_reversal_uq','one reversal per journal');
 select has_index('public','accounts_organization_id_account_code_key','account code unique');
 select has_index('public','purchase_invoices_organization_id_invoice_number_key','purchase number unique');
 select has_index('public','sales_invoices_organization_id_invoice_number_key','sales number unique');
@@ -46,5 +53,9 @@ select has_trigger('public','account_transactions','account_transactions_immutab
 select has_trigger('public','inventory_transactions','inventory_transactions_immutable_trg','inventory immutability');
 select has_trigger('public','payment_allocations','payment_allocations_validation_trg','allocation validation');
 select has_trigger('public','products','products_tenant_guard_trg','tenant move guard');
+select has_trigger('public','purchase_invoices','purchase_invoices_immutable_trg','purchase document guard');
+select has_trigger('public','sales_invoices','sales_invoices_immutable_trg','sales document guard');
+select has_trigger('public','payments','payments_immutable_trg','payment document guard');
+select has_trigger('public','expenses','expenses_immutable_trg','expense document guard');
 select * from finish();
 rollback;
