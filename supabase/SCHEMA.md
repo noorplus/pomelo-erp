@@ -33,3 +33,30 @@ All 21 public tables have RLS enabled. Tenant-owned references use composite (or
 Migration -> isolated/local validation -> schema/security audit -> accounting/inventory integrity tests -> final review -> explicit user approval -> target DB.
 
 This change stops before target DB application.
+
+## Transactional posting RPC layer
+
+Business-critical posting is performed through database transactions rather than client-side multi-step writes.
+
+Public posting functions:
+- `post_purchase_invoice(invoice_id, payable_account_id)`
+- `post_sales_invoice(invoice_id, receivable_account_id)`
+- `post_expense(expense_id, credit_account_id)`
+- `post_payment(payment_id, settlement_account_id, allocations)`
+- `post_manual_journal(org_id, entry_date, description, lines, entry_type)`
+- `reverse_journal(journal_id, reversal_date, description)`
+
+Operational posting updates the document, inventory balance, immutable inventory ledger, journal header/lines, and payment allocations atomically. A failure rolls back the complete operation.
+
+Purchase and sales returns are independent documents and remain valid after the original purchase/sale has already been paid. Refunds are separate payment events.
+
+Payment allocations are validated against both payment amount and document amount, serialized with row locks, matched to the payment contact, and immutable after creation.
+
+## Automated validation
+
+The repository contains:
+- `supabase/tests/initial_erp_schema.test.sql` — schema/security assertions.
+- `supabase/tests/erp_posting.test.sql` — end-to-end purchase, sale, payment, return, refund, expense, and reconciliation scenario.
+- `.github/workflows/database-tests.yml` — isolated local Supabase migration reset, pgTAP execution, and PostgreSQL error-level lint.
+
+The local/CI suite must pass before any target database application is considered.
