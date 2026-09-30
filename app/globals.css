@@ -271,3 +271,9 @@ button { cursor: pointer; }
   .home-page { min-height: calc(100dvh - 52px); padding: 10px 0; }
   .home-heading h1 { font-size: 25px; }
 }
+
+.field-help { color: #9ca3af; font-size: 9px; font-weight: 500; line-height: 1.4; }
+.read-only-panel { display: grid; align-content: center; gap: 6px; min-height: 220px; padding: 22px; }
+.read-only-panel strong { font-size: 13px; }
+.read-only-panel span { color: var(--muted); font-size: 11px; line-height: 1.55; }
+.data-table code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 10px; }
