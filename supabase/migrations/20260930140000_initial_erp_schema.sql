@@ -398,7 +398,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path=''
-as $
+as $sequence_guard$
 begin
   if new.next_number is distinct from old.next_number
      and coalesce(current_setting('erp.internal_sequence_mutation',true),'')<>'1' then
