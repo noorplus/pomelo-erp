@@ -54,7 +54,7 @@ export default async function SettingsPage() {
           {settings.map((item) => (
             <article className="settings-card" key={item.title}>
               <div className="settings-card-top"><div><h3>{item.title}</h3><p>{item.description}</p></div><span className={item.status === "Configured" || item.status === "Complete" ? "settings-status ready" : "settings-status"}>{item.status}</span></div>
-              <div className="settings-card-bottom"><strong>{item.count}</strong><span>{item.label}</span><span className="settings-coming">Configuration UI</span></div>
+              <div className="settings-card-bottom"><strong>{item.count}</strong><span>{item.label}</span>{item.title === "Numbering" ? <Link href="/settings/number-sequences" className="text-button">Open configuration</Link> : <span className="settings-coming">Configuration UI</span>}</div>
             </article>
           ))}
         </div>
