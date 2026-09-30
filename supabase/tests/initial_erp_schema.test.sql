@@ -1,5 +1,5 @@
 begin;
-select plan(40);
+select plan(39);
 select has_schema('public','public schema');
 select has_table('public','profiles','profiles');
 select has_table('public','organizations','organizations');
@@ -30,10 +30,10 @@ select col_not_null('public.sales_items','discount_per_unit','sales discount all
 select col_not_null('public.sales_items','net_unit_price','sales net price');
 select has_index('public','organization_users_one_owner_uq','one active owner');
 select has_index('public','accounting_periods_no_overlap_excl','no overlapping periods');
-select has_index('public','products_product_code_key','product code unique');
-select has_index('public','accounts_account_code_key','account code unique');
-select has_index('public','purchase_invoices_invoice_number_key','purchase number unique');
-select has_index('public','sales_invoices_invoice_number_key','sales number unique');
+select has_index('public','products_organization_id_product_code_key','product code unique');
+select has_index('public','accounts_organization_id_account_code_key','account code unique');
+select has_index('public','purchase_invoices_organization_id_invoice_number_key','purchase number unique');
+select has_index('public','sales_invoices_organization_id_invoice_number_key','sales number unique');
 select has_trigger('public','organizations','organizations_bootstrap_owner_trg','owner bootstrap');
 select has_trigger('public','journal_entries','journal_entries_post_trg','journal posting validation');
 select has_trigger('public','account_transactions','account_transactions_immutable_trg','journal line immutability');
