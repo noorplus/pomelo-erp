@@ -1,4 +1,5 @@
 begin;
+create extension if not exists pgtap with schema extensions;
 select plan(45);
 select has_schema('public','public schema');
 select has_table('public','profiles','profiles');
