@@ -7,15 +7,13 @@ export type CurrentOrganization = {
   role: "owner" | "admin" | "manager" | "staff";
 };
 
-export async function getCurrentOrganization(): Promise<CurrentOrganization> {
+export async function findCurrentOrganization(): Promise<CurrentOrganization | null> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    throw new Error("Authentication required.");
-  }
+  if (!user) return null;
 
   const cookieStore = await cookies();
   const preferredOrganizationId = cookieStore.get("pomelo_org_id")?.value;
@@ -32,31 +30,29 @@ export async function getCurrentOrganization(): Promise<CurrentOrganization> {
 
   const { data, error } = await query.limit(1).maybeSingle();
 
-  if (error) {
-    throw new Error("Unable to load the active organization.");
-  }
-
-  if (!data) {
-    throw new Error(
-      preferredOrganizationId
-        ? "You do not have access to the selected organization."
-        : "No active organization is assigned to your account.",
-    );
-  }
+  if (error || !data) return null;
 
   const organization = Array.isArray(data.organizations)
     ? data.organizations[0]
     : data.organizations;
 
-  if (!organization) {
-    throw new Error("Organization could not be resolved.");
-  }
+  if (!organization) return null;
 
   return {
     id: data.organization_id,
     name: organization.name,
     role: data.role,
   };
+}
+
+export async function getCurrentOrganization(): Promise<CurrentOrganization> {
+  const organization = await findCurrentOrganization();
+
+  if (!organization) {
+    throw new Error("No active organization is assigned to your account.");
+  }
+
+  return organization;
 }
 
 export async function getCurrentUserId() {
