@@ -262,7 +262,7 @@ returns text
 language plpgsql
 security definer
 set search_path=''
-as $
+as $$
 declare
   v_prefix text;
   v_next bigint;
@@ -304,7 +304,7 @@ begin
 
   return v_prefix||lpad(v_next::text,v_padding,'0');
 end;
-$;
+$$;
 
 create or replace function private.require_postable_account(
   p_org_id uuid,
@@ -315,7 +315,7 @@ returns void
 language plpgsql
 security definer
 set search_path=''
-as $
+as $$
 declare
   v_type text;
 begin
@@ -335,7 +335,7 @@ begin
     raise exception 'account type mismatch: expected %, got %',p_expected_type,v_type;
   end if;
 end;
-$;
+$$;
 
 create or replace function private.open_period_for_date(
   p_org_id uuid,
@@ -345,7 +345,7 @@ returns uuid
 language plpgsql
 security definer
 set search_path=''
-as $
+as $$
 declare
   v_period uuid;
 begin
@@ -361,7 +361,7 @@ begin
 
   return v_period;
 end;
-$;
+$$;
 
 create or replace function private.create_posted_journal(
   p_org_id uuid,
@@ -377,7 +377,7 @@ returns uuid
 language plpgsql
 security definer
 set search_path=''
-as $
+as $$
 declare
   v_journal_id uuid;
   v_period_id uuid;
@@ -439,7 +439,7 @@ begin
 
   return v_journal_id;
 end;
-$;
+$$;
 
 -- Strengthen direct document posting: only a matching posted journal may post a
 -- business document. This prevents an authenticated client from posting a
@@ -449,7 +449,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path=''
-as $
+as $$
 declare
   v_journal_status text;
   v_ref_type text;
@@ -525,7 +525,7 @@ begin
 
   return new;
 end;
-$;
+$$;
 
 -- Purchase posting: inventory/AP and purchase-return/AP reversal.
 create or replace function public.post_purchase_invoice(
@@ -536,7 +536,7 @@ returns uuid
 language plpgsql
 security definer
 set search_path=''
-as $
+as $$
 declare
   v_invoice public.purchase_invoices%rowtype;
   v_item record;
@@ -690,7 +690,7 @@ begin
 
   return v_journal_id;
 end;
-$;
+$$;
 
 -- Sales posting: WAC/COGS plus AR/revenue; sales returns reverse both.
 create or replace function public.post_sales_invoice(
@@ -701,7 +701,7 @@ returns uuid
 language plpgsql
 security definer
 set search_path=''
-as $
+as $$
 declare
   v_invoice public.sales_invoices%rowtype;
   v_group record;
@@ -932,7 +932,7 @@ begin
 
   return v_journal_id;
 end;
-$;
+$$;
 
 -- Expense posting: expense debit against a payable/cash/liability account.
 create or replace function public.post_expense(
@@ -943,7 +943,7 @@ returns uuid
 language plpgsql
 security definer
 set search_path=''
-as $
+as $$
 declare
   v_exp public.expenses%rowtype;
   v_expense_account uuid;
@@ -979,7 +979,7 @@ begin
 
   return v_journal_id;
 end;
-$;
+$$;
 
 -- Payment posting is atomic with its allocations. This avoids the classic
 -- "payment posted first, allocation added later" race and lets the journal be
@@ -993,7 +993,7 @@ returns uuid
 language plpgsql
 security definer
 set search_path=''
-as $
+as $$
 declare
   v_payment public.payments%rowtype;
   v_alloc record;
@@ -1127,7 +1127,7 @@ begin
 
   return v_journal_id;
 end;
-$;
+$$;
 
 -- Manual/opening journal entry. Owner/admin only; still passes the same
 -- period, account, balance and immutability gates as operational journals.
@@ -1142,7 +1142,7 @@ returns uuid
 language plpgsql
 security definer
 set search_path=''
-as $
+as $$
 declare
   v_journal_id uuid;
 begin
@@ -1158,7 +1158,7 @@ begin
   );
   return v_journal_id;
 end;
-$;
+$$;
 
 -- Reverse a posted journal into the current open period. The original remains
 -- untouched; the reversal is a new immutable posted journal.
@@ -1171,7 +1171,7 @@ returns uuid
 language plpgsql
 security definer
 set search_path=''
-as $
+as $$
 declare
   v_original public.journal_entries%rowtype;
   v_new_id uuid;
@@ -1245,7 +1245,7 @@ begin
   update public.journal_entries set status='posted' where id=v_new_id;
   return v_new_id;
 end;
-$;
+$$;
 
 -- Strengthen payment allocations with payment-type compatibility and a
 -- document-level ceiling, not merely a payment-level ceiling.
@@ -1254,7 +1254,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path=''
-as $
+as $$
 declare
   pa numeric(30,8);
   ps text;
@@ -1330,7 +1330,7 @@ begin
 
   return new;
 end;
-$;
+$$;
 
 -- Public RPC execution boundary.
 revoke all on function public.post_purchase_invoice(uuid,uuid) from public;
