@@ -254,10 +254,12 @@ declare
   doc_allocated numeric(30,8);
   doc_total numeric(30,8);
   doc_contact uuid;
+  doc_account uuid;
+  payment_settlement_account uuid;
   doc_status text;
 begin
-  select amount,status,payment_type
-    into pa,ps,pt
+  select amount,status,payment_type,settlement_account_id
+    into pa,ps,pt,payment_settlement_account
   from public.payments
   where id=new.payment_id and organization_id=new.organization_id
   for update;
@@ -271,20 +273,20 @@ begin
   if pt='refund_out' and new.document_type<>'sale_return' then raise exception 'refund_out allocation type mismatch'; end if;
 
   if new.document_type in('purchase','purchase_return') then
-    select status,total_amount,supplier_id
-      into doc_status,doc_total,doc_contact
+    select status,total_amount,supplier_id,payable_account_id
+      into doc_status,doc_total,doc_contact,doc_account
     from public.purchase_invoices
     where id=new.document_id and organization_id=new.organization_id
     for update;
   elsif new.document_type in('sale','sale_return') then
-    select status,total_amount,customer_id
-      into doc_status,doc_total,doc_contact
+    select status,total_amount,customer_id,receivable_account_id
+      into doc_status,doc_total,doc_contact,doc_account
     from public.sales_invoices
     where id=new.document_id and organization_id=new.organization_id
     for update;
   else
-    select status,amount,contact_id
-      into doc_status,doc_total,doc_contact
+    select status,amount,contact_id,payable_account_id
+      into doc_status,doc_total,doc_contact,doc_account
     from public.expenses
     where id=new.document_id and organization_id=new.organization_id
     for update;
@@ -292,6 +294,9 @@ begin
 
   if doc_status is distinct from 'posted' then
     raise exception 'allocation target must be posted';
+  end if;
+  if payment_settlement_account is null or doc_account is null or payment_settlement_account is distinct from doc_account then
+    raise exception 'payment settlement account does not match document settlement account';
   end if;
 
   if (select contact_id from public.payments where id=new.payment_id and organization_id=new.organization_id)
