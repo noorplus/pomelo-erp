@@ -486,3 +486,5 @@ select is(
 
 select * from finish();
 rollback;
+
+-- CI validation marker: production migration suite.
