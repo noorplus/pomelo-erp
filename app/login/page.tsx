@@ -1,10 +1,10 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 
-export default function LoginPage() {
+function LoginPageContent() {
   const searchParams = useSearchParams();
   const next = searchParams.get("next") || "/dashboard";
   const [email, setEmail] = useState("");
@@ -71,5 +71,13 @@ export default function LoginPage() {
         </form>
       </section>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<main className="auth-shell"><section className="auth-card"><div className="brand-mark">P</div><p className="eyebrow">Pomelo ERP</p><h1>Sign in</h1><p className="auth-copy">Loading sign-in…</p></section></main>}>
+      <LoginPageContent />
+    </Suspense>
   );
 }
