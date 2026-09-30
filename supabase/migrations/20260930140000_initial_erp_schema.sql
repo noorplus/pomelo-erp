@@ -203,6 +203,45 @@ create or replace function private.bootstrap_organization_owner() returns trigge
 revoke all on function private.bootstrap_organization_owner() from public;
 create trigger organizations_bootstrap_owner_trg after insert on public.organizations for each row execute function private.bootstrap_organization_owner();
 
+-- Never allow an organization to become ownerless through direct membership mutation.
+create or replace function private.guard_last_owner_mutation()
+returns trigger
+language plpgsql
+security definer
+set search_path=''
+as $
+begin
+  if tg_op='DELETE'
+     and old.role='owner'
+     and old.is_active
+     and not exists (
+       select 1 from public.organization_users
+       where organization_id=old.organization_id
+         and role='owner' and is_active and id<>old.id
+     ) then
+    raise exception 'organization must retain an active owner';
+  end if;
+
+  if tg_op='UPDATE'
+     and old.role='owner'
+     and old.is_active
+     and (new.role<>'owner' or not new.is_active)
+     and not exists (
+       select 1 from public.organization_users
+       where organization_id=old.organization_id
+         and role='owner' and is_active and id<>old.id
+     ) then
+    raise exception 'organization must retain an active owner';
+  end if;
+
+  return coalesce(new,old);
+end;
+$;
+revoke all on function private.guard_last_owner_mutation() from public,authenticated;
+create trigger organization_users_last_owner_guard_trg
+before update or delete on public.organization_users
+for each row execute function private.guard_last_owner_mutation();
+
 -- Tenant-bound rows can never be moved between organizations.
 create or replace function private.guard_tenant_id_change() returns trigger language plpgsql set search_path='' as $$ begin if tg_op='UPDATE' and old.organization_id is distinct from new.organization_id then raise exception 'organization_id cannot be changed'; end if; return new; end; $$;
 revoke all on function private.guard_tenant_id_change() from public;
@@ -354,12 +393,31 @@ create unique index journal_entries_one_reversal_uq
   on public.journal_entries(organization_id,reversal_of_id)
   where reversal_of_id is not null;
 
+create or replace function private.guard_number_sequence_mutation()
+returns trigger
+language plpgsql
+security definer
+set search_path=''
+as $
+begin
+  if new.next_number is distinct from old.next_number
+     and coalesce(current_setting('erp.internal_sequence_mutation',true),'')<>'1' then
+    raise exception 'sequence counter can only be advanced by the internal numbering function';
+  end if;
+  return new;
+end;
+$;
+revoke all on function private.guard_number_sequence_mutation() from public,authenticated;
+create trigger number_sequences_mutation_guard_trg
+before update on public.number_sequences
+for each row execute function private.guard_number_sequence_mutation();
+
 create or replace function private.next_number(p_org_id uuid,p_document_type text)
 returns text
 language plpgsql
 security definer
 set search_path=''
-as $$
+as $
 declare
   v_prefix text;
   v_next bigint;
@@ -395,6 +453,7 @@ begin
     for update;
   end if;
 
+  perform set_config('erp.internal_sequence_mutation','1',true);
   update public.number_sequences
   set next_number=v_next+1
   where organization_id=p_org_id and document_type=p_document_type;
