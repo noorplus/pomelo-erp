@@ -366,33 +366,33 @@ select is(
 );
 
 select throws_ok(
-  $
+  $pgtap$
   update public.sales_invoices
   set status='posted'
   where id=current_setting('erp.test.sale')::uuid
-  $,
+  $pgtap$,
   'P0001',
   'posted documents cannot be modified'
 );
 
 select throws_ok(
-  $
+  $pgtap$
   update public.number_sequences
   set next_number=999999
   where organization_id=current_setting('erp.test.org')::uuid
     and document_type='journal'
-  $,
+  $pgtap$,
   'P0001',
   'sequence counters cannot be directly modified'
 );
 
 select throws_ok(
-  $
+  $pgtap$
   delete from public.organization_users
   where organization_id=current_setting('erp.test.org')::uuid
     and role='owner'
     and is_active
-  $,
+  $pgtap$,
   'P0001',
   'organization cannot lose its last active owner'
 );
@@ -456,22 +456,22 @@ select throws_ok(
 );
 
 select throws_ok(
-  $
+  $pgtap$
   select public.reverse_journal(
     (select posted_journal_entry_id from public.sales_invoices where id=current_setting('erp.test.sale')::uuid),
     '2026-09-10'
   )
-  $,
+  $pgtap$,
   'P0001',
   'operational journals cannot be reversed directly'
 );
 
 select throws_ok(
-  $
+  $pgtap$
   update public.accounting_periods
   set start_date='2025-01-01'
   where id=(select accounting_period_id from public.journal_entries where organization_id=current_setting('erp.test.org')::uuid and status='posted' limit 1)
-  $,
+  $pgtap$,
   'P0001',
   'period with posted journals cannot change'
 );
