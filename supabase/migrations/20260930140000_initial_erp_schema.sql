@@ -209,7 +209,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path=''
-as $
+as $owner_guard$
 begin
   if tg_op='DELETE'
      and old.role='owner'
@@ -236,7 +236,7 @@ begin
 
   return coalesce(new,old);
 end;
-$;
+$owner_guard$;
 revoke all on function private.guard_last_owner_mutation() from public,authenticated;
 create trigger organization_users_last_owner_guard_trg
 before update or delete on public.organization_users
@@ -271,7 +271,7 @@ create or replace function private.guard_inventory_ledger() returns trigger lang
 create trigger inventory_transactions_immutable_trg before update or delete on public.inventory_transactions for each row execute function private.guard_inventory_ledger();
 
 -- Prevent reopening a closed accounting period.
-create or replace function private.guard_accounting_period() returns trigger language plpgsql set search_path='' as $ begin if old.status='closed' and (new.name,new.start_date,new.end_date,new.status,new.closed_at) is distinct from (old.name,old.start_date,old.end_date,old.status,old.closed_at) then raise exception 'closed period is immutable'; end if; if old.status='open' and exists(select 1 from public.journal_entries where organization_id=old.organization_id and accounting_period_id=old.id and status='posted') and (new.name,new.start_date,new.end_date) is distinct from (old.name,old.start_date,old.end_date) then raise exception 'period with posted journals cannot change'; end if; if old.status='open' and new.status='closed' and new.closed_at is null then new.closed_at=now(); end if; return new; end; $;
+create or replace function private.guard_accounting_period() returns trigger language plpgsql set search_path='' as $period_guard$ begin if old.status='closed' and (new.name,new.start_date,new.end_date,new.status,new.closed_at) is distinct from (old.name,old.start_date,old.end_date,old.status,old.closed_at) then raise exception 'closed period is immutable'; end if; if old.status='open' and exists(select 1 from public.journal_entries where organization_id=old.organization_id and accounting_period_id=old.id and status='posted') and (new.name,new.start_date,new.end_date) is distinct from (old.name,old.start_date,old.end_date) then raise exception 'period with posted journals cannot change'; end if; if old.status='open' and new.status='closed' and new.closed_at is null then new.closed_at=now(); end if; return new; end; $period_guard$;
 create trigger accounting_period_close_guard_trg before update on public.accounting_periods for each row execute function private.guard_accounting_period();
 
 -- Invoice items can change only while their parent is draft.
@@ -406,7 +406,7 @@ begin
   end if;
   return new;
 end;
-$;
+$sequence_guard$;
 revoke all on function private.guard_number_sequence_mutation() from public,authenticated;
 create trigger number_sequences_mutation_guard_trg
 before update on public.number_sequences
@@ -417,7 +417,7 @@ returns text
 language plpgsql
 security definer
 set search_path=''
-as $
+as $sequence_guard$
 declare
   v_prefix text;
   v_next bigint;
