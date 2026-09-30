@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(22);
+select plan(23);
 
 do $seed$
 declare
@@ -14,6 +14,7 @@ declare
   v_equity uuid;
   v_sales uuid;
   v_cogs uuid;
+  v_opex uuid;
   v_product uuid;
   v_contact uuid;
   v_period uuid;
@@ -51,7 +52,8 @@ begin
     (v_org,'2000','Accounts Payable','liability','credit'),
     (v_org,'3000','Owner Equity','equity','credit'),
     (v_org,'4000','Sales Revenue','revenue','credit'),
-    (v_org,'5000','Cost of Goods Sold','expense','debit')
+    (v_org,'5000','Cost of Goods Sold','expense','debit'),
+    (v_org,'5100','Operating Expense','expense','debit')
   ;
 
   select id into v_cash from public.accounts where organization_id=v_org and account_code='1000';
@@ -62,6 +64,10 @@ begin
   select id into v_equity from public.accounts where organization_id=v_org and account_code='3000';
   select id into v_sales from public.accounts where organization_id=v_org and account_code='4000';
   select id into v_cogs from public.accounts where organization_id=v_org and account_code='5000';
+  select id into v_opex from public.accounts where organization_id=v_org and account_code='5100';
+
+  insert into public.expense_categories(organization_id,category_code,name,expense_account_id)
+  values(v_org,'OFFICE','Office Expense',v_opex);
 
   insert into public.contacts(organization_id,contact_number,name)
   values(v_org,'C-0001','Test Trading Partner')
@@ -158,6 +164,34 @@ begin
     v_payment,v_ar,
     jsonb_build_array(jsonb_build_object(
       'document_type','sale','document_id',v_sale,'allocated_amount',72
+    ))
+  );
+
+  insert into public.expenses(
+    organization_id,expense_number,expense_category_id,contact_id,expense_date,amount,description
+  )
+  select v_org,'EXP-TEST-001',id,v_contact,'2026-09-03',30,'Office expense'
+  from public.expense_categories
+  where organization_id=v_org and category_code='OFFICE';
+
+  perform public.post_expense(
+    (select id from public.expenses where organization_id=v_org and expense_number='EXP-TEST-001'),
+    v_ap
+  );
+
+  insert into public.payments(
+    organization_id,payment_number,payment_type,contact_id,payment_date,
+    amount,account_id
+  )
+  values(v_org,'PAY-TEST-EXP','payment',v_contact,'2026-09-03',30,v_cash)
+  returning id into v_payment;
+
+  perform public.post_payment(
+    v_payment,v_ap,
+    jsonb_build_array(jsonb_build_object(
+      'document_type','expense',
+      'document_id',(select id from public.expenses where organization_id=v_org and expense_number='EXP-TEST-001'),
+      'allocated_amount',30
     ))
   );
 
@@ -277,8 +311,8 @@ select is(
    from public.account_transactions at
    join public.accounts a on a.id=at.account_id and a.organization_id=at.organization_id
    where at.organization_id=current_setting('erp.test.org')::uuid and a.account_code='1000'),
-  -10::numeric,
-  'cash net movement reconciles to all payments and refunds'
+  -40::numeric,
+  'cash net movement reconciles to all payments, refunds and expense settlement'
 );
 
 select is(
@@ -300,6 +334,15 @@ select is(
 );
 
 select is(
+  (select round(coalesce(sum(debit-credit),0),8)
+   from public.account_transactions at
+   join public.accounts a on a.id=at.account_id and a.organization_id=at.organization_id
+   where at.organization_id=current_setting('erp.test.org')::uuid and a.account_code='5100'),
+  30::numeric,
+  'operating expense is 30'
+);
+
+select is(
   (select count(*) from (
     select journal_entry_id
     from public.account_transactions
@@ -316,8 +359,8 @@ select is(
    join public.payments p on p.id=pa.payment_id
    where pa.organization_id=current_setting('erp.test.org')::uuid
      and p.status='posted'),
-  4::bigint,
-  'all four settlement/refund allocations are posted'
+  5::bigint,
+  'all five settlement/refund allocations are posted'
 );
 
 select throws_ok(
@@ -338,13 +381,13 @@ select is(
 
 select is(
   (select count(*) from public.journal_entries where organization_id=current_setting('erp.test.org')::uuid and status='posted'),
-  8::bigint,
-  'eight operational journals were posted'
+  10::bigint,
+  'ten operational journals were posted'
 );
 
 select is(
   (select count(*) from public.account_transactions where organization_id=current_setting('erp.test.org')::uuid),
-  20::bigint,
+  24::bigint,
   'journal line count matches the complete scenario'
 );
 
