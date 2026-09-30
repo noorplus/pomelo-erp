@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(56);
+select plan(57);
 select has_schema('public','public schema');
 select has_table('public','profiles','profiles');
 select has_table('public','organizations','organizations');
@@ -57,5 +57,6 @@ select has_trigger('public','purchase_invoices','purchase_invoices_immutable_trg
 select has_trigger('public','sales_invoices','sales_invoices_immutable_trg','sales document guard');
 select has_trigger('public','payments','payments_immutable_trg','payment document guard');
 select has_trigger('public','expenses','expenses_immutable_trg','expense document guard');
+select has_trigger('public','payment_allocations','payment_allocations_immutable_trg','allocation immutability');
 select * from finish();
 rollback;
