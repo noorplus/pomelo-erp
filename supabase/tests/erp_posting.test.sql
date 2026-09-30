@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(24);
+select plan(22);
 
 do $seed$
 declare
@@ -52,7 +52,9 @@ begin
     (v_org,'3000','Owner Equity','equity','credit'),
     (v_org,'4000','Sales Revenue','revenue','credit'),
     (v_org,'5000','Cost of Goods Sold','expense','debit')
-  returning id into v_cash;
+  ;
+
+  select id into v_cash from public.accounts where organization_id=v_org and account_code='1000';
 
   select id into v_ar from public.accounts where organization_id=v_org and account_code='1100';
   select id into v_inventory from public.accounts where organization_id=v_org and account_code='1200';
