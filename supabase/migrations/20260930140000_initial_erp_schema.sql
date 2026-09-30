@@ -588,7 +588,7 @@ begin
          (select payable_account_id from public.purchase_invoices where id=new.original_invoice_id and organization_id=new.organization_id)
       then raise exception 'purchase return must use original payable account'; end if;
       v_ref_type:='purchase_invoice';
-      if v_entry_type<>case when new.document_type='return' then 'purchase_return' else 'purchase' end then
+      if v_entry_type<>(case when new.document_type='return' then 'purchase_return' else 'purchase' end) then
         raise exception 'purchase journal entry type mismatch';
       end if;
     elsif tg_table_name='sales_invoices' then
@@ -600,7 +600,7 @@ begin
          (select receivable_account_id from public.sales_invoices where id=new.original_invoice_id and organization_id=new.organization_id)
       then raise exception 'sales return must use original receivable account'; end if;
       v_ref_type:='sales_invoice';
-      if v_entry_type<>case when new.document_type='return' then 'sale_return' else 'sale' end then
+      if v_entry_type<>(case when new.document_type='return' then 'sale_return' else 'sale' end) then
         raise exception 'sales journal entry type mismatch';
       end if;
     elsif tg_table_name='expenses' then
