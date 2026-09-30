@@ -3,6 +3,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { findCurrentOrganization } from "@/lib/supabase/organization";
 
 export type OnboardingState = { error?: string };
 
@@ -25,6 +26,9 @@ export async function createOrganization(
   } = await supabase.auth.getUser();
 
   if (!user) return { error: "Your session has expired. Please sign in again." };
+
+  const existingOrganization = await findCurrentOrganization();
+  if (existingOrganization) redirect("/dashboard");
 
   const organizationId = crypto.randomUUID();
 
