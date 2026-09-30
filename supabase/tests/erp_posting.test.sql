@@ -400,6 +400,8 @@ select is(
 );
 
 do $test$
+declare
+  v_overpay uuid;
 begin
   insert into public.payments(
     organization_id,payment_number,payment_type,contact_id,payment_date,amount,account_id
