@@ -454,7 +454,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 
 /* Module configuration hub + compact main content */
 .content{padding:14px 18px 22px}
-.settings-hub-grid{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:10px}
+.settings-hub-grid{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:8px}
 .settings-link-card{display:block;color:inherit;text-decoration:none;cursor:pointer}
 .settings-link-card:hover{border-color:#cbd5e1;transform:translateY(-1px)}
 .config-manager{display:grid;gap:12px}
