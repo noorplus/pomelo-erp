@@ -42,10 +42,7 @@ export default async function ProductsPage({
     throw new Error("Unable to load product master data.");
   }
 
-  const unitMap = new Map((units ?? []).map((unit) => [
-    unit.id,
-    `${unit.code} — ${unit.name}${unit.symbol ? ` (${unit.symbol})` : ""}`,
-  ]));
+  const unitMap = new Map((units ?? []).map((unit) => [unit.id, unit.name]));
 
   const accountMap = new Map((accounts ?? []).map((account) => [
     account.id,
