@@ -154,27 +154,6 @@ create table public.products (id uuid primary key default gen_random_uuid(), org
 create table public.contacts (id uuid primary key default gen_random_uuid(), organization_id uuid not null references public.organizations(id) on delete cascade, contact_number text not null, name text not null, phone text, email text, address text, is_active boolean not null default true, created_by uuid references auth.users(id) on delete set null, created_at timestamptz not null default now(), unique(organization_id,id), unique(organization_id,contact_number), check(btrim(name)<>''));
 -- Controlled document numbering per organization/document type.
 create table public.number_sequences (id uuid primary key default gen_random_uuid(), organization_id uuid not null references public.organizations(id) on delete cascade, document_type text not null, prefix text not null default '', next_number bigint not null default 1, padding integer not null default 6, is_active boolean not null default true, created_at timestamptz not null default now(), unique(organization_id,id), unique(organization_id,document_type), check(next_number>0), check(padding between 1 and 12), check(btrim(document_type)<>''));
--- Business numbers are assigned before insert so every newly-created record
--- receives a tenant-scoped, concurrency-safe identifier automatically.
-create trigger products_assign_number_trg
-before insert on public.products
-for each row execute function private.assign_business_number();
-create trigger contacts_assign_number_trg
-before insert on public.contacts
-for each row execute function private.assign_business_number();
-create trigger purchase_invoices_assign_number_trg
-before insert on public.purchase_invoices
-for each row execute function private.assign_business_number();
-create trigger sales_invoices_assign_number_trg
-before insert on public.sales_invoices
-for each row execute function private.assign_business_number();
-create trigger expenses_assign_number_trg
-before insert on public.expenses
-for each row execute function private.assign_business_number();
-create trigger payments_assign_number_trg
-before insert on public.payments
-for each row execute function private.assign_business_number();
-
 -- Journal header: draft-to-posted accounting transaction container.
 create table public.journal_entries (id uuid primary key default gen_random_uuid(), organization_id uuid not null references public.organizations(id) on delete cascade, entry_number text not null, accounting_period_id uuid not null, entry_date date not null, entry_type text not null check(entry_type in('manual','opening','purchase','purchase_return','sale','sale_return','payment','refund','expense','reversal')), status text not null default 'draft' check(status in('draft','posted')), reference_type text, reference_id uuid, description text, posted_at timestamptz, reversal_of_id uuid, created_by uuid references auth.users(id) on delete set null, created_at timestamptz not null default now(), unique(organization_id,id), unique(organization_id,entry_number), constraint journal_entries_posted_state_ck check((status='posted' and posted_at is not null) or (status='draft' and posted_at is null)), foreign key(organization_id,accounting_period_id) references public.accounting_periods(organization_id,id), foreign key(organization_id,reversal_of_id) references public.journal_entries(organization_id,id), check((reference_type is null and reference_id is null) or(reference_type is not null and reference_id is not null)), check(reversal_of_id is null or(entry_type='reversal' and reversal_of_id<>id)));
 -- Journal lines: individual debit/credit postings.
@@ -444,6 +423,8 @@ begin
     values(p_org_id,p_document_type,case p_document_type
       when 'journal' then 'JE-'
       when 'inventory' then 'INV-'
+      when 'product' then 'PRD-'
+      when 'contact' then 'CON-'
       when 'purchase' then 'PUR-'
       when 'sale' then 'SAL-'
       when 'expense' then 'EXP-'
@@ -473,7 +454,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path=''
-as $
+as $assign_business_number$
 begin
   if tg_table_name='products' then
     new.product_code:=private.next_number(new.organization_id,'product');
@@ -490,7 +471,28 @@ begin
   end if;
   return new;
 end;
-$;
+$assign_business_number$;
+
+-- Business numbers are assigned before insert so every newly-created record
+-- receives a tenant-scoped, concurrency-safe identifier automatically.
+create trigger products_assign_number_trg
+before insert on public.products
+for each row execute function private.assign_business_number();
+create trigger contacts_assign_number_trg
+before insert on public.contacts
+for each row execute function private.assign_business_number();
+create trigger purchase_invoices_assign_number_trg
+before insert on public.purchase_invoices
+for each row execute function private.assign_business_number();
+create trigger sales_invoices_assign_number_trg
+before insert on public.sales_invoices
+for each row execute function private.assign_business_number();
+create trigger expenses_assign_number_trg
+before insert on public.expenses
+for each row execute function private.assign_business_number();
+create trigger payments_assign_number_trg
+before insert on public.payments
+for each row execute function private.assign_business_number();
 
 create or replace function private.require_postable_account(
   p_org_id uuid,
