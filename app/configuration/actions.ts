@@ -17,7 +17,7 @@ function dbMessage(error: { code?: string; message?: string }) {
   return error.message || "The configuration could not be saved.";
 }
 
-export async function saveUnit(_: ConfigActionState, formData: FormData): Promise<ConfigActionState> {
+export async function saveUnit(formData: FormData): Promise<ConfigActionState> {
   try {
     const supabase = await createClient();
     const org = await getCurrentOrganization();
@@ -37,7 +37,7 @@ export async function saveUnit(_: ConfigActionState, formData: FormData): Promis
   }
 }
 
-export async function toggleUnit(_: ConfigActionState, formData: FormData): Promise<ConfigActionState> {
+export async function toggleUnit(formData: FormData): Promise<ConfigActionState> {
   try {
     const supabase = await createClient();
     const org = await getCurrentOrganization();
@@ -53,7 +53,7 @@ export async function toggleUnit(_: ConfigActionState, formData: FormData): Prom
   }
 }
 
-export async function saveAccount(_: ConfigActionState, formData: FormData): Promise<ConfigActionState> {
+export async function saveAccount(formData: FormData): Promise<ConfigActionState> {
   try {
     const supabase = await createClient();
     const org = await getCurrentOrganization();
@@ -91,7 +91,7 @@ export async function saveAccount(_: ConfigActionState, formData: FormData): Pro
   }
 }
 
-export async function toggleAccount(_: ConfigActionState, formData: FormData): Promise<ConfigActionState> {
+export async function toggleAccount(formData: FormData): Promise<ConfigActionState> {
   try {
     const supabase = await createClient();
     const org = await getCurrentOrganization();
@@ -106,7 +106,7 @@ export async function toggleAccount(_: ConfigActionState, formData: FormData): P
   }
 }
 
-export async function savePeriod(_: ConfigActionState, formData: FormData): Promise<ConfigActionState> {
+export async function savePeriod(formData: FormData): Promise<ConfigActionState> {
   try {
     const supabase = await createClient();
     const org = await getCurrentOrganization();
@@ -129,7 +129,7 @@ export async function savePeriod(_: ConfigActionState, formData: FormData): Prom
   }
 }
 
-export async function togglePeriod(_: ConfigActionState, formData: FormData): Promise<ConfigActionState> {
+export async function togglePeriod(formData: FormData): Promise<ConfigActionState> {
   try {
     const supabase = await createClient();
     const org = await getCurrentOrganization();
@@ -145,7 +145,7 @@ export async function togglePeriod(_: ConfigActionState, formData: FormData): Pr
   }
 }
 
-export async function saveExpenseCategory(_: ConfigActionState, formData: FormData): Promise<ConfigActionState> {
+export async function saveExpenseCategory(formData: FormData): Promise<ConfigActionState> {
   try {
     const supabase = await createClient();
     const org = await getCurrentOrganization();
@@ -167,7 +167,7 @@ export async function saveExpenseCategory(_: ConfigActionState, formData: FormDa
   }
 }
 
-export async function toggleExpenseCategory(_: ConfigActionState, formData: FormData): Promise<ConfigActionState> {
+export async function toggleExpenseCategory(formData: FormData): Promise<ConfigActionState> {
   try {
     const supabase = await createClient();
     const org = await getCurrentOrganization();
@@ -183,7 +183,7 @@ export async function toggleExpenseCategory(_: ConfigActionState, formData: Form
   }
 }
 
-export async function saveOrganization(_: ConfigActionState, formData: FormData): Promise<ConfigActionState> {
+export async function saveOrganization(formData: FormData): Promise<ConfigActionState> {
   try {
     const supabase = await createClient();
     const org = await getCurrentOrganization();
