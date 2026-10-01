@@ -9,17 +9,27 @@ type Organization = { id: string; name: string; role: "owner" | "admin" | "manag
 type User = { email?: string | null };
 
 const navigation = [
-  { href: "/", label: "Dashboard", icon: "▥" },
-  { href: "/products", label: "Products", icon: "▦" },
-  { href: "/contacts", label: "Contacts", icon: "◎" },
-  { href: "/sales", label: "Sales", icon: "↗" },
-  { href: "/purchases", label: "Purchases", icon: "↙" },
-  { href: "/inventory", label: "Inventory", icon: "▤" },
-  { href: "/accounting", label: "Accounting", icon: "◎" },
-  { href: "/payments", label: "Payments", icon: "৳" },
-  { href: "/expenses", label: "Expenses", icon: "−" },
-  { href: "/reports", label: "Reports", icon: "▥" },
-  { href: "/settings", label: "Settings", icon: "⚙" },
+  { label: "Overview", items: [
+    { href: "/", label: "Dashboard", icon: "▥" },
+    { href: "/reports", label: "Reports", icon: "▥" },
+  ]},
+  { label: "Operations", items: [
+    { href: "/sales", label: "Sales", icon: "↗" },
+    { href: "/purchases", label: "Purchases", icon: "↙" },
+    { href: "/inventory", label: "Inventory", icon: "▤" },
+  ]},
+  { label: "Finance", items: [
+    { href: "/accounting", label: "Accounting", icon: "◎" },
+    { href: "/payments", label: "Payments", icon: "৳" },
+    { href: "/expenses", label: "Expenses", icon: "−" },
+  ]},
+  { label: "Masters", items: [
+    { href: "/products", label: "Products", icon: "▦" },
+    { href: "/contacts", label: "Contacts", icon: "◎" },
+  ]},
+  { label: "System", items: [
+    { href: "/settings", label: "Settings", icon: "⚙" },
+  ]},
 ];
 
 function Navigation({ onNavigate }: { onNavigate: () => void }) {
@@ -27,25 +37,28 @@ function Navigation({ onNavigate }: { onNavigate: () => void }) {
 
   return (
     <nav className="main-nav" aria-label="Main navigation">
-      <p className="nav-heading">Workspace</p>
-      {navigation.map((item) => {
-        const active = item.href === "/dashboard"
-          ? pathname === item.href
-          : pathname === item.href || pathname.startsWith(item.href + "/");
-
-        return (
-          <Link
-            className={active ? "nav-link active" : "nav-link"}
-            href={item.href}
-            key={item.href}
-            onClick={onNavigate}
-            aria-current={active ? "page" : undefined}
-          >
-            <span className="nav-icon" aria-hidden="true">{item.icon}</span>
-            <span>{item.label}</span>
-          </Link>
-        );
-      })}
+      {navigation.map((section) => (
+        <div key={section.label}>
+          <p className="nav-heading">{section.label}</p>
+          {section.items.map((item) => {
+            const active = item.href === "/"
+              ? pathname === "/"
+              : pathname === item.href || pathname.startsWith(item.href + "/");
+            return (
+              <Link
+                className={active ? "nav-link active" : "nav-link"}
+                href={item.href}
+                key={item.href}
+                onClick={onNavigate}
+                aria-current={active ? "page" : undefined}
+              >
+                <span className="nav-icon" aria-hidden="true">{item.icon}</span>
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      ))}
     </nav>
   );
 }
