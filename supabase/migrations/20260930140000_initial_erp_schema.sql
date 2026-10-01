@@ -134,7 +134,8 @@ create schema if not exists private;
 -- Identity/profile layer linked to Supabase Auth.
 create table public.profiles (id uuid primary key references auth.users(id) on delete cascade, full_name text, phone text, avatar_url text, created_at timestamptz not null default now());
 -- Tenant/business organization master.
-create table public.organizations (id uuid primary key default gen_random_uuid(), name text not null, phone text, email text, address text, city text, country text, base_currency char(3) not null default 'BDT', timezone text not null default 'Asia/Dhaka', logo_url text, tax_number text, is_active boolean not null default true, created_at timestamptz not null default now(), check(btrim(name)<>''), check(base_currency ~ '^[A-Z]{3}
+create table public.organizations (id uuid primary key default gen_random_uuid(), name text not null, phone text, email text, address text, city text, country text, base_currency char(3) not null default 'BDT', timezone text not null default 'Asia/Dhaka', logo_url text, tax_number text, is_active boolean not null default true, created_at timestamptz not null default now(), check(btrim(name)<>''), check(length(btrim(base_currency))=3 and base_currency=upper(base_currency)));
+-- Organization membership and role assignments.
 create table public.organization_users (id uuid primary key default gen_random_uuid(), organization_id uuid not null references public.organizations(id) on delete cascade, user_id uuid not null references auth.users(id) on delete cascade, role text not null check(role in('owner','admin','manager','staff')), is_active boolean not null default true, created_at timestamptz not null default now(), unique(organization_id,user_id), unique(organization_id,id));
 create unique index organization_users_one_owner_uq on public.organization_users(organization_id) where role='owner' and is_active;
 create index organization_users_user_idx on public.organization_users(user_id,organization_id);
