@@ -31,9 +31,13 @@ export function AppShell({
         <SidebarNav onNavigate={() => undefined} />
       </aside>
 
-      {mobileOpen && (
-        <button className="mobile-nav-overlay" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />
-      )}
+      <button
+        className={mobileOpen ? "mobile-nav-overlay open" : "mobile-nav-overlay"}
+        aria-label="Close navigation"
+        aria-hidden={!mobileOpen}
+        tabIndex={mobileOpen ? 0 : -1}
+        onClick={() => setMobileOpen(false)}
+      />
 
       <aside className={mobileOpen ? "sidebar mobile-sidebar open" : "sidebar mobile-sidebar"} aria-hidden={!mobileOpen}>
         <div className="sidebar-brand">
