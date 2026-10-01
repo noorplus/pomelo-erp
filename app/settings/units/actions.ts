@@ -11,7 +11,7 @@ function value(formData: FormData, key: string) {
 }
 
 function databaseMessage(error: { code?: string; message?: string }) {
-  if (error.code === "23505") return "A unit with this code already exists in this organization.";
+  if (error.code === "23505") return "A unit with this name already exists in this organization.";
   if (error.code === "23503") return "This unit is referenced by existing product data and cannot be removed.";
   if (error.code === "42501") return "You do not have permission to change units of measure.";
   return error.message || "The unit could not be saved.";
