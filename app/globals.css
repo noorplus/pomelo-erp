@@ -451,3 +451,35 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
     transition: none !important;
   }
 }
+
+
+/* Final shell density + settings refinement */
+.content { padding: 14px 16px; }
+@media (min-width: 1200px) { .content { padding: 14px 18px; } }
+.settings-page { gap: 16px; }
+.settings-profile { padding: 14px 16px; }
+.settings-grid { margin-top: 10px; gap: 10px; }
+.settings-card { min-height: 142px; padding: 14px; }
+.settings-card-bottom { padding-top: 14px; }
+.settings-card-bottom strong { font-size: 20px; }
+.settings-info-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.settings-info-card { min-height: 0; padding: 14px 16px; }
+.settings-info-card strong { font-size: 12px; }
+.settings-info-card span { font-size: 10px; }
+.settings-note { padding: 12px 14px; }
+.user-menu-wrap { position: relative; }
+.user-menu-dropdown {
+  position: fixed;
+  top: 58px;
+  right: max(12px, env(safe-area-inset-right));
+  width: min(300px, calc(100vw - 24px));
+  max-height: min(420px, calc(100dvh - 70px));
+  overflow: auto;
+  z-index: 100;
+}
+@media (max-width: 900px) {
+  .content { padding: 12px; }
+  .settings-info-grid { grid-template-columns: 1fr; }
+  .user-menu-dropdown { top: 50px; right: max(10px, env(safe-area-inset-right)); width: min(280px, calc(100vw - 20px)); }
+}
+@media (max-width: 620px) { .content { padding: 10px 12px; } }
