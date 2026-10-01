@@ -39,7 +39,7 @@ export function ProductForm({
           <p className="eyebrow">{product ? "Edit product" : "New product"}</p>
           <h2>{product ? product.name : "Create product"}</h2>
         </div>
-        {product ? <Link href="/dashboard/products" className="secondary-button compact">Cancel</Link> : null}
+        {product ? <Link href="/products" className="secondary-button compact">Cancel</Link> : null}
       </div>
 
       <div className="form-grid">
