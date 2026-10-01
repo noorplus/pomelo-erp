@@ -10,7 +10,7 @@ export default async function SettingsPage() {
 
   const [{ data: profile }, { count: users }, { count: units }, { count: accounts }, { count: sequences }, { count: periods }, { count: expenseCategories }] =
     await Promise.all([
-      supabase.from("organizations").select("name,legal_name,phone,email,address,city,country,base_currency,timezone,logo_url,tax_number,is_active").eq("id", organization.id).maybeSingle(),
+      supabase.from("organizations").select("name,phone,email,address,city,country,base_currency,timezone,logo_url,tax_number,is_active").eq("id", organization.id).maybeSingle(),
       supabase.from("organization_users").select("id", { count: "exact", head: true }).eq("organization_id", organization.id),
       supabase.from("units_of_measure").select("id", { count: "exact", head: true }).eq("organization_id", organization.id),
       supabase.from("accounts").select("id", { count: "exact", head: true }).eq("organization_id", organization.id),
@@ -19,7 +19,7 @@ export default async function SettingsPage() {
       supabase.from("expense_categories").select("id", { count: "exact", head: true }).eq("organization_id", organization.id),
     ]);
 
-  const profileFields = [profile?.name, profile?.legal_name, profile?.phone, profile?.email, profile?.address, profile?.city, profile?.country, profile?.base_currency, profile?.timezone, profile?.tax_number];
+  const profileFields = [profile?.name, profile?.phone, profile?.email, profile?.address, profile?.city, profile?.country, profile?.base_currency, profile?.timezone, profile?.tax_number];
   const completedProfileFields = profileFields.filter(Boolean).length;
   const profileStatus = completedProfileFields === profileFields.length ? "Complete" : "Needs attention";
 
@@ -43,7 +43,7 @@ export default async function SettingsPage() {
       <section className="settings-profile panel">
         <div className="settings-profile-main">
           <div className="settings-org-avatar">{(organization.name[0] || "O").toUpperCase()}</div>
-          <div><p className="eyebrow">Current organization</p><h2>{organization.name}</h2><p>{profile?.legal_name || "Legal name not configured"} · {profile?.base_currency || "BDT"} · {profile?.timezone || "Asia/Dhaka"}</p></div>
+          <div><p className="eyebrow">Current organization</p><h2>{organization.name}</h2><p>{profile?.base_currency || "BDT"} · {profile?.timezone || "Asia/Dhaka"}</p></div>
         </div>
         <div className="settings-profile-meta"><span className={profile?.is_active ? "status-pill active" : "status-pill"}>{profile?.is_active ? "Active" : "Inactive"}</span><span>{organization.role}</span></div>
       </section>
