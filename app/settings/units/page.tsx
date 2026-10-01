@@ -87,7 +87,7 @@ export default async function UnitsPage({ searchParams }: { searchParams: Search
             </form>
           </div>
           {units && units.length > 0 ? (
-            <div className="data-table-wrap">
+            <DataTable ariaLabel="Units of measure">
               <table className="data-table">
                 <thead><tr><th>Unit</th><th>Product usage</th><th>Status</th><th /></tr></thead>
                 <tbody>
@@ -106,7 +106,7 @@ export default async function UnitsPage({ searchParams }: { searchParams: Search
                   })}
                 </tbody>
               </table>
-            </div>
+            </DataTable>
           ) : (
             <div className="empty-state">
               <strong>{q ? "No matching units" : "No units yet"}</strong>
