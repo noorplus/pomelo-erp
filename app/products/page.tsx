@@ -100,7 +100,6 @@ export default async function ProductsPage({
 
           {products && products.length > 0 ? (
             <DataTable ariaLabel="Products">
-              <table className="data-table">
                 <thead>
                   <tr>
                     <th>Product</th>
@@ -135,8 +134,7 @@ export default async function ProductsPage({
                     </tr>
                   ))}
                 </tbody>
-              </table>
-            </DataTable>
+              </DataTable>
           ) : (
             <div className="empty-state">
               <strong>{q ? "No matching products" : "No products yet"}</strong>
