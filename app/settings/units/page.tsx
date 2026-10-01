@@ -94,8 +94,7 @@ export default async function UnitsPage({ searchParams }: { searchParams: Search
                     const usage = productUsage.get(unit.id) ?? { total: 0, active: 0 };
                     return (
                       <tr key={unit.id}>
-                        <td><strong>{unit.code}</strong><span>{unit.name}</span></td>
-                        <td><code>{unit.symbol || "—"}</code></td>
+                        <td><strong>{unit.name}</strong></td>
                         <td><strong>{usage.total}</strong><span>{usage.active} active product{usage.active === 1 ? "" : "s"}</span></td>
                         <td><span className={unit.is_active ? "status-pill active" : "status-pill"}>{unit.is_active ? "Active" : "Inactive"}</span></td>
                         <td className="row-actions">
