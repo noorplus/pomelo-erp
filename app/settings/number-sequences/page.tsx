@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrganization } from "@/lib/supabase/organization";
+import { DataTable, DataTableEmpty } from "@/components/data-table";
 
 type Sequence = { id: string; document_type: string; prefix: string; next_number: number; padding: number; is_active: boolean; created_at: string };
 const labels: Record<string, string> = { journal: "Journal entries", inventory: "Inventory transactions", purchase: "Purchase invoices", sale: "Sales invoices", expense: "Expenses", payment: "Payments" };
@@ -28,9 +29,9 @@ export default async function NumberSequencesPage() {
       </section>
       <section>
         <div className="section-heading"><div><h2>Configured sequences</h2><p>The database advances these counters inside the transaction that creates the business document.</p></div></div>
-        {sequences && sequences.length > 0 ? <div className="panel data-table-wrap"><table className="data-table"><thead><tr><th>Document</th><th>Prefix</th><th>Next number</th><th>Padding</th><th>Next document</th><th>Status</th></tr></thead><tbody>
+        {sequences && sequences.length > 0 ? <div className="panel"><DataTable ariaLabel="Number sequences"><thead><tr><th>Document</th><th>Prefix</th><th>Next number</th><th>Padding</th><th>Next document</th><th>Status</th></tr></thead><tbody>
           {sequences.map((sequence) => <tr key={sequence.id}><td><strong>{labels[sequence.document_type] ?? titleCase(sequence.document_type)}</strong><span>{sequence.document_type}</span></td><td><code>{sequence.prefix || "—"}</code></td><td><strong>{sequence.next_number.toLocaleString()}</strong></td><td>{sequence.padding}</td><td><code>{formatPreview(sequence)}</code></td><td><span className={sequence.is_active ? "status-pill active" : "status-pill"}>{sequence.is_active ? "Active" : "Inactive"}</span></td></tr>)}
-        </tbody></table></div> : <div className="panel empty-state"><strong>No sequence rows have been created yet.</strong><span>Sequences are created automatically by the database when a supported document type is first posted.</span></div>}
+        </tbody></table></DataTable> : <div className="panel empty-state"><strong>No sequence rows have been created yet.</strong><span>Sequences are created automatically by the database when a supported document type is first posted.</span></div>}
       </section>
       <section className="settings-grid">
         <article className="settings-card"><div className="settings-card-top"><div><h3>Supported document types</h3><p>Document types with built-in defaults in the transactional sequence engine.</p></div><span className="settings-status ready">{supportedTypes.length} types</span></div><div className="settings-card-bottom"><span>{supportedTypes.map((type) => labels[type]).join(" · ")}</span></div></article>
