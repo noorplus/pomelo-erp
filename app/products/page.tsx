@@ -99,7 +99,7 @@ export default async function ProductsPage({
           </div>
 
           {products && products.length > 0 ? (
-            <div className="data-table-wrap">
+            <DataTable ariaLabel="Products">
               <table className="data-table">
                 <thead>
                   <tr>
@@ -136,7 +136,7 @@ export default async function ProductsPage({
                   ))}
                 </tbody>
               </table>
-            </div>
+            </DataTable>
           ) : (
             <div className="empty-state">
               <strong>{q ? "No matching products" : "No products yet"}</strong>
