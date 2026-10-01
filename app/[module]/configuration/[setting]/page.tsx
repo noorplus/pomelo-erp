@@ -31,7 +31,7 @@ export default async function ModuleConfigurationPage({ params, searchParams }: 
   const user = (await supabase.auth.getUser()).data.user;
   if (!user) return null;
 
-  const config = configs[module as Module][setting as never] as { title: string; description: string; href: string };
+  const config = (configs[module as Module] as Record<string, { title: string; description: string; href: string }>)[setting];
   let rows: Record<string, unknown>[] = [];
   let editingRow: Record<string, unknown> | undefined;
   let fields: ConfigField[] = [];
