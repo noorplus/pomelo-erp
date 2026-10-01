@@ -8,60 +8,7 @@ import { SignOutButton } from "@/components/sign-out-button";
 type Organization = { id: string; name: string; role: "owner" | "admin" | "manager" | "staff" };
 type User = { email?: string | null };
 
-const navigation = [
-  { label: "Overview", items: [
-    { href: "/", label: "Dashboard", icon: "▥" },
-    { href: "/reports", label: "Reports", icon: "▥" },
-  ]},
-  { label: "Operations", items: [
-    { href: "/sales", label: "Sales", icon: "↗" },
-    { href: "/purchases", label: "Purchases", icon: "↙" },
-    { href: "/inventory", label: "Inventory", icon: "▤" },
-  ]},
-  { label: "Finance", items: [
-    { href: "/accounting", label: "Accounting", icon: "◎" },
-    { href: "/payments", label: "Payments", icon: "৳" },
-    { href: "/expenses", label: "Expenses", icon: "−" },
-  ]},
-  { label: "Masters", items: [
-    { href: "/products", label: "Products", icon: "▦" },
-    { href: "/contacts", label: "Contacts", icon: "◎" },
-  ]},
-  { label: "System", items: [
-    { href: "/settings", label: "Settings", icon: "⚙" },
-  ]},
-];
-
-function Navigation({ onNavigate }: { onNavigate: () => void }) {
-  const pathname = usePathname();
-
-  return (
-    <nav className="main-nav" aria-label="Main navigation">
-      {navigation.map((section) => (
-        <div key={section.label}>
-          <p className="nav-heading">{section.label}</p>
-          {section.items.map((item) => {
-            const active = item.href === "/"
-              ? pathname === "/"
-              : pathname === item.href || pathname.startsWith(item.href + "/");
-            return (
-              <Link
-                className={active ? "nav-link active" : "nav-link"}
-                href={item.href}
-                key={item.href}
-                onClick={onNavigate}
-                aria-current={active ? "page" : undefined}
-              >
-                <span className="nav-icon" aria-hidden="true">{item.icon}</span>
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
-        </div>
-      ))}
-    </nav>
-  );
-}
+import { SidebarNav } from "@/components/sidebar-nav";
 
 export function AppShell({
   children,
@@ -81,7 +28,7 @@ export function AppShell({
           <div className="brand-mark small">P</div>
           <div><strong>Pomelo ERP</strong><span>{organization.name}</span></div>
         </div>
-        <Navigation onNavigate={() => undefined} />
+        <SidebarNav onNavigate={() => undefined} />
         <div className="sidebar-footer">
           <div className="user-card">
             <span className="avatar">{(user?.email?.[0] || "U").toUpperCase()}</span>
@@ -101,7 +48,7 @@ export function AppShell({
           <div><strong>Pomelo ERP</strong><span>{organization.name}</span></div>
           <button className="mobile-close" aria-label="Close navigation" onClick={() => setMobileOpen(false)}>×</button>
         </div>
-        <Navigation onNavigate={() => setMobileOpen(false)} />
+        <SidebarNav onNavigate={() => setMobileOpen(false)} />
         <div className="sidebar-footer">
           <div className="user-card">
             <span className="avatar">{(user?.email?.[0] || "U").toUpperCase()}</span>
