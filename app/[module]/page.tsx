@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { ErpPageShell } from "@/components/erp-page-shell";
 import { ModulePlaceholder } from "@/components/module-placeholder";
 
 const modules: Record<string, { title: string; description: string }> = {
@@ -15,5 +16,10 @@ export default async function ModulePage({ params }: { params: Promise<{ module:
   const { module } = await params;
   const item = modules[module];
   if (!item) notFound();
-  return <ModulePlaceholder title={item.title} description={item.description} />;
+
+  return (
+    <ErpPageShell>
+      <ModulePlaceholder title={item.title} description={item.description} />
+    </ErpPageShell>
+  );
 }
