@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AppShell } from "@/components/app-shell";
 import { ConfigurationManager, type ConfigField } from "@/components/configuration-manager";
 import { getCurrentOrganization } from "@/lib/supabase/organization";
 import { createClient } from "@/lib/supabase/server";
@@ -105,7 +104,6 @@ export default async function ModuleConfigurationPage({ params, searchParams }: 
   const backHref = module === "inventory" ? "/inventory" : module === "accounting" ? "/accounting" : "/expenses";
 
   return (
-    <AppShell organization={org} user={user}>
       <div className="settings-page">
         <div className="page-heading">
           <div className="page-heading-copy">
@@ -129,6 +127,5 @@ export default async function ModuleConfigurationPage({ params, searchParams }: 
           readOnly={readOnly}
         />
       </div>
-    </AppShell>
   );
 }

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { AppShell } from "@/components/app-shell";
 import { getCurrentOrganization } from "@/lib/supabase/organization";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -21,7 +20,6 @@ export default async function SettingsPage() {
   ];
 
   return (
-    <AppShell organization={organization} user={user}>
       <div className="settings-page">
         <section className="page-heading">
           <div className="page-heading-copy">
@@ -70,6 +68,5 @@ export default async function SettingsPage() {
           <span>Accounting → accounts and periods · Inventory → units of measure · Expenses → expense categories. Number sequences remain owned by their relevant module.</span>
         </section>
       </div>
-    </AppShell>
   );
 }

@@ -484,3 +484,61 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 .user-menu-dropdown{position:fixed;top:60px;right:max(12px,env(safe-area-inset-right));left:auto;width:min(300px,calc(100vw - 24px));max-height:calc(100dvh - 72px);overflow:auto}
 @media(max-width:900px){.content{padding:10px 12px 18px}.topbar{padding-inline:12px}}
 @media(max-width:620px){.content{padding:9px 10px 16px}.settings-profile{padding:12px}.settings-card{min-height:112px}.user-menu-dropdown{top:58px;right:max(10px,env(safe-area-inset-right));width:min(280px,calc(100vw - 20px));max-height:calc(100dvh - 68px)}}
+
+
+/* Final compact shell spacing + viewport-safe account menu */
+.content {
+  padding: 10px 12px 16px;
+}
+.main-area {
+  min-width: 0;
+  overflow: visible;
+}
+.settings-page {
+  gap: 12px;
+}
+.module-workspace {
+  margin: 0;
+}
+.workspace-card {
+  padding: 16px;
+}
+.module-config-links {
+  margin-top: 10px;
+  gap: 8px;
+}
+.user-menu-dropdown {
+  position: fixed;
+  top: 60px;
+  right: max(8px, env(safe-area-inset-right));
+  left: auto;
+  width: min(300px, calc(100vw - 16px));
+  max-height: calc(100dvh - 68px);
+  overflow: auto;
+  z-index: 61;
+}
+@media (max-width: 900px) {
+  .content {
+    padding: 9px 10px 15px;
+  }
+  .topbar {
+    padding-inline: 10px;
+  }
+}
+@media (max-width: 620px) {
+  .content {
+    padding: 8px 8px 14px;
+  }
+  .workspace-card {
+    padding: 15px;
+  }
+  .settings-page {
+    gap: 10px;
+  }
+  .user-menu-dropdown {
+    top: 58px;
+    right: max(8px, env(safe-area-inset-right));
+    width: min(280px, calc(100vw - 16px));
+    max-height: calc(100dvh - 66px);
+  }
+}
