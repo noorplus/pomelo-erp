@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrganization } from "@/lib/supabase/organization";
 import { ContactForm } from "./contact-form";
 import { ContactStatusForm } from "./status-form";
-import { DataTable, DataTableEmpty } from "@/components/data-table";
+import { DataTable } from "@/components/data-table";
 type SearchParams = Promise<{ q?: string; edit?: string }>;
 export default async function ContactsPage({ searchParams }: { searchParams: SearchParams }) {
  const params=await searchParams; const q=(params.q??"").replace(/[^a-zA-Z0-9 _./@+()-]/g,"").trim().slice(0,80); const editId=params.edit??"";
