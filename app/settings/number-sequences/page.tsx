@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrganization } from "@/lib/supabase/organization";
-import { DataTable, DataTableEmpty } from "@/components/data-table";
+import { DataTable } from "@/components/data-table";
 
 type Sequence = { id: string; document_type: string; prefix: string; next_number: number; padding: number; is_active: boolean; created_at: string };
 const labels: Record<string, string> = { journal: "Journal entries", inventory: "Inventory transactions", purchase: "Purchase invoices", sale: "Sales invoices", expense: "Expenses", payment: "Payments" };
