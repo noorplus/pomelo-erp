@@ -35,7 +35,7 @@ export function ConfigurationManager({
             <div><h2>{editingRow ? "Edit" : "Add"} {title}</h2><p>{description}</p></div>
             {editingRow && <Link className="secondary-button compact" href={newHref}>New</Link>}
           </div>
-          <form className="erp-form" action={action}>
+          <form className="erp-form" action={action as unknown as (formData: FormData) => void}>
             <input type="hidden" name="id" value={String(editingRow?.id ?? "")} />
             <div className="form-grid">
               {fields.map(field => (
@@ -75,7 +75,7 @@ export function ConfigurationManager({
                     <td><span className={row.status === "open" || row.is_active === true ? "status-pill active" : "status-pill"}>{row.status ? String(row.status) : row.is_active ? "Active" : "Inactive"}</span></td>
                     {!readOnly && <td className="row-actions">
                       <Link className="text-button" href={editHref + "?edit=" + String(row.id)}>Edit</Link>
-                      {toggleAction && <form className="inline-form" action={toggleAction}><input type="hidden" name="id" value={String(row.id)} /><input type="hidden" name={row.status ? "next_open" : "next_active"} value={row.status ? String(row.status !== "open") : String(row.is_active !== true)} /><button className="text-button">{row.status ? (row.status === "open" ? "Close" : "Open") : (row.is_active ? "Deactivate" : "Activate")}</button></form>}
+                      {toggleAction && <form className="inline-form" action={toggleAction as unknown as (formData: FormData) => void}><input type="hidden" name="id" value={String(row.id)} /><input type="hidden" name={row.status ? "next_open" : "next_active"} value={row.status ? String(row.status !== "open") : String(row.is_active !== true)} /><button className="text-button">{row.status ? (row.status === "open" ? "Close" : "Open") : (row.is_active ? "Deactivate" : "Activate")}</button></form>}
                     </td>}
                   </tr>
                 ))}
