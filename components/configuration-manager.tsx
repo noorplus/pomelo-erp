@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ConfigActionState } from "@/app/configuration/actions";
 
-type Action = (state: ConfigActionState, formData: FormData) => Promise<ConfigActionState>;
+type Action = (formData: FormData) => Promise<ConfigActionState>;
 
 export type ConfigField = {
   name: string;
