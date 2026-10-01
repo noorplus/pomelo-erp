@@ -28,10 +28,45 @@ export default async function NumberSequencesPage() {
         <div className="settings-profile-meta"><span className="status-pill active">Transactional</span><span>Concurrency safe</span></div>
       </section>
       <section>
-        <div className="section-heading"><div><h2>Configured sequences</h2><p>The database advances these counters inside the transaction that creates the business document.</p></div></div>
-        {sequences && sequences.length > 0 ? <div className="panel"><DataTable ariaLabel="Number sequences"><thead><tr><th>Document</th><th>Prefix</th><th>Next number</th><th>Padding</th><th>Next document</th><th>Status</th></tr></thead><tbody>
-          {sequences.map((sequence) => <tr key={sequence.id}><td><strong>{labels[sequence.document_type] ?? titleCase(sequence.document_type)}</strong><span>{sequence.document_type}</span></td><td><code>{sequence.prefix || "—"}</code></td><td><strong>{sequence.next_number.toLocaleString()}</strong></td><td>{sequence.padding}</td><td><code>{formatPreview(sequence)}</code></td><td><span className={sequence.is_active ? "status-pill active" : "status-pill"}>{sequence.is_active ? "Active" : "Inactive"}</span></td></tr>)}
-        </tbody></DataTable> : <div className="panel empty-state"><strong>No sequence rows have been created yet.</strong><span>Sequences are created automatically by the database when a supported document type is first posted.</span></div>}
+        <div className="section-heading">
+          <div>
+            <h2>Configured sequences</h2>
+            <p>The database advances these counters inside the transaction that creates the business document.</p>
+          </div>
+        </div>
+        {sequences && sequences.length > 0 ? (
+          <div className="panel">
+            <DataTable ariaLabel="Number sequences" minWidth={760}>
+              <thead>
+                <tr>
+                  <th>Document</th>
+                  <th>Prefix</th>
+                  <th className="numeric">Next number</th>
+                  <th className="numeric">Padding</th>
+                  <th>Next document</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sequences.map((sequence) => (
+                  <tr key={sequence.id}>
+                    <td><strong>{labels[sequence.document_type] ?? titleCase(sequence.document_type)}</strong><span>{sequence.document_type}</span></td>
+                    <td><code>{sequence.prefix || "—"}</code></td>
+                    <td className="numeric"><strong>{sequence.next_number.toLocaleString()}</strong></td>
+                    <td className="numeric">{sequence.padding}</td>
+                    <td><code>{formatPreview(sequence)}</code></td>
+                    <td><span className={sequence.is_active ? "status-pill active" : "status-pill"}>{sequence.is_active ? "Active" : "Inactive"}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </DataTable>
+          </div>
+        ) : (
+          <div className="panel empty-state">
+            <strong>No sequence rows have been created yet.</strong>
+            <span>Sequences are created automatically by the database when a supported document type is first posted.</span>
+          </div>
+        )}
       </section>
       <section className="settings-grid">
         <article className="settings-card"><div className="settings-card-top"><div><h3>Supported document types</h3><p>Document types with built-in defaults in the transactional sequence engine.</p></div><span className="settings-status ready">{supportedTypes.length} types</span></div><div className="settings-card-bottom"><span>{supportedTypes.map((type) => labels[type]).join(" · ")}</span></div></article>
