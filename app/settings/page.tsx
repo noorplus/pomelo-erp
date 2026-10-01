@@ -18,7 +18,6 @@ export default async function SettingsPage() {
   const cards = [
     { href: "/settings/organization", title: "Organization", description: "Company identity, contact details, currency, timezone, logo and tax information.", meta: "System administration" },
     { href: "/settings/users", title: "Users & Roles", description: "Review organization membership and role assignments.", meta: (users ?? 0) + " active users" },
-    { href: "/accounting/configuration/sequences", title: "Number Sequences", description: "Review automatic numbering for products, contacts, invoices, payments and journals.", meta: "Database controlled" },
   ];
 
   return (
@@ -28,7 +27,7 @@ export default async function SettingsPage() {
           <div className="page-heading-copy">
             <p className="eyebrow">System administration</p>
             <h1>Settings</h1>
-            <p>Only system-wide configuration lives here. Business configuration stays inside its owning module.</p>
+            <p>System-wide configuration only. Accounting, inventory and expense configuration stays inside its owning module.</p>
           </div>
           <span className="settings-role-badge">{organization.role}</span>
         </section>
@@ -68,7 +67,7 @@ export default async function SettingsPage() {
 
         <section className="settings-note">
           <strong>Configuration ownership</strong>
-          <span>Accounting configuration is under Accounting, inventory configuration is under Inventory, and expense categories are under Expenses. No new settings table or migration is required.</span>
+          <span>Accounting → accounts and periods · Inventory → units of measure · Expenses → expense categories. Number sequences remain owned by their relevant module.</span>
         </section>
       </div>
     </AppShell>
