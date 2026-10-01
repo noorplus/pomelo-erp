@@ -15,7 +15,7 @@ function value(formData: FormData, key: string) {
 
 function databaseMessage(error: { code?: string; message?: string }) {
   if (error.code === "23505") {
-    return "A product with this code already exists in this organization.";
+    return "A product with this automatically generated code already exists in this organization.";
   }
   if (error.code === "23503") {
     return "One of the selected units or accounts is invalid for this organization.";
@@ -41,7 +41,7 @@ export async function saveProduct(
     const salesAccountId = value(formData, "sales_account_id");
     const cogsAccountId = value(formData, "cogs_account_id");
 
-    if (!productCode || !name || !unitId || !inventoryAccountId || !salesAccountId || !cogsAccountId) {
+    if (!name || !unitId || !inventoryAccountId || !salesAccountId || !cogsAccountId) {
       return { error: "Product code, name, unit, inventory, sales, and COGS accounts are required." };
     }
 
@@ -67,8 +67,8 @@ export async function saveProduct(
         return { error: databaseMessage(error) };
       }
 
-      revalidatePath("/dashboard/products");
-      revalidatePath("/dashboard");
+      revalidatePath("/products");
+      revalidatePath("/");
       return { success: "Product updated successfully." };
     }
 
@@ -81,8 +81,8 @@ export async function saveProduct(
       return { error: databaseMessage(error) };
     }
 
-    revalidatePath("/dashboard/products");
-    revalidatePath("/dashboard");
+    revalidatePath("/products");
+    revalidatePath("/");
     return { success: "Product created successfully." };
   } catch (error) {
     return {
@@ -116,8 +116,8 @@ export async function toggleProduct(
       return { error: databaseMessage(error) };
     }
 
-    revalidatePath("/dashboard/products");
-    revalidatePath("/dashboard");
+    revalidatePath("/products");
+    revalidatePath("/");
     return { success: nextActive ? "Product activated." : "Product deactivated." };
   } catch (error) {
     return {
