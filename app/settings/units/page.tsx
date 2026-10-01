@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrganization } from "@/lib/supabase/organization";
 import { UnitForm } from "./unit-form";
 import { UnitStatusForm } from "./status-form";
-import { DataTable, DataTableEmpty } from "@/components/data-table";
+import { DataTable } from "@/components/data-table";
 
 type SearchParams = Promise<{ q?: string; edit?: string }>;
 
