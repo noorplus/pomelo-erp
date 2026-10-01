@@ -1,13 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { SignOutButton } from "@/components/sign-out-button";
+import { SidebarNav } from "@/components/sidebar-nav";
 
 type Organization = { id: string; name: string; role: "owner" | "admin" | "manager" | "staff" };
 type User = { email?: string | null };
-
-import { SidebarNav } from "@/components/sidebar-nav";
 
 export function AppShell({
   children,
@@ -19,6 +17,9 @@ export function AppShell({
   user: User | null;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const email = user?.email || "Signed in";
+  const initial = (email[0] || "U").toUpperCase();
 
   return (
     <div className="erp-shell">
@@ -28,13 +29,6 @@ export function AppShell({
           <div><strong>Pomelo ERP</strong><span>{organization.name}</span></div>
         </div>
         <SidebarNav onNavigate={() => undefined} />
-        <div className="sidebar-footer">
-          <div className="user-card">
-            <span className="avatar">{(user?.email?.[0] || "U").toUpperCase()}</span>
-            <div className="user-meta"><strong>{user?.email || "Signed in"}</strong><span>{organization.role}</span></div>
-          </div>
-          <SignOutButton />
-        </div>
       </aside>
 
       {mobileOpen && (
@@ -48,13 +42,6 @@ export function AppShell({
           <button className="mobile-close" aria-label="Close navigation" onClick={() => setMobileOpen(false)}>×</button>
         </div>
         <SidebarNav onNavigate={() => setMobileOpen(false)} />
-        <div className="sidebar-footer">
-          <div className="user-card">
-            <span className="avatar">{(user?.email?.[0] || "U").toUpperCase()}</span>
-            <div className="user-meta"><strong>{user?.email || "Signed in"}</strong><span>{organization.role}</span></div>
-          </div>
-          <SignOutButton />
-        </div>
       </aside>
 
       <div className="main-area">
@@ -65,11 +52,49 @@ export function AppShell({
             </button>
             <div className="mobile-brand-mark">P</div>
           </div>
+
           <div className="topbar-context">
             <p className="topbar-kicker">Pomelo ERP</p>
             <strong>{organization.name}</strong>
           </div>
-          <div className="topbar-status"><span /> Connected</div>
+
+          <div className="topbar-actions">
+            <div className="topbar-status"><span /> Connected</div>
+            <div className="user-menu-wrap">
+              <button
+                className={userMenuOpen ? "user-menu-trigger open" : "user-menu-trigger"}
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded={userMenuOpen}
+                onClick={() => setUserMenuOpen((value) => !value)}
+              >
+                <span className="avatar">{initial}</span>
+                <span className="user-menu-copy">
+                  <strong>{email}</strong>
+                  <span>{organization.role}</span>
+                </span>
+                <span className="user-menu-chevron" aria-hidden="true">⌄</span>
+              </button>
+              {userMenuOpen && (
+                <>
+                  <button className="user-menu-backdrop" aria-label="Close user menu" onClick={() => setUserMenuOpen(false)} />
+                  <div className="user-menu-dropdown" role="menu">
+                    <div className="user-menu-header">
+                      <span className="avatar large">{initial}</span>
+                      <div>
+                        <strong>{email}</strong>
+                        <span>{organization.role}</span>
+                      </div>
+                    </div>
+                    <div className="user-menu-divider" />
+                    <div className="user-menu-action">
+                      <SignOutButton />
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         </header>
         <main className="content">{children}</main>
       </div>
