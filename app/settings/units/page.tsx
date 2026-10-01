@@ -88,7 +88,6 @@ export default async function UnitsPage({ searchParams }: { searchParams: Search
           </div>
           {units && units.length > 0 ? (
             <DataTable ariaLabel="Units of measure">
-              <table className="data-table">
                 <thead><tr><th>Unit</th><th>Product usage</th><th>Status</th><th /></tr></thead>
                 <tbody>
                   {units.map((unit) => {
@@ -105,8 +104,7 @@ export default async function UnitsPage({ searchParams }: { searchParams: Search
                     );
                   })}
                 </tbody>
-              </table>
-            </DataTable>
+              </DataTable>
           ) : (
             <div className="empty-state">
               <strong>{q ? "No matching units" : "No units yet"}</strong>
