@@ -1962,12 +1962,14 @@ begin
     values(p_org_id,p_document_type,case p_document_type
       when 'journal' then 'JE-'
       when 'inventory' then 'INV-'
+      when 'product' then 'PRD-'
+      when 'contact' then 'CON-'
       when 'purchase' then 'PUR-'
       when 'sale' then 'SAL-'
       when 'expense' then 'EXP-'
       when 'payment' then 'PAY-'
       else upper(left(p_document_type,3))||'-'
-    end,2,6)
+    end,1,6)
     on conflict(organization_id,document_type) do nothing;
 
     select prefix,next_number,padding
