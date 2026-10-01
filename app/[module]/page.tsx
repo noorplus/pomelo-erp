@@ -9,7 +9,6 @@ const modules: Record<string, { title: string; description: string; configuratio
   accounting: { title: "Accounting", description: "Accounting module will be completed from the existing journal, ledger, and period database model.", configuration: [
     { href: "/accounting/configuration/accounts", label: "Chart of Accounts", description: "Accounts and posting configuration." },
     { href: "/accounting/configuration/periods", label: "Accounting Periods", description: "Open and close posting periods." },
-    { href: "/accounting/configuration/sequences", label: "Number Sequences", description: "Automatic document numbering." },
   ] },
   payments: { title: "Payments", description: "Payments module will be completed from the existing payments and allocation database model." },
   expenses: { title: "Expenses", description: "Expenses module will be completed from the existing expense and accounting database model.", configuration: [{ href: "/expenses/configuration/categories", label: "Expense Categories", description: "Classify expenses and map them to accounts." }] },
