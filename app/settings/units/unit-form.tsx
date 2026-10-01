@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { saveUnit, type UnitActionState } from "./actions";
 
-type Unit = { id: string; code: string; name: string; symbol: string | null };
+type Unit = { id: string; name: string };
 
 export function UnitForm({ unit }: { unit?: Unit | null }) {
   const [state, formAction, pending] = useActionState(saveUnit, {});
