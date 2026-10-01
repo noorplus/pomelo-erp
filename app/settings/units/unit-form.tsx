@@ -21,17 +21,8 @@ export function UnitForm({ unit }: { unit?: Unit | null }) {
       </div>
       <div className="form-grid">
         <label>
-          Unit code
-          <input name="code" defaultValue={unit?.code ?? ""} maxLength={30} placeholder="e.g. PCS" required />
-          <span className="field-help">Unique within this organization. Stored uppercase.</span>
-        </label>
-        <label>
           Unit name
           <input name="name" defaultValue={unit?.name ?? ""} maxLength={100} placeholder="e.g. Pieces" required />
-        </label>
-        <label>
-          Symbol
-          <input name="symbol" defaultValue={unit?.symbol ?? ""} maxLength={20} placeholder="e.g. pcs" />
         </label>
       </div>
       {state.error ? <p className="form-error">{state.error}</p> : null}
