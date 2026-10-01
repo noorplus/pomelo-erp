@@ -16,11 +16,11 @@ export default async function UnitsPage({ searchParams }: { searchParams: Search
 
   let unitQuery = supabase
     .from("units_of_measure")
-    .select("id, code, name, symbol, is_active, created_at")
+    .select("id, name, is_active, created_at")
     .eq("organization_id", organization.id)
-    .order("code", { ascending: true });
+    .order("name", { ascending: true });
 
-  if (q) unitQuery = unitQuery.or(`code.ilike.%${q}%,name.ilike.%${q}%,symbol.ilike.%${q}%`);
+  if (q) unitQuery = unitQuery.ilike("name", `%${q}%`);
 
   const [{ data: units, error: unitsError }, { data: products, error: productsError }] = await Promise.all([
     unitQuery,
@@ -81,14 +81,14 @@ export default async function UnitsPage({ searchParams }: { searchParams: Search
           <div className="panel-heading">
             <div><h2>Unit list</h2><p>{units?.length ?? 0} unit{units?.length === 1 ? "" : "s"}</p></div>
             <form method="get" className="search-form">
-              <input name="q" defaultValue={q} placeholder="Search code, name or symbol" aria-label="Search units" />
+              <input name="q" defaultValue={q} placeholder="Search unit name" aria-label="Search units" />
               <button className="secondary-button compact" type="submit">Search</button>
             </form>
           </div>
           {units && units.length > 0 ? (
             <div className="data-table-wrap">
               <table className="data-table">
-                <thead><tr><th>Unit</th><th>Symbol</th><th>Product usage</th><th>Status</th><th /></tr></thead>
+                <thead><tr><th>Unit</th><th>Product usage</th><th>Status</th><th /></tr></thead>
                 <tbody>
                   {units.map((unit) => {
                     const usage = productUsage.get(unit.id) ?? { total: 0, active: 0 };
@@ -110,7 +110,7 @@ export default async function UnitsPage({ searchParams }: { searchParams: Search
           ) : (
             <div className="empty-state">
               <strong>{q ? "No matching units" : "No units yet"}</strong>
-              <span>{q ? "Try a different code, name or symbol." : "Create your first unit using the form."}</span>
+              <span>{q ? "Try a different unit name." : "Create your first unit using the form."}</span>
             </div>
           )}
         </div>
