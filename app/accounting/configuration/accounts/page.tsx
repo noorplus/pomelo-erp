@@ -39,11 +39,11 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
           { name: "account_name", label: "Account name", required: true },
           { name: "account_type", label: "Account type", type: "select", required: true, options: accountTypes },
           { name: "normal_balance", label: "Normal balance", type: "select", required: true, options: balances },
-          { name: "parent_account_id", label: "Parent account", type: "select", displayKey: "parent_account_display", options: parentOptions.map(p => ({ value: p.id, label: p.account_code + " · " + p.account_name })) },
-          { name: "system_account_display", label: "Account class", readOnly: true, displayKey: "system_account_display" },
-          { name: "is_control_account", label: "Control account", type: "checkbox" },
-          { name: "is_postable", label: "Postable", type: "checkbox" },
-          { name: "is_active", label: "Active", type: "checkbox" },
+          { name: "parent_account_id", label: "Parent account", type: "select", displayKey: "parent_account_display", options: [{ value: "", label: "No parent — Root account" }, ...parentOptions.map(p => ({ value: p.id, label: p.account_code + " · " + p.account_name }))] },
+          { name: "system_account_display", label: "Account class", readOnly: true, displayKey: "system_account_display", showInForm: "edit" },
+          { name: "is_control_account", label: "Control account", type: "checkbox", defaultChecked: false },
+          { name: "is_postable", label: "Postable", type: "checkbox", defaultChecked: true },
+          { name: "is_active", label: "Active", type: "checkbox", defaultChecked: true },
         ]}
         rows={tableRows}
         editingRow={editingAccount}
