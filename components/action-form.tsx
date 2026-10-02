@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { ActionState } from "@/app/erp/actions";
+import type { ActionState } from "@/lib/erp/types";
 
 export function ActionForm({ action, children, submitLabel="Save" }: { action:(fd:FormData)=>Promise<ActionState>; children:React.ReactNode; submitLabel?:string }) {
   const [state,setState]=useState<ActionState>({});
