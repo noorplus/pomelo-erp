@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PageHeader } from "@/components/page-header";
 import { getCurrentOrganization } from "@/lib/supabase/organization";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -17,18 +18,12 @@ export default async function SettingsPage() {
   const cards = [
     { href: "/settings/organization", title: "Organization", description: "Company identity, contact details, currency, timezone, logo and tax information.", meta: "System administration" },
     { href: "/settings/users", title: "Users & Roles", description: "Review organization membership and role assignments.", meta: (users ?? 0) + " active users" },
+    { href: "/settings/number-sequences", title: "Number Sequences", description: "View the automatic numbering definitions used across ERP documents.", meta: "Database managed" },
   ];
 
   return (
       <div className="settings-page">
-        <section className="page-heading">
-          <div className="page-heading-copy">
-            <p className="eyebrow">System administration</p>
-            <h1>Settings</h1>
-            <p>System-wide configuration only. Accounting, inventory and expense configuration stays inside its owning module.</p>
-          </div>
-          <span className="settings-role-badge">{organization.role}</span>
-        </section>
+        <PageHeader eyebrow="System administration" title="Settings" description="System-wide configuration only. Accounting, inventory and expense configuration stays inside its owning module." actions={<span className="settings-role-badge">{organization.role}</span>} />
 
         <section className="panel settings-profile">
           <div className="settings-profile-main">
@@ -65,7 +60,7 @@ export default async function SettingsPage() {
 
         <section className="settings-note">
           <strong>Configuration ownership</strong>
-          <span>Accounting → accounts and periods · Inventory → units of measure · Expenses → expense categories. Number sequences remain owned by their relevant module.</span>
+          <span>Business configuration stays with its owning module. System administration contains organization, users and the database-managed numbering definitions.</span>
         </section>
       </div>
   );

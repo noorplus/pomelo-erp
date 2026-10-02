@@ -542,3 +542,39 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
     max-height: calc(100dvh - 66px);
   }
 }
+
+
+/* Shared configuration surfaces + compact main content */
+.config-page{display:grid;gap:10px}
+.config-page .page-heading{margin-bottom:0}
+.config-manager{gap:10px}
+.config-form-panel{overflow:hidden}
+.read-only-badge{display:inline-flex;align-items:center;min-height:26px;padding:0 8px;border:1px solid var(--line);border-radius:999px;background:var(--soft);color:var(--muted);font-size:9px;font-weight:800;white-space:nowrap}
+.form-message{margin:10px 0 0;padding:8px 10px;border-radius:7px;font-size:10px;line-height:1.45}
+.form-message.error{background:#fef3f2;color:#b42318;border:1px solid #fecdca}
+.form-message.success{background:#ecfdf3;color:#087443;border:1px solid #abefc6}
+.config-feedback{margin:0 12px 12px}
+.data-table-scroll{max-width:100%;overflow:auto}
+.user-menu-wrap{position:relative;isolation:isolate}
+.user-menu-backdrop{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;z-index:59!important}
+.user-menu-dropdown{position:fixed!important;top:calc(52px + env(safe-area-inset-top))!important;right:max(10px,env(safe-area-inset-right))!important;left:auto!important;width:min(300px,calc(100vw - 20px))!important;max-height:calc(100dvh - 64px)!important;overflow:auto;z-index:61!important}
+.topbar{overflow:visible!important}
+.main-area{overflow:visible!important}
+.content{padding:8px 10px 14px!important}
+.settings-page{gap:10px!important}
+.settings-profile{padding:12px 14px!important}
+.settings-grid{gap:8px!important;margin-top:6px!important}
+.settings-card{min-height:108px!important;padding:12px!important}
+.panel-heading{padding:10px 12px!important}
+.erp-form{padding:12px!important}
+@media(max-width:900px){
+  .content{padding:8px 9px 14px!important}
+  .user-menu-dropdown{top:56px!important;right:max(8px,env(safe-area-inset-right))!important;width:min(290px,calc(100vw - 16px))!important;max-height:calc(100dvh - 64px)!important}
+}
+@media(max-width:620px){
+  .content{padding:7px 8px 12px!important}
+  .config-page{gap:8px}
+  .settings-page{gap:8px!important}
+  .settings-card{min-height:104px!important}
+  .user-menu-dropdown{top:56px!important;right:max(8px,env(safe-area-inset-right))!important;width:min(280px,calc(100vw - 16px))!important;max-height:calc(100dvh - 64px)!important}
+}

@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/app-shell";
+import { PageHeader } from "@/components/page-header";
 import { ConfigurationManager } from "@/components/configuration-manager";
 import { getCurrentOrganization } from "@/lib/supabase/organization";
 import { createClient } from "@/lib/supabase/server";
@@ -24,7 +25,7 @@ export default async function OrganizationSettingsPage() {
   ];
   return <AppShell organization={organization} user={user}>
     <div className="settings-page">
-      <div className="page-heading"><div><p className="eyebrow">System administration</p><h1>Organization</h1><p>Edit the existing organizations record. No schema changes are used.</p></div></div>
+      <PageHeader eyebrow="System administration" title="Organization" description="Edit the existing organizations record. No schema changes are used." />
       <ConfigurationManager title="Organization" description="Organization identity and accounting locale." action={saveOrganization} fields={fields} rows={data ? [data] : []} editingRow={data ?? undefined} editHref="/settings/organization" newHref="/settings/organization" emptyText="Organization record not found." />
     </div>
   </AppShell>;
