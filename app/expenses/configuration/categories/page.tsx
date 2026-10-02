@@ -1,11 +1,14 @@
 import { ErpPageShell } from "@/components/erp-page-shell";
 import { ConfigurationManager } from "@/components/configuration-manager";
-import { getCurrentOrganization } from "@/lib/supabase/organization";
+import { findCurrentOrganization } from "@/lib/supabase/organization";
 import { createClient } from "@/lib/supabase/server";
 import { saveExpenseCategory, toggleExpenseCategory } from "@/app/configuration/actions";
+import { redirect } from "next/navigation";
 
 export default async function ExpenseCategoriesPage({ searchParams }: { searchParams: Promise<{ edit?: string }> }) {
-  const org = await getCurrentOrganization();
+  const org = await findCurrentOrganization();
+  if (!org) redirect("/onboarding");
+
   const supabase = await createClient();
   const params = await searchParams;
   const [{ data: rows }, { data: editingRow }, { data: accounts }] = await Promise.all([
