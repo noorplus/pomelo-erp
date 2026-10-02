@@ -24,11 +24,11 @@ export async function updateSession(request: NextRequest) {
   );
 
   const {
-    data: { claims },
-  } = await supabase.auth.getClaims();
+    data: { user },
+  } = await supabase.auth.getUser();
 
   return {
     response: supabaseResponse,
-    isAuthenticated: Boolean(claims?.sub),
+    isAuthenticated: Boolean(user),
   };
 }
