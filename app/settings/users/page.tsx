@@ -10,7 +10,7 @@ export default async function UsersSettingsPage() {
   const user = (await supabase.auth.getUser()).data.user;
   if (!user) return null;
   const { data, error } = await supabase.from("organization_users").select("id,user_id,role,is_active,created_at").eq("organization_id", organization.id).order("created_at");
-  return <ErpPageShell organization={organization} user={user}>
+  return <ErpPageShell>
     <div className="settings-page">
       <PageHeader eyebrow="System administration" title="Users & Roles" description="Review the organization membership records currently exposed by the database." actions={<a className="secondary-button compact" href="/settings">Back</a>} />
       <section className="panel">
