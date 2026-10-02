@@ -10,14 +10,17 @@ type Action = (state: ConfigActionState, formData: FormData) => Promise<ConfigAc
 export type ConfigField = {
   name: string;
   label: string;
-  type?: "text" | "date" | "select" | "checkbox";
+  type?: "text" | "date" | "number" | "select" | "checkbox";
   required?: boolean;
   options?: { value: string; label: string }[];
   placeholder?: string;
+  readOnly?: boolean;
+  displayKey?: string;
 };
 
 export function ConfigurationManager({
-  title, description, action, toggleAction, fields, rows, editingRow, editHref, newHref, emptyText, readOnly = false,
+  title, description, action, toggleAction, fields, rows, editingRow, editHref, newHref,
+  emptyText, readOnly = false, canCreate = true,
 }: {
   title: string;
   description: string;
@@ -30,6 +33,7 @@ export function ConfigurationManager({
   newHref: string;
   emptyText: string;
   readOnly?: boolean;
+  canCreate?: boolean;
 }) {
   const saveAdapter: Action = async (_state, formData) => action ? action(formData) : {};
   const toggleAdapter: Action = async (_state, formData) => toggleAction ? toggleAction(formData) : {};
@@ -44,26 +48,39 @@ export function ConfigurationManager({
         <section className="panel config-form-panel">
           <div className="panel-heading">
             <div><h2>{editingRow ? "Edit" : "Add"} {title}</h2><p>{description}</p></div>
-            {editingRow && <Link className="secondary-button compact" href={newHref}>New</Link>}
+            {editingRow && canCreate && <Link className="secondary-button compact" href={newHref}>New</Link>}
           </div>
           <form className="erp-form" action={formAction}>
             <input type="hidden" name="id" value={String(editingRow?.id ?? "")} />
             <div className="form-grid">
-              {fields.map(field => (
-                <label key={field.name} className={field.type === "checkbox" ? "checkbox-field" : ""}>
-                  <span>{field.label}</span>
-                  {field.type === "select" ? (
-                    <select name={field.name} defaultValue={String(editingRow?.[field.name] ?? "")} required={field.required}>
-                      <option value="">Select...</option>
-                      {field.options?.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-                    </select>
-                  ) : field.type === "checkbox" ? (
-                    <input type="checkbox" name={field.name} value="true" defaultChecked={editingRow ? editingRow[field.name] === true : true} />
-                  ) : (
-                    <input type={field.type ?? "text"} name={field.name} defaultValue={String(editingRow?.[field.name] ?? "")} placeholder={field.placeholder} required={field.required} />
-                  )}
-                </label>
-              ))}
+              {fields.map(field => {
+                const current = String(editingRow?.[field.name] ?? "");
+                return (
+                  <label key={field.name} className={field.type === "checkbox" ? "checkbox-field" : ""}>
+                    <span>{field.label}</span>
+                    {field.type === "select" ? (
+                      <select name={field.name} defaultValue={current} required={field.required} disabled={field.readOnly}>
+                        <option value="">Select...</option>
+                        {field.options?.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                      </select>
+                    ) : field.type === "checkbox" ? (
+                      <input type="checkbox" name={field.name} value="true" defaultChecked={editingRow ? editingRow[field.name] === true : true} />
+                    ) : (
+                      <>
+                        {field.readOnly && <input type="hidden" name={field.name} value={current} />}
+                        <input
+                          type={field.type ?? "text"}
+                          name={field.readOnly ? undefined : field.name}
+                          defaultValue={current}
+                          placeholder={field.placeholder}
+                          required={field.required}
+                          readOnly={field.readOnly}
+                        />
+                      </>
+                    )}
+                  </label>
+                );
+              })}
             </div>
             {state.error && <p className="form-message error" role="alert">{state.error}</p>}
             {state.success && <p className="form-message success" role="status">{state.success}</p>}
@@ -75,7 +92,7 @@ export function ConfigurationManager({
       <section className="panel">
         <div className="panel-heading">
           <div><h2>{readOnly ? "Current configuration" : "Records"}</h2><p>{rows.length} record{rows.length === 1 ? "" : "s"} in the current organization.</p></div>
-          {!readOnly && <Link className="primary-button compact" href={newHref}>Add {title}</Link>}
+          {!readOnly && action && canCreate && <Link className="primary-button compact" href={newHref}>Add {title}</Link>}
         </div>
         {rows.length ? (
           <DataTable minWidth={Math.max(640, displayFields.length * 140 + 160)}>
@@ -83,7 +100,7 @@ export function ConfigurationManager({
             <tbody>
               {rows.map(row => (
                 <tr key={String(row.id)}>
-                  {displayFields.map(f => <td key={f.name}>{String(row[f.name] ?? "—")}</td>)}
+                  {displayFields.map(f => <td key={f.name}>{String(row[f.displayKey ?? f.name] ?? "—")}</td>)}
                   <td><span className={row.status === "open" || row.is_active === true ? "status-pill active" : "status-pill"}>{row.status ? String(row.status) : row.is_active ? "Active" : "Inactive"}</span></td>
                   {!readOnly && <td className="row-actions">
                     <Link className="text-button" href={editHref + "?edit=" + String(row.id)}>Edit</Link>
