@@ -542,3 +542,269 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
     max-height: calc(100dvh - 66px);
   }
 }
+
+/* Shared Excel-style table + form primitives */
+.shared-table-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
+}
+.shared-table-scroll {
+  width: 100%;
+  max-height: 68vh;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.shared-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: auto;
+  background: #fff;
+  font-size: 11px;
+}
+.shared-table th,
+.shared-table td {
+  height: 34px;
+  padding: 4px 7px;
+  border-right: 1px solid #edf0f4;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.shared-table th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  height: 30px;
+  background: #f5f7fa;
+  color: #667085;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.shared-table th:last-child,
+.shared-table td:last-child { border-right: 0; }
+.shared-table tbody tr:nth-child(even) td { background: #fcfcfd; }
+.shared-table tbody tr:hover td { background: #f7faff; }
+.shared-table .align-right { text-align: right; font-variant-numeric: tabular-nums; }
+.shared-table .align-center { text-align: center; }
+.shared-table-sort {
+  width: 100%;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-align: inherit;
+}
+.shared-table-sort:hover { color: #111827; }
+.shared-table-sort:focus-visible {
+  outline: 0;
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px rgba(107,114,128,.15);
+}
+.sort-indicator {
+  color: #b0b7c3;
+  font-size: 11px;
+  line-height: 1;
+}
+.sort-indicator.active { color: #111827; }
+.shared-table-input {
+  width: 100%;
+  min-width: 58px;
+  height: 28px;
+  padding: 3px 6px;
+  border: 1px solid #cfd5dd;
+  border-radius: 5px;
+  background: #fff;
+  color: var(--ink);
+  outline: none;
+  font-size: 11px;
+}
+.shared-table-input:focus {
+  border-color: #6b7280;
+  box-shadow: 0 0 0 2px rgba(107,114,128,.12);
+}
+.shared-table-footer {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 10px;
+}
+.shared-table-summary { white-space: nowrap; }
+.shared-table-summary strong { color: #374151; font-weight: 800; }
+.shared-table-page-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.shared-table-page-size input {
+  width: 48px;
+  height: 28px;
+  padding: 3px 5px;
+  border: 1px solid #d1d5db;
+  border-radius: 5px;
+  background: #fff;
+  color: var(--ink);
+  text-align: center;
+  font-size: 10px;
+}
+.shared-table-pagination {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.shared-table-page-button {
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid #d7dce3;
+  border-radius: 5px;
+  background: #fff;
+  color: #374151;
+  font-size: 10px;
+}
+.shared-table-page-button:hover:not(:disabled) { background: #f8fafc; }
+.shared-table-page-button:disabled { opacity: .45; cursor: not-allowed; }
+
+.shared-form {
+  display: grid;
+  gap: 11px;
+  padding: 13px;
+}
+.shared-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.shared-form-field {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  color: #374151;
+  font-size: 11px;
+  font-weight: 700;
+}
+.shared-form-field.span-2 { grid-column: 1 / -1; }
+.shared-form-field.span-3 { grid-column: 1 / -1; }
+.shared-form-field input,
+.shared-form-field select,
+.shared-form-field textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  outline: none;
+  font-size: 11px;
+}
+.shared-form-field input,
+.shared-form-field select {
+  height: 36px;
+  padding: 0 8px;
+}
+.shared-form-field textarea {
+  min-height: 72px;
+  padding: 7px 8px;
+  resize: vertical;
+  line-height: 1.45;
+}
+.shared-form-field input:focus,
+.shared-form-field select:focus,
+.shared-form-field textarea:focus {
+  border-color: #6b7280;
+  box-shadow: 0 0 0 2px rgba(107,114,128,.12);
+}
+.shared-form-field small,
+.shared-form-checkbox small {
+  color: #98a2b3;
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.shared-form-checkbox {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  color: #374151;
+  font-size: 11px;
+}
+.shared-form-checkbox input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+}
+.shared-form-checkbox span {
+  display: grid;
+  gap: 2px;
+}
+.shared-form-message {
+  margin: 0;
+  padding: 7px 9px;
+  border-radius: 6px;
+  font-size: 10px;
+}
+.shared-form-message.error { color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; }
+.shared-form-message.success { color: #166534; background: #ecfdf3; border: 1px solid #bbf7d0; }
+.shared-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 7px;
+  padding-top: 2px;
+}
+@media (max-width: 620px) {
+  .shared-table-footer {
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+  .shared-table-summary { order: 1; }
+  .shared-table-page-size { order: 2; }
+  .shared-table-pagination { order: 3; width: 100%; justify-content: space-between; }
+  .shared-table-scroll { max-height: 62vh; }
+  .shared-table th,
+  .shared-table td { padding-left: 5px; padding-right: 5px; }
+  .shared-form { padding: 10px; }
+  .shared-form-grid { grid-template-columns: 1fr; }
+  .shared-form-field.span-2,
+  .shared-form-field.span-3 { grid-column: auto; }
+  .shared-form-actions { justify-content: stretch; }
+  .shared-form-actions .primary-button { flex: 1; }
+}
+
+/* Keep the account menu inside the viewport on every desktop width. */
+.topbar,
+.topbar-actions,
+.user-menu-wrap { overflow: visible; }
+.user-menu-dropdown {
+  position: fixed !important;
+  top: 60px !important;
+  right: max(8px, env(safe-area-inset-right)) !important;
+  left: auto !important;
+  width: min(300px, calc(100vw - 16px)) !important;
+  max-height: calc(100dvh - 68px);
+  overflow: auto;
+}
