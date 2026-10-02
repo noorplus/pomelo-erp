@@ -239,3 +239,17 @@ export async function reverseJournal(fd: FormData): Promise<ActionState> {
     revalidatePath("/accounting"); revalidatePath("/reports"); return { success: "Journal reversed successfully." };
   } catch (e) { return fail(e); }
 }
+
+
+export async function updateOrganizationUser(fd: FormData): Promise<ActionState> {
+  try {
+    const supabase = await createClient(), org = await getCurrentOrganization();
+    const id = s(fd, "id"), role = s(fd, "role");
+    const active = fd.get("is_active") === "true";
+    if (!id || !["owner","admin","manager","staff"].includes(role)) return { error: "A valid member and role are required." };
+    const { error } = await supabase.from("organization_users").update({ role, is_active: active }).eq("organization_id", org.id).eq("id", id);
+    if (error) return { error: dbError(error) };
+    revalidatePath("/settings/users"); revalidatePath("/settings");
+    return { success: "Membership updated." };
+  } catch (e) { return fail(e); }
+}
