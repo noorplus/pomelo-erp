@@ -13,7 +13,7 @@ export default async function SalesPage() {
     supabase.from("accounts").select("id,account_code,account_name,account_type").eq("organization_id",org.id).eq("is_postable",true).eq("is_active",true).order("account_code"),
     supabase.from("sales_invoices").select("id,invoice_number,document_type,invoice_date,status,total_amount,receivable_account_id,posted_journal_entry_id").eq("organization_id",org.id).order("created_at",{ascending:false}).limit(100),
     supabase.from("sales_invoices").select("id,invoice_number").eq("organization_id",org.id).eq("status","posted").eq("document_type","sale").order("invoice_date",{ascending:false}).limit(100),
-    supabase.from("sales_items").select("id,product_id,sales_invoice_id,quantity,net_unit_cost").eq("organization_id",org.id).limit(500),
+    supabase.from("sales_items").select("id,product_id,sales_invoice_id,quantity,net_unit_price").eq("organization_id",org.id).limit(500),
   ]);
   const originalItems=(items??[]).map(x=>({id:x.id,product_id:x.product_id,invoice_number:(originalInvoices??[]).find(i=>i.id===x.sales_invoice_id)?.invoice_number??"",label:x.id.slice(0,8)+" · "+x.product_id.slice(0,8)})).filter(x=>x.invoice_number);
   const receivable=(accounts??[]).filter(x=>x.account_type==="asset");
