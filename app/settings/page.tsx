@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PageHeader } from "@/components/page-header";
 import { getCurrentOrganization } from "@/lib/supabase/organization";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -22,14 +23,7 @@ export default async function SettingsPage() {
 
   return (
       <div className="settings-page">
-        <section className="page-heading">
-          <div className="page-heading-copy">
-            <p className="eyebrow">System administration</p>
-            <h1>Settings</h1>
-            <p>System-wide configuration only. Accounting, inventory and expense configuration stays inside its owning module.</p>
-          </div>
-          <span className="settings-role-badge">{organization.role}</span>
-        </section>
+        <PageHeader eyebrow="System administration" title="Settings" description="System-wide configuration only. Accounting, inventory and expense configuration stays inside its owning module." actions={<span className="settings-role-badge">{organization.role}</span>} />
 
         <section className="panel settings-profile">
           <div className="settings-profile-main">
