@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import type { Json } from "@/lib/supabase/database";
+type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 import { getCurrentOrganization } from "@/lib/supabase/organization";
 
 import type { ActionState } from "@/lib/erp/types";
