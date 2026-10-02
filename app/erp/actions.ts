@@ -24,7 +24,7 @@ const num = (v: number) => Math.round(v * 1e8) / 1e8;
 
 export async function saveProduct(fd: FormData): Promise<ActionState> {
   try {
-    const supabase = await createClient(), org = await getCurrentOrganization(), id = s(fd, "id");
+    const supabase: any = await createClient(), org = await getCurrentOrganization(), id = s(fd, "id");
     const productCode = s(fd, "product_code");
     const payload = {
       organization_id: org.id,
@@ -50,7 +50,7 @@ export async function saveProduct(fd: FormData): Promise<ActionState> {
 
 export async function toggleProduct(fd: FormData): Promise<ActionState> {
   try {
-    const supabase = await createClient(), org = await getCurrentOrganization();
+    const supabase: any = await createClient(), org = await getCurrentOrganization();
     const id = s(fd, "id"), next = fd.get("next_active") === "true";
     const { error } = await supabase.from("products").update({ is_active: next }).eq("organization_id", org.id).eq("id", id);
     if (error) return { error: dbError(error) };
@@ -60,7 +60,7 @@ export async function toggleProduct(fd: FormData): Promise<ActionState> {
 
 export async function saveContact(fd: FormData): Promise<ActionState> {
   try {
-    const supabase = await createClient(), org = await getCurrentOrganization(), id = s(fd, "id");
+    const supabase: any = await createClient(), org = await getCurrentOrganization(), id = s(fd, "id");
     const contactNumber = s(fd, "contact_number");
     const payload = {
       organization_id: org.id, contact_number: contactNumber || "AUTO",
@@ -79,7 +79,7 @@ export async function saveContact(fd: FormData): Promise<ActionState> {
 
 export async function toggleContact(fd: FormData): Promise<ActionState> {
   try {
-    const supabase = await createClient(), org = await getCurrentOrganization();
+    const supabase: any = await createClient(), org = await getCurrentOrganization();
     const id = s(fd, "id"), next = fd.get("next_active") === "true";
     const { error } = await supabase.from("contacts").update({ is_active: next }).eq("organization_id", org.id).eq("id", id);
     if (error) return { error: dbError(error) };
@@ -91,7 +91,7 @@ type InvoiceLine = { product_id: string; quantity: number; unit_price?: number; 
 
 async function createInvoice(fd: FormData, kind: "purchase" | "sale"): Promise<ActionState> {
   try {
-    const supabase = await createClient(), org = await getCurrentOrganization();
+    const supabase: any = await createClient(), org = await getCurrentOrganization();
     const type = s(fd, "document_type") as "purchase" | "sale" | "return";
     const originalInvoiceId = s(fd, "original_invoice_id") || null;
     const contactId = s(fd, kind === "purchase" ? "supplier_id" : "customer_id");
@@ -163,7 +163,7 @@ export async function createSalesInvoice(fd: FormData) { return createInvoice(fd
 
 export async function postPurchase(fd: FormData): Promise<ActionState> {
   try {
-    const supabase = await createClient(), id = s(fd, "id"), account = s(fd, "account_id");
+    const supabase: any = await createClient(), id = s(fd, "id"), account = s(fd, "account_id");
     const { error } = await supabase.rpc("post_purchase_invoice", { p_invoice_id: id, p_payable_account_id: account });
     if (error) return { error: dbError(error) };
     revalidatePath("/purchases"); revalidatePath("/inventory"); revalidatePath("/accounting"); revalidatePath("/payments");
@@ -173,7 +173,7 @@ export async function postPurchase(fd: FormData): Promise<ActionState> {
 
 export async function postSales(fd: FormData): Promise<ActionState> {
   try {
-    const supabase = await createClient(), id = s(fd, "id"), account = s(fd, "account_id");
+    const supabase: any = await createClient(), id = s(fd, "id"), account = s(fd, "account_id");
     const { error } = await supabase.rpc("post_sales_invoice", { p_invoice_id: id, p_receivable_account_id: account });
     if (error) return { error: dbError(error) };
     revalidatePath("/sales"); revalidatePath("/inventory"); revalidatePath("/accounting"); revalidatePath("/payments");
@@ -183,7 +183,7 @@ export async function postSales(fd: FormData): Promise<ActionState> {
 
 export async function createAndPostExpense(fd: FormData): Promise<ActionState> {
   try {
-    const supabase = await createClient(), org = await getCurrentOrganization();
+    const supabase: any = await createClient(), org = await getCurrentOrganization();
     const payload = {
       organization_id: org.id, expense_category_id: s(fd, "expense_category_id"), contact_id: s(fd, "contact_id") || null,
       payable_account_id: s(fd, "payable_account_id"), expense_date: s(fd, "expense_date"),
@@ -201,7 +201,7 @@ export async function createAndPostExpense(fd: FormData): Promise<ActionState> {
 
 export async function createAndPostPayment(fd: FormData): Promise<ActionState> {
   try {
-    const supabase = await createClient(), org = await getCurrentOrganization();
+    const supabase: any = await createClient(), org = await getCurrentOrganization();
     const type = s(fd, "payment_type");
     const payload = {
       organization_id: org.id, payment_type: type, contact_id: s(fd, "contact_id") || null,
@@ -221,7 +221,7 @@ export async function createAndPostPayment(fd: FormData): Promise<ActionState> {
 
 export async function postManualJournal(fd: FormData): Promise<ActionState> {
   try {
-    const supabase = await createClient(), org = await getCurrentOrganization();
+    const supabase: any = await createClient(), org = await getCurrentOrganization();
     const lines = json<{account_id:string;debit:number;credit:number;description?:string;contact_id?:string}>(fd, "lines_json");
     if (lines.length < 2) return { error: "A journal requires at least two lines." };
     const debit = num(lines.reduce((a,x)=>a+Number(x.debit||0),0)), credit = num(lines.reduce((a,x)=>a+Number(x.credit||0),0));
@@ -237,7 +237,7 @@ export async function postManualJournal(fd: FormData): Promise<ActionState> {
 
 export async function reverseJournal(fd: FormData): Promise<ActionState> {
   try {
-    const supabase = await createClient();
+    const supabase: any = await createClient();
     const { error } = await supabase.rpc("reverse_journal", { p_journal_id: s(fd,"id"), p_reversal_date: s(fd,"reversal_date"), p_description: s(fd,"description") || null });
     if (error) return { error: dbError(error) };
     revalidatePath("/accounting"); revalidatePath("/reports"); return { success: "Journal reversed successfully." };
@@ -247,7 +247,7 @@ export async function reverseJournal(fd: FormData): Promise<ActionState> {
 
 export async function updateOrganizationUser(fd: FormData): Promise<ActionState> {
   try {
-    const supabase = await createClient(), org = await getCurrentOrganization();
+    const supabase: any = await createClient(), org = await getCurrentOrganization();
     const id = s(fd, "id"), role = s(fd, "role");
     const active = fd.get("is_active") === "true";
     if (!id || !["owner","admin","manager","staff"].includes(role)) return { error: "A valid member and role are required." };
