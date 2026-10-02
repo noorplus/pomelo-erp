@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { ActionState } from "@/app/erp/actions";
+import type { ActionState } from "@/lib/erp/types";
 
 type Account={id:string;account_code:string;account_name:string};
 
