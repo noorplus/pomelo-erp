@@ -2,7 +2,7 @@ import { ErpPageShell } from "@/components/erp-page-shell";
 import { ConfigurationManager } from "@/components/configuration-manager";
 import { getCurrentOrganization } from "@/lib/supabase/organization";
 import { createClient } from "@/lib/supabase/server";
-import { saveNumberSequence, toggleNumberSequence } from "@/app/configuration/actions";
+import { saveNumberSequence } from "@/app/configuration/actions";
 
 export default async function NumberSequencesPage({ searchParams }: { searchParams: Promise<{ edit?: string }> }) {
   const org = await getCurrentOrganization();
@@ -24,16 +24,15 @@ export default async function NumberSequencesPage({ searchParams }: { searchPara
       </div>
       <ConfigurationManager
         title="Number Sequence"
-        description="Sequence keys are created by the existing numbering logic. This UI only updates supported sequence settings."
+        description="Sequence keys are created by the existing numbering logic. The frozen database does not treat an existing inactive sequence as disabled, so this page exposes its state without offering a misleading activate/deactivate control."
         action={saveNumberSequence}
-        toggleAction={toggleNumberSequence}
         canCreate={false}
         fields={[
           { name: "document_type", label: "Document type", readOnly: true },
           { name: "prefix", label: "Prefix", placeholder: "e.g. INV-" },
           { name: "next_number", label: "Next number", type: "number", required: true },
           { name: "padding", label: "Padding", type: "number", required: true, placeholder: "1–12" },
-          { name: "is_active", label: "Active", type: "checkbox" },
+          { name: "is_active", label: "Active flag", type: "checkbox", readOnly: true },
         ]}
         rows={(rows ?? []) as Record<string, unknown>[]}
         editingRow={editingRow as Record<string, unknown> | undefined}
