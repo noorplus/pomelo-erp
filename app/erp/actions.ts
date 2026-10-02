@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Json } from "@/lib/supabase/database";
 import { getCurrentOrganization } from "@/lib/supabase/organization";
 
-export type ActionState = { error?: string; success?: string };
+import type { ActionState } from "@/lib/erp/types";
 
 const s = (fd: FormData, key: string) => String(fd.get(key) ?? "").trim();
 const n = (fd: FormData, key: string) => Number(fd.get(key) ?? 0);
