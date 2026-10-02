@@ -24,9 +24,10 @@ const num = (v: number) => Math.round(v * 1e8) / 1e8;
 export async function saveProduct(fd: FormData): Promise<ActionState> {
   try {
     const supabase = await createClient(), org = await getCurrentOrganization(), id = s(fd, "id");
+    const productCode = s(fd, "product_code");
     const payload = {
       organization_id: org.id,
-      product_code: s(fd, "product_code"),
+      product_code: productCode || "AUTO",
       name: s(fd, "name"),
       description: s(fd, "description") || null,
       unit_id: s(fd, "unit_id"),
@@ -38,7 +39,7 @@ export async function saveProduct(fd: FormData): Promise<ActionState> {
     if (!payload.name || !payload.unit_id || !payload.inventory_account_id || !payload.sales_account_id || !payload.cogs_account_id)
       return { error: "Name, unit and all three product accounts are required." };
     const q = id
-      ? await supabase.from("products").update(payload).eq("organization_id", org.id).eq("id", id)
+      ? await supabase.from("products").update(productCode ? payload : { ...payload, product_code: undefined }).eq("organization_id", org.id).eq("id", id)
       : await supabase.from("products").insert(payload);
     if (q.error) return { error: dbError(q.error) };
     revalidatePath("/products"); revalidatePath("/inventory");
@@ -59,14 +60,15 @@ export async function toggleProduct(fd: FormData): Promise<ActionState> {
 export async function saveContact(fd: FormData): Promise<ActionState> {
   try {
     const supabase = await createClient(), org = await getCurrentOrganization(), id = s(fd, "id");
+    const contactNumber = s(fd, "contact_number");
     const payload = {
-      organization_id: org.id, contact_number: s(fd, "contact_number"),
+      organization_id: org.id, contact_number: contactNumber || "AUTO",
       name: s(fd, "name"), phone: s(fd, "phone") || null, email: s(fd, "email") || null,
       address: s(fd, "address") || null, is_active: fd.get("is_active") === "true",
     };
     if (!payload.name) return { error: "Contact name is required." };
     const q = id
-      ? await supabase.from("contacts").update(payload).eq("organization_id", org.id).eq("id", id)
+      ? await supabase.from("contacts").update(contactNumber ? payload : { ...payload, contact_number: undefined }).eq("organization_id", org.id).eq("id", id)
       : await supabase.from("contacts").insert(payload);
     if (q.error) return { error: dbError(q.error) };
     revalidatePath("/contacts"); revalidatePath("/sales"); revalidatePath("/purchases"); revalidatePath("/payments");
