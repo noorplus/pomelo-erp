@@ -13,7 +13,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
   ]);
   const editing = params.edit ? (await supabase.from("products").select("id,product_code,name,description,unit_id,inventory_account_id,sales_account_id,cogs_account_id,is_active").eq("organization_id",org.id).eq("id",params.edit).maybeSingle()).data : undefined;
   const fields=[
-    {name:"product_code",label:"Product code",required:true,placeholder:"Leave blank to use the database sequence"},
+    {name:"product_code",label:"Product code",placeholder:"Leave blank to use the database sequence"},
     {name:"name",label:"Name",required:true},
     {name:"description",label:"Description"},
     {name:"unit_id",label:"Unit",type:"select" as const,required:true,options:(units??[]).map(x=>({value:x.id,label:x.name}))},
