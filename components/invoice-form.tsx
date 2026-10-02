@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { ActionState } from "@/lib/erp/types";
 
 type Product = { id: string; product_code: string; name: string };
-type OriginalItem = { id: string; product_id: string; invoice_number: string; label: string };
+type OriginalItem = { id: string; product_id: string; invoice_id: string; invoice_number: string; label: string; unit: number };
 
 export function InvoiceForm({
   kind, products, originals, action, accountOptions, contacts,
@@ -28,7 +28,7 @@ export function InvoiceForm({
   const addLine=()=>setLines(v=>[...v,{product_id:"",quantity:"1",unit:"0",original_item_id:""}]);
   const update=(i:number,key:string,value:string)=>setLines(v=>v.map((x,n)=>n===i?{...x,[key]:value}:x));
   const remove=(i:number)=>setLines(v=>v.length===1?v:v.filter((_,n)=>n!==i));
-  const selectedOriginals=originals.filter(x=>!originalInvoice || x.invoice_number===originalInvoice);
+  const selectedOriginals=originals.filter(x=>!originalInvoice || x.invoice_id===originalInvoice);
   const subtotal=lines.reduce((a,x)=>a+(Number(x.quantity)||0)*(Number(x.unit)||0),0);
   const total=Math.max(0,subtotal-(type==="return"?0:Number(discount)||0));
 
@@ -52,16 +52,16 @@ export function InvoiceForm({
       <label><span>{kind==="purchase"?"Supplier":"Customer"}</span><select value={contact} onChange={e=>setContact(e.target.value)} required><option value="">Select...</option>{contacts.map(x=><option key={x.id} value={x.id}>{x.contact_number} · {x.name}</option>)}</select></label>
       <label><span>{kind==="purchase"?"Payable":"Receivable"} account</span><select value={account} onChange={e=>setAccount(e.target.value)} required><option value="">Select...</option>{accountOptions.map(x=><option key={x.id} value={x.id}>{x.account_code} · {x.account_name}</option>)}</select></label>
       <label><span>Invoice date</span><input type="date" value={date} onChange={e=>setDate(e.target.value)} required /></label>
-      {type==="return" && <label><span>Original invoice</span><select value={originalInvoice} onChange={e=>setOriginalInvoice(e.target.value)} required><option value="">Select posted invoice...</option>{Array.from(new Set(originals.map(x=>x.invoice_number))).map(x=><option key={x} value={x}>{x}</option>)}</select></label>}
+      {type==="return" && <label><span>Original invoice</span><select value={originalInvoice} onChange={e=>{setOriginalInvoice(e.target.value);setLines([{product_id:"",quantity:"1",unit:"0",original_item_id:""}])}} required><option value="">Select posted invoice...</option>{Array.from(new Map(originals.map(x=>[x.invoice_id,x.invoice_number])).entries()).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>}
       {type!=="return" && <label><span>Invoice discount</span><input type="number" min="0" step="0.00000001" value={discount} onChange={e=>setDiscount(e.target.value)} /></label>}
     </div>
     <div className="invoice-lines">
       <div className="panel-heading"><div><h3>Lines</h3><p>Invoice-level discount is distributed per quantity to satisfy the posting invariant.</p></div><button type="button" className="secondary-button compact" onClick={addLine}>Add line</button></div>
       {lines.map((line,i)=><div className="invoice-line" key={i}>
-        {type==="return" ? <label><span>Original item</span><select value={line.original_item_id} onChange={e=>{update(i,"original_item_id",e.target.value);const x=originals.find(o=>o.id===e.target.value);if(x)update(i,"product_id",x.product_id)}} required><option value="">Select...</option>{selectedOriginals.map(x=><option key={x.id} value={x.id}>{x.invoice_number} · {x.label}</option>)}</select></label>
+        {type==="return" ? <label><span>Original item</span><select value={line.original_item_id} onChange={e=>{const value=e.target.value;update(i,"original_item_id",value);const x=originals.find(o=>o.id===value);if(x){update(i,"product_id",x.product_id);update(i,"unit",String(x.unit));}}} required><option value="">Select...</option>{selectedOriginals.map(x=><option key={x.id} value={x.id}>{x.invoice_number} · {x.label}</option>)}</select></label>
         : <label><span>Product</span><select value={line.product_id} onChange={e=>update(i,"product_id",e.target.value)} required><option value="">Select...</option>{products.map(x=><option key={x.id} value={x.id}>{x.product_code} · {x.name}</option>)}</select></label>}
         <label><span>Qty</span><input type="number" min="0.00000001" step="0.00000001" value={line.quantity} onChange={e=>update(i,"quantity",e.target.value)} required /></label>
-        {type!=="return" && <label><span>{kind==="purchase"?"Unit cost":"Unit price"}</span><input type="number" min="0" step="0.00000001" value={line.unit} onChange={e=>update(i,"unit",e.target.value)} required /></label>}
+        {type!=="return" ? <label><span>{kind==="purchase"?"Unit cost":"Unit price"}</span><input type="number" min="0" step="0.00000001" value={line.unit} onChange={e=>update(i,"unit",e.target.value)} required /></label> : <label><span>{kind==="purchase"?"Original unit cost":"Original unit price"}</span><input value={line.unit ? Number(line.unit).toFixed(4) : ""} readOnly /></label>}
         <label><span>Line total</span><input value={((Number(line.quantity)||0)*(Number(line.unit)||0)).toFixed(2)} readOnly /></label>
         <button type="button" className="text-button danger-text" onClick={()=>remove(i)}>Remove</button>
       </div>)}
