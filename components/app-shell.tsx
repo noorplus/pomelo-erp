@@ -4,7 +4,7 @@ import { useState } from "react";
 import { SignOutButton } from "@/components/sign-out-button";
 import { SidebarNav } from "@/components/sidebar-nav";
 
-type Organization = { id: string; name: string; role: "owner" | "admin" | "manager" | "staff" };
+type Organization = { id: string; name: string; role: "owner" | "admin" | "manager" | "staff"; base_currency: string; timezone: string };
 type User = { email?: string | null };
 
 export function AppShell({

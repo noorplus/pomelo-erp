@@ -12,8 +12,8 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
   const supabase = await createClient();
   const params = await searchParams;
   const [{ data: rows }, { data: editingRow }, { data: parents }] = await Promise.all([
-    supabase.from("accounts").select("id,account_code,account_name,account_type,normal_balance,parent_account_id,is_control_account,is_postable,is_active").eq("organization_id", org.id).order("account_code"),
-    params.edit ? supabase.from("accounts").select("id,account_code,account_name,account_type,normal_balance,parent_account_id,is_control_account,is_postable,is_active").eq("organization_id", org.id).eq("id", params.edit).maybeSingle() : Promise.resolve({ data: undefined }),
+    supabase.from("accounts").select("id,account_code,account_name,account_type,normal_balance,parent_account_id,is_control_account,is_postable,is_system_account,is_active").eq("organization_id", org.id).order("account_code"),
+    params.edit ? supabase.from("accounts").select("id,account_code,account_name,account_type,normal_balance,parent_account_id,is_control_account,is_postable,is_system_account,is_active").eq("organization_id", org.id).eq("id", params.edit).maybeSingle() : Promise.resolve({ data: undefined }),
     supabase.from("accounts").select("id,account_code,account_name").eq("organization_id", org.id).eq("is_active", true).order("account_code"),
   ]);
 
@@ -21,7 +21,10 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
   const tableRows = (rows ?? []).map(row => ({
     ...row,
     parent_account_display: row.parent_account_id ? parentLabels.get(row.parent_account_id) ?? "Unknown account" : "—",
+    system_account_display: row.is_system_account ? "System account" : "User account",
   }));
+  const parentOptions = (parents ?? []).filter(parent => parent.id !== editingRow?.id);
+  const editingAccount = editingRow ? { ...editingRow, system_account_display: editingRow.is_system_account ? "System account" : "User account" } : undefined;
 
   return <ErpPageShell>
     <div className="config-page">
@@ -36,16 +39,19 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
           { name: "account_name", label: "Account name", required: true },
           { name: "account_type", label: "Account type", type: "select", required: true, options: accountTypes },
           { name: "normal_balance", label: "Normal balance", type: "select", required: true, options: balances },
-          { name: "parent_account_id", label: "Parent account", type: "select", options: (parents ?? []).map(p => ({ value: p.id, label: p.account_code + " · " + p.account_name })) },
+          { name: "parent_account_id", label: "Parent account", type: "select", displayKey: "parent_account_display", options: parentOptions.map(p => ({ value: p.id, label: p.account_code + " · " + p.account_name })) },
+          { name: "system_account_display", label: "Account class", readOnly: true, displayKey: "system_account_display" },
           { name: "is_control_account", label: "Control account", type: "checkbox" },
           { name: "is_postable", label: "Postable", type: "checkbox" },
           { name: "is_active", label: "Active", type: "checkbox" },
         ]}
         rows={tableRows}
-        editingRow={editingRow ?? undefined}
+        editingRow={editingAccount}
         editHref="/accounting/configuration/accounts"
         newHref="/accounting/configuration/accounts"
         emptyText="No accounts have been configured yet."
+        editDisabledBy={{ field: "is_system_account", values: [true] }}
+        toggleDisabledBy={{ field: "is_system_account", values: [true] }}
       />
     </div>
   </ErpPageShell>;
