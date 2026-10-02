@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import type { Json } from "@/lib/supabase/database";
 import { getCurrentOrganization } from "@/lib/supabase/organization";
 
 export type ActionState = { error?: string; success?: string };
@@ -132,13 +133,14 @@ async function createInvoice(fd: FormData, kind: "purchase" | "sale"): Promise<A
     const total = num(subtotal - discount);
 
     const invoiceTable = kind === "purchase" ? "purchase_invoices" : "sales_invoices";
+    const db = supabase as any;
     const invoicePayload: any = {
       organization_id: org.id, document_type: type, original_invoice_id: type === "return" ? originalInvoiceId : null,
       [kind === "purchase" ? "supplier_id" : "customer_id"]: contactId,
       invoice_date: date, subtotal, discount_amount: discount, total_amount: total,
       [kind === "purchase" ? "payable_account_id" : "receivable_account_id"]: accountId, status: "draft",
     };
-    const { data: invoice, error: invoiceError } = await supabase.from(invoiceTable).insert(invoicePayload).select("id").single();
+    const { data: invoice, error: invoiceError } = await db.from(invoiceTable).insert(invoicePayload).select("id").single();
     if (invoiceError || !invoice) return { error: dbError(invoiceError ?? { message: "Unable to create invoice." }) };
 
     const itemTable = kind === "purchase" ? "purchase_items" : "sales_items";
@@ -146,9 +148,9 @@ async function createInvoice(fd: FormData, kind: "purchase" | "sale"): Promise<A
       ? { organization_id: org.id, purchase_invoice_id: invoice.id, line_number: i + 1, product_id: x.product_id, original_item_id: x.original_item_id, quantity: x.quantity, unit_cost: x.unit, discount_per_unit: discountPerUnit, net_unit_cost: num(x.unit - discountPerUnit), line_total: num((x.unit - discountPerUnit) * x.quantity) }
       : { organization_id: org.id, sales_invoice_id: invoice.id, line_number: i + 1, product_id: x.product_id, original_item_id: x.original_item_id, quantity: x.quantity, unit_price: x.unit, discount_per_unit: discountPerUnit, net_unit_price: num(x.unit - discountPerUnit), line_total: num((x.unit - discountPerUnit) * x.quantity), cogs_unit_cost: null, cogs_total: null });
 
-    const { error: itemError } = await supabase.from(itemTable).insert(itemRows as any);
+    const { error: itemError } = await db.from(itemTable).insert(itemRows);
     if (itemError) {
-      await supabase.from(invoiceTable).delete().eq("organization_id", org.id).eq("id", invoice.id);
+      await db.from(invoiceTable).delete().eq("organization_id", org.id).eq("id", invoice.id);
       return { error: dbError(itemError) };
     }
     revalidatePath(kind === "purchase" ? "/purchases" : "/sales");
@@ -211,7 +213,7 @@ export async function createAndPostPayment(fd: FormData): Promise<ActionState> {
     const { data: payment, error } = await supabase.from("payments").insert(payload).select("id").single();
     if (error || !payment) return { error: dbError(error ?? { message: "Unable to create payment." }) };
     const allocations = json<{document_type:string;document_id:string;allocated_amount:number}>(fd, "allocations_json").filter(x => x.document_id && x.allocated_amount > 0);
-    const { error: postError } = await supabase.rpc("post_payment", { p_payment_id: payment.id, p_settlement_account_id: payload.settlement_account_id, p_allocations: allocations });
+    const { error: postError } = await supabase.rpc("post_payment", { p_payment_id: payment.id, p_settlement_account_id: payload.settlement_account_id, p_allocations: allocations as Json });
     if (postError) return { error: dbError(postError) };
     revalidatePath("/payments"); revalidatePath("/accounting"); return { success: "Payment posted successfully." };
   } catch (e) { return fail(e); }
@@ -226,7 +228,7 @@ export async function postManualJournal(fd: FormData): Promise<ActionState> {
     if (debit <= 0 || debit !== credit) return { error: "Journal debits and credits must be equal and greater than zero." };
     const { error } = await supabase.rpc("post_manual_journal", {
       p_org_id: org.id, p_entry_date: s(fd,"entry_date"), p_description: s(fd,"description"),
-      p_entry_type: "manual", p_lines: lines,
+      p_entry_type: "manual", p_lines: lines as Json,
     });
     if (error) return { error: dbError(error) };
     revalidatePath("/accounting"); revalidatePath("/reports"); return { success: "Journal posted successfully." };
