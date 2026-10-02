@@ -1,6 +1,7 @@
 import { ErpPageShell } from "@/components/erp-page-shell";
 import { ConfigurationManager } from "@/components/configuration-manager";
 import { DataTable, DataTableEmpty } from "@/components/data-table";
+import { ActionForm } from "@/components/action-form";
 import { JournalForm } from "@/components/journal-form";
 import { getCurrentOrganization } from "@/lib/supabase/organization";
 import { createClient } from "@/lib/supabase/server";
