@@ -26,7 +26,7 @@ export async function saveProduct(fd: FormData): Promise<ActionState> {
     const supabase = await createClient(), org = await getCurrentOrganization(), id = s(fd, "id");
     const payload = {
       organization_id: org.id,
-      product_code: s(fd, "product_code") || "AUTO",
+      product_code: s(fd, "product_code"),
       name: s(fd, "name"),
       description: s(fd, "description") || null,
       unit_id: s(fd, "unit_id"),
@@ -60,7 +60,7 @@ export async function saveContact(fd: FormData): Promise<ActionState> {
   try {
     const supabase = await createClient(), org = await getCurrentOrganization(), id = s(fd, "id");
     const payload = {
-      organization_id: org.id, contact_number: s(fd, "contact_number") || "AUTO",
+      organization_id: org.id, contact_number: s(fd, "contact_number"),
       name: s(fd, "name"), phone: s(fd, "phone") || null, email: s(fd, "email") || null,
       address: s(fd, "address") || null, is_active: fd.get("is_active") === "true",
     };
