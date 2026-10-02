@@ -13,6 +13,11 @@ export default async function ExpenseCategoriesPage({ searchParams }: { searchPa
     params.edit ? supabase.from("expense_categories").select("id,category_code,name,expense_account_id,is_active").eq("organization_id", org.id).eq("id", params.edit).maybeSingle() : Promise.resolve({ data: undefined }),
     supabase.from("accounts").select("id,account_code,account_name").eq("organization_id", org.id).eq("is_active", true).eq("account_type", "expense").order("account_code"),
   ]);
+  const accountLabels = new Map((accounts ?? []).map(a => [a.id, a.account_code + " · " + a.account_name]));
+  const tableRows = (rows ?? []).map(row => ({
+    ...row,
+    expense_account_display: accountLabels.get(row.expense_account_id) ?? "Unknown account",
+  }));
 
   return <ErpPageShell>
     <div className="config-page">
@@ -25,11 +30,11 @@ export default async function ExpenseCategoriesPage({ searchParams }: { searchPa
         fields={[
           { name: "category_code", label: "Category code", required: true },
           { name: "name", label: "Name", required: true },
-          { name: "expense_account_id", label: "Expense account", type: "select", required: true, options: (accounts ?? []).map(a => ({ value: a.id, label: a.account_code + " · " + a.account_name })) },
+          { name: "expense_account_id", label: "Expense account", displayKey:"expense_account_display", type: "select", required: true, options: (accounts ?? []).map(a => ({ value: a.id, label: a.account_code + " · " + a.account_name })) },
           { name: "is_active", label: "Active", type: "checkbox" },
         ]}
-        rows={rows ?? []}
-        editingRow={editingRow ?? undefined}
+        rows={tableRows as Record<string, unknown>[]}
+        editingRow={editingRow as Record<string, unknown> | undefined}
         editHref="/expenses/configuration/categories"
         newHref="/expenses/configuration/categories"
         emptyText="No expense categories have been configured yet."
