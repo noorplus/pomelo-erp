@@ -183,6 +183,61 @@ export async function toggleExpenseCategory(formData: FormData): Promise<ConfigA
   }
 }
 
+export async function saveNumberSequence(formData: FormData): Promise<ConfigActionState> {
+  try {
+    const supabase = await createClient();
+    const org = await getCurrentOrganization();
+    const id = value(formData, "id");
+    const prefix = String(formData.get("prefix") ?? "");
+    const nextNumber = Number(formData.get("next_number") ?? 0);
+    const padding = Number(formData.get("padding") ?? 0);
+    if (!id) return { error: "A sequence record is required." };
+    if (!Number.isInteger(nextNumber) || nextNumber < 1) return { error: "Next number must be a positive whole number." };
+    if (!Number.isInteger(padding) || padding < 1 || padding > 12) return { error: "Padding must be a whole number from 1 to 12." };
+    const { error } = await supabase
+      .from("number_sequences")
+      .update({
+        prefix,
+        next_number: nextNumber,
+        padding,
+        is_active: bool(formData, "is_active"),
+      })
+      .eq("organization_id", org.id)
+      .eq("id", id);
+    if (error) return { error: dbMessage(error) };
+    revalidatePath("/settings/number-sequences");
+    revalidatePath("/products");
+    revalidatePath("/contacts");
+    revalidatePath("/purchases");
+    revalidatePath("/sales");
+    revalidatePath("/expenses");
+    revalidatePath("/payments");
+    revalidatePath("/accounting");
+    return { success: "Number sequence updated." };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Unable to save number sequence." };
+  }
+}
+
+export async function toggleNumberSequence(formData: FormData): Promise<ConfigActionState> {
+  try {
+    const supabase = await createClient();
+    const org = await getCurrentOrganization();
+    const id = value(formData, "id");
+    const next = bool(formData, "next_active");
+    const { error } = await supabase
+      .from("number_sequences")
+      .update({ is_active: next })
+      .eq("organization_id", org.id)
+      .eq("id", id);
+    if (error) return { error: dbMessage(error) };
+    revalidatePath("/settings/number-sequences");
+    return { success: next ? "Number sequence activated." : "Number sequence deactivated." };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Unable to change number sequence status." };
+  }
+}
+
 export async function saveOrganization(formData: FormData): Promise<ConfigActionState> {
   try {
     const supabase = await createClient();

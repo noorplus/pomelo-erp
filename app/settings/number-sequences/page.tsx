@@ -1,19 +1,46 @@
 import { ErpPageShell } from "@/components/erp-page-shell";
-import { DataTable, DataTableEmpty } from "@/components/data-table";
+import { ConfigurationManager } from "@/components/configuration-manager";
 import { getCurrentOrganization } from "@/lib/supabase/organization";
 import { createClient } from "@/lib/supabase/server";
+import { saveNumberSequence, toggleNumberSequence } from "@/app/configuration/actions";
 
-export default async function NumberSequencesPage() {
+export default async function NumberSequencesPage({ searchParams }: { searchParams: Promise<{ edit?: string }> }) {
   const org = await getCurrentOrganization();
   const supabase = await createClient();
-  const { data, error } = await supabase.from("number_sequences").select("id,document_type,prefix,next_number,padding,is_active").eq("organization_id", org.id).order("document_type");
+  const params = await searchParams;
+  const [{ data: rows }, { data: editingRow }] = await Promise.all([
+    supabase.from("number_sequences").select("id,document_type,prefix,next_number,padding,is_active").eq("organization_id", org.id).order("document_type"),
+    params.edit ? supabase.from("number_sequences").select("id,document_type,prefix,next_number,padding,is_active").eq("organization_id", org.id).eq("id", params.edit).maybeSingle() : Promise.resolve({ data: undefined }),
+  ]);
+
   return <ErpPageShell>
     <div className="config-page">
-      <div className="page-heading"><div className="page-heading-copy"><p className="eyebrow">System · Configuration</p><h1>Number Sequences</h1><p>Automatic document numbering used across the ERP. Counters are managed by the database trigger.</p></div></div>
-      <section className="panel">
-        <div className="panel-heading"><div><h2>Sequence definitions</h2><p>{data?.length ?? 0} configured sequences</p></div><span className="read-only-badge">Database managed</span></div>
-        {error ? <DataTableEmpty title="Unable to load sequences" description={error.message} /> : data?.length ? <DataTable minWidth={680} ariaLabel="Number sequences"><thead><tr><th>Key</th><th>Prefix</th><th>Next number</th><th>Padding</th><th>Status</th></tr></thead><tbody>{data.map(row => <tr key={row.id}><td><code>{row.document_type}</code></td><td><code>{row.prefix}</code></td><td className="numeric">{row.next_number}</td><td className="numeric">{row.padding}</td><td><span className={row.is_active ? "status-pill active" : "status-pill"}>{row.is_active ? "Active" : "Inactive"}</span></td></tr>)}</tbody></DataTable> : <DataTableEmpty title="No number sequences found" description="Sequences are created on demand by the existing database numbering function." />}
-      </section>
+      <div className="page-heading">
+        <div className="page-heading-copy">
+          <p className="eyebrow">System · Configuration</p>
+          <h1>Number Sequences</h1>
+          <p>Configure prefixes, counters and padding for the existing database-managed document numbering.</p>
+        </div>
+      </div>
+      <ConfigurationManager
+        title="Number Sequence"
+        description="Sequence keys are created by the existing numbering logic. This UI only updates supported sequence settings."
+        action={saveNumberSequence}
+        toggleAction={toggleNumberSequence}
+        canCreate={false}
+        fields={[
+          { name: "document_type", label: "Document type", readOnly: true },
+          { name: "prefix", label: "Prefix", placeholder: "e.g. INV-" },
+          { name: "next_number", label: "Next number", type: "number", required: true },
+          { name: "padding", label: "Padding", type: "number", required: true, placeholder: "1–12" },
+          { name: "is_active", label: "Active", type: "checkbox" },
+        ]}
+        rows={(rows ?? []) as Record<string, unknown>[]}
+        editingRow={editingRow as Record<string, unknown> | undefined}
+        editHref="/settings/number-sequences"
+        newHref="/settings/number-sequences"
+        emptyText="No number sequences have been created yet. They appear when the existing database numbering function first needs them."
+      />
     </div>
   </ErpPageShell>;
 }
