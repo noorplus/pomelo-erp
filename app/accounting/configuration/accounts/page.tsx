@@ -24,6 +24,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
     system_account_display: row.is_system_account ? "System account" : "User account",
   }));
   const parentOptions = (parents ?? []).filter(parent => parent.id !== editingRow?.id);
+  const editingAccount = editingRow ? { ...editingRow, system_account_display: editingRow.is_system_account ? "System account" : "User account" } : undefined;
 
   return <ErpPageShell>
     <div className="config-page">
@@ -45,7 +46,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
           { name: "is_active", label: "Active", type: "checkbox" },
         ]}
         rows={tableRows}
-        editingRow={editingRow ?? undefined}
+        editingRow={editingAccount}
         editHref="/accounting/configuration/accounts"
         newHref="/accounting/configuration/accounts"
         emptyText="No accounts have been configured yet."
