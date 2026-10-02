@@ -1,0 +1,20 @@
+import { ErpPageShell } from "@/components/erp-page-shell";
+import { DataTable, DataTableEmpty } from "@/components/data-table";
+import { getCurrentOrganization } from "@/lib/supabase/organization";
+import { createClient } from "@/lib/supabase/server";
+
+export default async function InventoryPage(){
+ const org=await getCurrentOrganization(),supabase=await createClient();
+ const [{data:balances,error},{data:tx}]=await Promise.all([
+  supabase.from("inventory_balances").select("id,product_id,quantity,average_cost,inventory_value,updated_at").eq("organization_id",org.id).order("updated_at",{ascending:false}),
+  supabase.from("inventory_transactions").select("id,transaction_number,product_id,transaction_date,transaction_type,direction,quantity,unit_cost,total_value,reference_type,reference_id").eq("organization_id",org.id).order("transaction_date",{ascending:false}).limit(200)
+ ]);
+ const productIds=[...new Set((balances??[]).map(x=>x.product_id).concat((tx??[]).map(x=>x.product_id)))];
+ const {data:products}=productIds.length?await supabase.from("products").select("id,product_code,name").eq("organization_id",org.id).in("id",productIds):{data:[]};
+ const product=(id:string)=>products?.find(x=>x.id===id);
+ return <ErpPageShell><div className="module-page"><div className="page-heading"><div><p className="eyebrow">Operations</p><h1>Inventory</h1><p>Live weighted-average stock balances and the immutable inventory ledger.</p></div></div>
+ <section className="metric-grid"><div className="metric-card"><span>Stock lines</span><strong>{balances?.length??0}</strong></div><div className="metric-card"><span>Total quantity</span><strong>{(balances??[]).reduce((a,x)=>a+Number(x.quantity),0).toFixed(2)}</strong></div><div className="metric-card"><span>Inventory value</span><strong>{(balances??[]).reduce((a,x)=>a+Number(x.inventory_value),0).toFixed(2)}</strong></div><div className="metric-card"><span>Ledger rows</span><strong>{tx?.length??0}</strong></div></section>
+ <section className="panel"><div className="panel-heading"><div><h2>Current balances</h2><p>Posting purchases and sales updates these balances atomically.</p></div></div>{error?<DataTableEmpty title="Unable to load inventory" description={error.message}/>:balances?.length?<DataTable minWidth={820}><thead><tr><th>Product</th><th>Quantity</th><th>Average cost</th><th>Inventory value</th><th>Updated</th></tr></thead><tbody>{balances.map(x=><tr key={x.id}><td>{product(x.product_id)?.product_code} · {product(x.product_id)?.name}</td><td className="numeric">{Number(x.quantity).toFixed(2)}</td><td className="numeric">{Number(x.average_cost).toFixed(4)}</td><td className="numeric">{Number(x.inventory_value).toFixed(2)}</td><td>{new Date(x.updated_at).toLocaleDateString("en-BD")}</td></tr>)}</tbody></DataTable>:<DataTableEmpty title="No inventory balances" description="Post a purchase to receive stock or a sale to consume stock."/>}</section>
+ <section className="panel"><div className="panel-heading"><div><h2>Immutable inventory ledger</h2><p>Entries are created by the database posting workflows and cannot be edited.</p></div></div>{tx?.length?<DataTable minWidth={1000}><thead><tr><th>Number</th><th>Date</th><th>Product</th><th>Type</th><th>Direction</th><th>Qty</th><th>Unit cost</th><th>Total</th></tr></thead><tbody>{tx.map(x=><tr key={x.id}><td>{x.transaction_number}</td><td>{x.transaction_date}</td><td>{product(x.product_id)?.product_code}</td><td>{x.transaction_type}</td><td>{x.direction}</td><td className="numeric">{Number(x.quantity).toFixed(2)}</td><td className="numeric">{Number(x.unit_cost).toFixed(4)}</td><td className="numeric">{Number(x.total_value).toFixed(2)}</td></tr>)}</tbody></DataTable>:<DataTableEmpty title="No inventory transactions" description="Inventory transactions are generated when operational documents are posted."/>}</section>
+ </div></ErpPageShell>;
+}
