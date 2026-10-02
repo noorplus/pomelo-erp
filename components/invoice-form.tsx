@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { ActionState } from "@/app/erp/actions";
+import type { ActionState } from "@/lib/erp/types";
 
 type Product = { id: string; product_code: string; name: string };
 type OriginalItem = { id: string; product_id: string; invoice_number: string; label: string };
