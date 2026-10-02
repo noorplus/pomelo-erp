@@ -30,7 +30,24 @@ export async function findCurrentOrganization(): Promise<CurrentOrganization | n
     query = query.eq("organization_id", preferredOrganizationId);
   }
 
-  const { data, error } = await query.limit(1).maybeSingle();
+  let { data, error } = await query.limit(1).maybeSingle();
+
+  // A stale organization-selection cookie must not make an otherwise valid
+  // authenticated user appear to have no organization. If the preferred
+  // organization is no longer assigned/active, fall back to any active
+  // organization the user belongs to.
+  if ((error || !data) && preferredOrganizationId) {
+    const fallback = await supabase
+      .from("organization_users")
+      .select("organization_id, role, organizations!inner(id, name, base_currency, timezone)")
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle();
+
+    data = fallback.data;
+    error = fallback.error;
+  }
 
   if (error || !data) return null;
 
