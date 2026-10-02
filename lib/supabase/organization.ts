@@ -5,6 +5,8 @@ export type CurrentOrganization = {
   id: string;
   name: string;
   role: "owner" | "admin" | "manager" | "staff";
+  base_currency: string;
+  timezone: string;
 };
 
 export async function findCurrentOrganization(): Promise<CurrentOrganization | null> {
@@ -20,7 +22,7 @@ export async function findCurrentOrganization(): Promise<CurrentOrganization | n
 
   let query = supabase
     .from("organization_users")
-    .select("organization_id, role, organizations!inner(id, name)")
+    .select("organization_id, role, organizations!inner(id, name, base_currency, timezone)")
     .eq("user_id", user.id)
     .eq("is_active", true);
 
@@ -42,6 +44,8 @@ export async function findCurrentOrganization(): Promise<CurrentOrganization | n
     id: data.organization_id,
     name: organization.name,
     role: data.role,
+    base_currency: organization.base_currency,
+    timezone: organization.timezone,
   };
 }
 
