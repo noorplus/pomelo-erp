@@ -17,6 +17,8 @@ export type ConfigField = {
   placeholder?: string;
   readOnly?: boolean;
   displayKey?: string;
+  showInForm?: "always" | "edit";
+  defaultChecked?: boolean;
 };
 
 function matchesRule(row: Record<string, unknown>, rule?: RowRule) {
@@ -50,6 +52,7 @@ export function ConfigurationManager({
   const [toggleState, toggleFormAction, togglePending] = useActionState(toggleAdapter, {});
   const editingLocked = !!editingRow && matchesRule(editingRow, editDisabledBy);
   const displayFields = fields.filter(field => field.type !== "checkbox");
+  const formFields = fields.filter(field => field.showInForm !== "edit" || !!editingRow);
 
   return (
     <div className="config-manager">
@@ -62,9 +65,9 @@ export function ConfigurationManager({
           <form className="erp-form" action={formAction}>
             <input type="hidden" name="id" value={String(editingRow?.id ?? "")} />
             <div className="form-grid">
-              {fields.map(field => {
+              {formFields.map(field => {
                 const current = String(editingRow?.[field.name] ?? "");
-                const checked = editingRow ? editingRow[field.name] === true : true;
+                const checked = editingRow ? editingRow[field.name] === true : field.defaultChecked === true;
                 return (
                   <label key={field.name} className={field.type === "checkbox" ? "checkbox-field" : ""}>
                     <span>{field.label}</span>
