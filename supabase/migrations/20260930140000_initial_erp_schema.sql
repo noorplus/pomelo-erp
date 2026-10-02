@@ -1670,6 +1670,7 @@ grant select,insert,update,delete on public.organization_users to authenticated;
 grant select,insert,update,delete on public.units_of_measure to authenticated;
 grant select,insert,update on public.products,public.contacts to authenticated;
 grant select on public.number_sequences to authenticated;
+grant insert,update,delete on public.expense_categories to authenticated;
 grant select,insert,update on public.accounts,public.accounting_periods to authenticated;
 grant select on public.journal_entries,public.account_transactions,public.inventory_balances,public.inventory_transactions to authenticated;
 grant select,insert,update,delete on public.purchase_invoices,public.purchase_items,public.sales_invoices,public.sales_items,public.expenses,public.payments,public.payment_allocations to authenticated;
