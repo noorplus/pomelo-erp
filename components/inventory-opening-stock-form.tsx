@@ -16,8 +16,8 @@ export function OpeningStockForm({
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ error?: string; success?: string }>({});
   const journal = journals[0];
-  const [quantity, setQuantity] = useState("50");
-  const [unitCost, setUnitCost] = useState("1300");
+  const [quantity, setQuantity] = useState("");
+  const [unitCost, setUnitCost] = useState("");
   const total = Math.max(0, Number(quantity) || 0) * Math.max(0, Number(unitCost) || 0);
 
   return (
