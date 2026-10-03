@@ -22,7 +22,7 @@ export async function GET(request: Request) {
 
     const { error: profileError } = await supabase
       .from("profiles")
-      .upsert({ id: userData.user.id }, { onConflict: "id" });
+      .upsert({ id: userData.user.id, full_name: userData.user.user_metadata?.full_name ?? null, phone: userData.user.user_metadata?.phone ?? null }, { onConflict: "id" });
 
     if (profileError) {
       await supabase.auth.signOut();
