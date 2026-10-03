@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(27);
+select plan(35);
 
 do $seed$
 declare
@@ -130,6 +130,81 @@ select throws_ok($$ insert into public.payment_allocations(organization_id,payme
 select throws_ok($pgtap$ select public.reverse_journal((select posted_journal_entry_id from public.sales_invoices where id=current_setting('erp.test.sale')::uuid),'2026-09-10') $pgtap$,'P0001','operational journals must be corrected by their document workflow, not direct journal reversal');
 select throws_ok($pgtap$ update public.accounting_periods set start_date='2025-01-01' where id=(select accounting_period_id from public.journal_entries where organization_id=current_setting('erp.test.org')::uuid and status='posted' limit 1) $pgtap$,'P0001','period with posted journals cannot change');
 select is((select round(sum(debit),8)-round(sum(credit),8) from public.account_transactions where organization_id=current_setting('erp.test.org')::uuid),0::numeric,'complete trial balance is zero');
+
+
+-- Exact inventory opening-balance verification: 50 Piece at BDT 1,300 = BDT 65,000.
+do $opening$
+declare
+  v_org uuid; v_unit uuid; v_inventory uuid; v_equity uuid; v_product uuid;
+  v_opening_journal uuid; v_tx uuid;
+begin
+  insert into public.organizations(name,base_currency)
+  values('Opening Inventory Test','BDT')
+  returning id into v_org;
+
+  insert into public.units_of_measure(organization_id,name)
+  values(v_org,'Piece') returning id into v_unit;
+
+  insert into public.accounting_periods(organization_id,name,start_date,end_date)
+  values(v_org,'October 2026','2026-10-01','2026-10-31');
+
+  insert into public.accounts(
+    organization_id,account_code,account_name,account_type,normal_balance
+  ) values
+    (v_org,'1400','Inventory','asset','debit'),
+    (v_org,'3100','Owner Capital','equity','credit');
+
+  select id into v_inventory
+  from public.accounts
+  where organization_id=v_org and account_code='1400';
+
+  select id into v_equity
+  from public.accounts
+  where organization_id=v_org and account_code='3100';
+
+  insert into public.products(
+    organization_id,name,unit_id,inventory_account_id,sales_account_id,cogs_account_id
+  ) values(v_org,'Opening Test Product',v_unit,v_inventory,v_inventory,v_inventory)
+  returning id into v_product;
+
+  v_opening_journal:=public.post_manual_journal(
+    v_org,'2026-10-01','Opening inventory test',
+    jsonb_build_array(
+      jsonb_build_object('account_id',v_inventory,'debit',65000,'credit',0,'description','Opening inventory'),
+      jsonb_build_object('account_id',v_equity,'debit',0,'credit',65000,'description','Owner capital')
+    ),
+    'opening'
+  );
+
+  v_tx:=public.post_inventory_adjustment(
+    v_org,v_product,'2026-10-01','opening','in',50,1300,null,v_opening_journal,
+    'Opening stock: 50 Piece'
+  );
+
+  perform set_config('erp.opening.org',v_org::text,true);
+  perform set_config('erp.opening.product',v_product::text,true);
+  perform set_config('erp.opening.journal',v_opening_journal::text,true);
+  perform set_config('erp.opening.tx',v_tx::text,true);
+end;
+$opening$;
+
+select is((select quantity from public.inventory_balances where organization_id=current_setting('erp.opening.org')::uuid and product_id=current_setting('erp.opening.product')::uuid),50::numeric,'opening inventory quantity is 50 Piece');
+select is((select average_cost from public.inventory_balances where organization_id=current_setting('erp.opening.org')::uuid and product_id=current_setting('erp.opening.product')::uuid),1300::numeric,'opening inventory WAC is 1,300');
+select is((select inventory_value from public.inventory_balances where organization_id=current_setting('erp.opening.org')::uuid and product_id=current_setting('erp.opening.product')::uuid),65000::numeric,'opening inventory value is 65,000');
+select is((select count(*) from public.inventory_transactions where organization_id=current_setting('erp.opening.org')::uuid and product_id=current_setting('erp.opening.product')::uuid and transaction_type='opening'),1::bigint,'exactly one opening inventory transaction was created');
+select is((select count(*) from public.journal_entries where organization_id=current_setting('erp.opening.org')::uuid and status='posted'),1::bigint,'opening inventory does not create a duplicate GL journal');
+select is((select round(sum(debit-credit),8) from public.account_transactions where organization_id=current_setting('erp.opening.org')::uuid and account_id=(select inventory_account_id from public.products where id=current_setting('erp.opening.product')::uuid)),65000::numeric,'GL Inventory balance reconciles to opening inventory value');
+select is((select next_number from public.number_sequences where organization_id=current_setting('erp.opening.org')::uuid and document_type='inventory'),2::bigint,'inventory number sequence advances after opening transaction');
+select throws_ok(
+  $opening_dup$ select public.post_inventory_adjustment(
+    current_setting('erp.opening.org')::uuid,
+    current_setting('erp.opening.product')::uuid,
+    '2026-10-01','opening','in',50,1300,null,
+    current_setting('erp.opening.journal')::uuid,'Duplicate opening'
+  ) $opening_dup$,
+  'P0001',
+  'opening inventory requires zero existing stock'
+);
 
 select * from finish();
 rollback;

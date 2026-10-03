@@ -910,6 +910,189 @@ begin
 end;
 $$;
 
+
+-- Inventory opening/adjustment posting. Uses the existing inventory ledger and
+-- balance tables; no separate adjustment document table is introduced.
+-- Opening stock reconciles to an already-posted opening journal and therefore
+-- does not create a second Inventory GL posting. Normal adjustments create a
+-- balanced manual journal using the supplied offset account.
+create or replace function public.post_inventory_adjustment(
+  p_org_id uuid,
+  p_product_id uuid,
+  p_transaction_date date,
+  p_transaction_type text,
+  p_direction text,
+  p_quantity numeric,
+  p_unit_cost numeric default null,
+  p_offset_account_id uuid default null,
+  p_reference_id uuid default null,
+  p_description text default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path=''
+as $$
+declare
+  v_product public.products%rowtype;
+  v_balance public.inventory_balances%rowtype;
+  v_journal public.journal_entries%rowtype;
+  v_journal_id uuid;
+  v_tx_id uuid:=gen_random_uuid();
+  v_tx_number text;
+  v_total_value numeric(20,8);
+  v_new_qty numeric(20,8);
+  v_new_value numeric(20,8);
+  v_new_avg numeric(20,16);
+  v_effective_cost numeric(20,16);
+  v_inventory_account uuid;
+  v_existing_opening_value numeric(20,8);
+  v_journal_inventory_value numeric(20,8);
+  v_lines jsonb;
+begin
+  if not private.has_org_role(p_org_id,array['owner','admin','manager']) then
+    raise exception 'not authorized';
+  end if;
+  if p_transaction_type not in('opening','adjustment') then
+    raise exception 'inventory transaction type must be opening or adjustment';
+  end if;
+  if p_direction not in('in','out') then
+    raise exception 'inventory direction must be in or out';
+  end if;
+  if p_quantity is null or p_quantity<=0 then
+    raise exception 'inventory quantity must be greater than zero';
+  end if;
+
+  select * into v_product
+  from public.products
+  where id=p_product_id and organization_id=p_org_id and is_active
+  for share;
+  if not found then raise exception 'product not found or inactive'; end if;
+
+  perform private.require_postable_account(p_org_id,v_product.inventory_account_id,'asset');
+  v_inventory_account:=v_product.inventory_account_id;
+  perform private.open_period_for_date(p_org_id,p_transaction_date);
+
+  insert into public.inventory_balances(organization_id,product_id)
+  values(p_org_id,p_product_id)
+  on conflict(organization_id,product_id) do nothing;
+
+  select * into v_balance
+  from public.inventory_balances
+  where organization_id=p_org_id and product_id=p_product_id
+  for update;
+
+  if p_transaction_type='opening' then
+    if p_direction<>'in' then raise exception 'opening inventory must use direction in'; end if;
+    if p_unit_cost is null or p_unit_cost<0 then raise exception 'opening inventory requires a non-negative unit cost'; end if;
+    if p_reference_id is null then raise exception 'opening inventory requires the posted opening journal id'; end if;
+
+    select * into v_journal
+    from public.journal_entries
+    where id=p_reference_id and organization_id=p_org_id
+    for share;
+    if not found then raise exception 'opening journal not found'; end if;
+    if v_journal.status<>'posted' or v_journal.entry_type<>'opening' then
+      raise exception 'opening inventory requires a posted opening journal';
+    end if;
+    if v_journal.entry_date<>p_transaction_date then
+      raise exception 'opening inventory date must match the opening journal date';
+    end if;
+    if v_balance.quantity<>0 or v_balance.inventory_value<>0 then
+      raise exception 'opening inventory requires zero existing stock';
+    end if;
+    if exists(select 1 from public.inventory_transactions where organization_id=p_org_id and product_id=p_product_id) then
+      raise exception 'opening inventory cannot be posted after inventory transactions exist';
+    end if;
+    v_total_value:=round(p_quantity*p_unit_cost,8);
+
+    select coalesce(sum(debit-credit),0) into v_journal_inventory_value
+    from public.account_transactions
+    where organization_id=p_org_id and journal_entry_id=p_reference_id and account_id=v_inventory_account;
+
+    select coalesce(sum(total_value),0) into v_existing_opening_value
+    from public.inventory_transactions
+    where organization_id=p_org_id and transaction_type='opening' and reference_id=p_reference_id;
+
+    if v_existing_opening_value+v_total_value>v_journal_inventory_value then
+      raise exception 'opening inventory value exceeds the Inventory amount in the opening journal';
+    end if;
+
+    v_tx_number:=private.next_number(p_org_id,'inventory');
+
+    insert into public.inventory_transactions(
+      id,organization_id,transaction_number,product_id,transaction_date,
+      transaction_type,direction,quantity,unit_cost,total_value,
+      reference_type,reference_id,unit_cost_before,average_cost_after,created_by
+    )
+    values(
+      v_tx_id,p_org_id,v_tx_number,p_product_id,p_transaction_date,
+      'opening','in',p_quantity,p_unit_cost,v_total_value,
+      'opening_journal',p_reference_id,null,p_unit_cost,(select auth.uid())
+    );
+
+    update public.inventory_balances
+    set quantity=p_quantity,average_cost=p_unit_cost,inventory_value=v_total_value,updated_at=now()
+    where id=v_balance.id;
+
+    return v_tx_id;
+  end if;
+
+  if p_reference_id is null then raise exception 'inventory adjustment requires a reference id'; end if;
+  if p_offset_account_id is null then raise exception 'inventory adjustment requires an offset account'; end if;
+  perform private.require_postable_account(p_org_id,p_offset_account_id,null);
+
+  if p_direction='in' then
+    if p_unit_cost is null or p_unit_cost<0 then raise exception 'inventory receipt adjustment requires a non-negative unit cost'; end if;
+    v_effective_cost:=p_unit_cost;
+    v_total_value:=round(p_quantity*v_effective_cost,8);
+    v_new_qty:=v_balance.quantity+p_quantity;
+    v_new_value:=round(v_balance.inventory_value+v_total_value,8);
+    v_new_avg:=case when v_new_qty=0 then 0 else v_new_value/v_new_qty end;
+    v_lines:=jsonb_build_array(
+      jsonb_build_object('account_id',v_inventory_account,'debit',v_total_value,'credit',0,'description',coalesce(p_description,'Inventory adjustment in')),
+      jsonb_build_object('account_id',p_offset_account_id,'debit',0,'credit',v_total_value,'description',coalesce(p_description,'Inventory adjustment offset'))
+    );
+  else
+    if p_quantity>v_balance.quantity then raise exception 'inventory adjustment would make stock negative'; end if;
+    v_effective_cost:=v_balance.average_cost;
+    v_total_value:=round(p_quantity*v_effective_cost,8);
+    v_new_qty:=v_balance.quantity-p_quantity;
+    v_new_value:=round(v_balance.inventory_value-v_total_value,8);
+    if v_new_value<0 then raise exception 'inventory adjustment would make inventory value negative'; end if;
+    v_new_avg:=case when v_new_qty=0 then 0 else v_new_value/v_new_qty end;
+    v_lines:=jsonb_build_array(
+      jsonb_build_object('account_id',p_offset_account_id,'debit',v_total_value,'credit',0,'description',coalesce(p_description,'Inventory adjustment out')),
+      jsonb_build_object('account_id',v_inventory_account,'debit',0,'credit',v_total_value,'description',coalesce(p_description,'Inventory adjustment relief'))
+    );
+  end if;
+
+  v_journal_id:=private.create_posted_journal(
+    p_org_id,p_transaction_date,'manual','inventory_adjustment',p_reference_id,
+    coalesce(p_description,'Inventory adjustment'),v_lines
+  );
+
+  v_tx_number:=private.next_number(p_org_id,'inventory');
+
+  insert into public.inventory_transactions(
+    id,organization_id,transaction_number,product_id,transaction_date,
+    transaction_type,direction,quantity,unit_cost,total_value,
+    reference_type,reference_id,unit_cost_before,average_cost_after,created_by
+  )
+  values(
+    v_tx_id,p_org_id,v_tx_number,p_product_id,p_transaction_date,
+    'adjustment',p_direction,p_quantity,v_effective_cost,v_total_value,
+    'journal_entry',v_journal_id,v_balance.average_cost,v_new_avg,(select auth.uid())
+  );
+
+  update public.inventory_balances
+  set quantity=v_new_qty,average_cost=v_new_avg,inventory_value=v_new_value,updated_at=now()
+  where id=v_balance.id;
+
+  return v_tx_id;
+end;
+$$;
+
 -- Sales posting: WAC/COGS plus AR/revenue; sales returns reverse both.
 create or replace function public.post_sales_invoice(
   p_invoice_id uuid,
@@ -1674,3 +1857,7 @@ grant insert,update,delete on public.expense_categories to authenticated;
 grant select,insert,update on public.accounts,public.accounting_periods to authenticated;
 grant select on public.journal_entries,public.account_transactions,public.inventory_balances,public.inventory_transactions to authenticated;
 grant select,insert,update,delete on public.purchase_invoices,public.purchase_items,public.sales_invoices,public.sales_items,public.expenses,public.payments,public.payment_allocations to authenticated;
+
+-- Inventory opening/adjustment is exposed only through the transactional RPC.
+revoke execute on function public.post_inventory_adjustment(uuid,uuid,date,text,text,numeric,numeric,uuid,uuid,text) from public,anon;
+grant execute on function public.post_inventory_adjustment(uuid,uuid,date,text,text,numeric,numeric,uuid,uuid,text) to authenticated;
