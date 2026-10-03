@@ -932,7 +932,7 @@ returns uuid
 language plpgsql
 security definer
 set search_path=''
-as $
+as $$
 declare
   v_product public.products%rowtype;
   v_balance public.inventory_balances%rowtype;
@@ -1094,7 +1094,7 @@ begin
 
   return v_tx_id;
 end;
-$;
+$$;
 
 -- Sales posting: WAC/COGS plus AR/revenue; sales returns reverse both.
 create or replace function public.post_sales_invoice(
