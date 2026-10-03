@@ -347,8 +347,7 @@ begin
   if doc_status is distinct from 'posted' then
     raise exception 'allocation target must be posted';
   end if;
-  if payment_settlement_account is null or doc_account is null or payment_settlement_account is distinct from doc_account then    raise exception 'payment settlement account does not match document settlement account';
-  end if;
+  if payment_settlement_account is null or doc_account is null or payment_settlement_account is distinct from doc_account then    raise exception 'payment settlement account does not match document settlement account';  end if;
 
   if (select contact_id from public.payments where id=new.payment_id and organization_id=new.organization_id)
      is distinct from doc_contact
@@ -697,8 +696,7 @@ begin
       perform private.require_postable_account(new.organization_id,v_settlement_account_id,v_expected_type);
       if new.document_type='return' and v_settlement_account_id is distinct from
          (select receivable_account_id from public.sales_invoices where id=new.original_invoice_id and organization_id=new.organization_id)      then raise exception 'sales return must use original receivable account'; end if;
-      v_ref_type:='sales_invoice';
-      if v_entry_type<>(case when new.document_type='return' then 'sale_return' else 'sale' end) then
+      v_ref_type:='sales_invoice';      if v_entry_type<>(case when new.document_type='return' then 'sale_return' else 'sale' end) then
         raise exception 'sales journal entry type mismatch';
       end if;
     elsif tg_table_name='expenses' then
@@ -1047,8 +1045,7 @@ begin
       where organization_id=p_org_id
         and transaction_type='opening'
         and reference_id=p_reference_id
-    ) then
-      raise exception 'opening journal already has inventory opening transactions';
+    ) then      raise exception 'opening journal already has inventory opening transactions';
     end if;
 
     v_total_value:=round(p_quantity*p_unit_cost,8);
@@ -1397,8 +1394,7 @@ begin
     end loop;
     v_lines:=v_lines||jsonb_build_array(jsonb_build_object(
       'account_id',p_receivable_account_id,'debit',v_invoice.total_amount,'credit',0,
-      'description','Accounts receivable - '||v_invoice.invoice_number,
-      'contact_id',v_invoice.customer_id
+      'description','Accounts receivable - '||v_invoice.invoice_number,      'contact_id',v_invoice.customer_id
     ));
     v_journal_id:=private.create_posted_journal(
       v_invoice.organization_id,v_invoice.invoice_date,'sale',
@@ -1798,155 +1794,7 @@ begin
       select exists(select 1 from public.purchase_invoices where id=new.document_id and organization_id=new.organization_id and status='posted'),
              coalesce((select total_amount from public.purchase_invoices where id=new.document_id and organization_id=new.organization_id),0)
         into ok,doc_total;
-    end if;
-  else
-    select exists(select 1 from public.sales_invoices where id=new.document_id and organization_id=new.organization_id and status='posted'),
-           coalesce((select total_amount from public.sales_invoices where id=new.document_id and organization_id=new.organization_id),0)
-      into ok,doc_total;
-  end if;
 
-  if not ok then raise exception 'allocation target must be posted'; end if;
-
-  if pt in('receipt','refund_out') and new.document_type in('sale','sale_return') then
-    if (select customer_id from public.sales_invoices where id=new.document_id and organization_id=new.organization_id) is distinct from (select contact_id from public.payments where id=new.payment_id and organization_id=new.organization_id) then
-      raise exception 'payment contact does not match sales customer';
-    end if;
-  elsif pt in('payment','refund_in') and new.document_type in('purchase','purchase_return') then
-    if (select supplier_id from public.purchase_invoices where id=new.document_id and organization_id=new.organization_id) is distinct from (select contact_id from public.payments where id=new.payment_id and organization_id=new.organization_id) then
-      raise exception 'payment contact does not match purchase supplier';
-    end if;
-  end if;
-
-  select coalesce(sum(allocated_amount),0)
-    into allocated
-  from public.payment_allocations
-  where organization_id=new.organization_id
-    and payment_id=new.payment_id
-    and id<>coalesce(new.id,'00000000-0000-0000-0000-000000000000'::uuid);
-
-  if allocated+new.allocated_amount>pa then
-    raise exception 'payment allocations exceed payment amount';
-  end if;
-
-  select coalesce(sum(allocated_amount),0)
-    into doc_allocated
-  from public.payment_allocations
-  where organization_id=new.organization_id
-    and document_type=new.document_type
-    and document_id=new.document_id
-    and id<>coalesce(new.id,'00000000-0000-0000-0000-000000000000'::uuid);
-
-  if doc_allocated+new.allocated_amount>doc_total then
-    raise exception 'document allocations exceed document amount';
-  end if;
-
-  return new;
-end;
-$$;
-
--- Private posting helpers are never part of the client API surface.
-revoke all on function private.next_number(uuid,text) from public,authenticated;
-revoke all on function private.assign_business_number() from public,authenticated;
-revoke all on function private.require_postable_account(uuid,uuid,text) from public,authenticated;
-revoke all on function private.open_period_for_date(uuid,date) from public,authenticated;
-revoke all on function private.create_posted_journal(uuid,date,text,text,uuid,text,jsonb,uuid) from public,authenticated;
-revoke all on function private.guard_posted_document() from public,authenticated;
-revoke all on function private.validate_payment_allocation() from public,authenticated;
-revoke all on function private.validate_purchase_post() from public,authenticated;
-revoke all on function private.validate_sale_post() from public,authenticated;
-revoke all on function private.validate_journal_post() from public,authenticated;
-
--- Posted payment allocations are settlement history and are immutable. A
--- correction is performed by reversing/replacing the payment event, not by
--- editing historical allocation rows.
-create or replace function private.guard_payment_allocation_mutation()
-returns trigger
-language plpgsql
-security definer
-set search_path=''
-as $$
-begin
-  raise exception 'payment allocations are immutable';
-end;
-$$;
-create trigger payment_allocations_validation_trg
-before insert or update on public.payment_allocations
-for each row execute function private.validate_payment_allocation();
-
-revoke all on function private.guard_payment_allocation_mutation() from public,authenticated;
-create trigger payment_allocations_immutable_trg
-before update or delete on public.payment_allocations
-for each row execute function private.guard_payment_allocation_mutation();
-
--- Public RPC execution boundary.
-revoke all on function public.post_purchase_invoice(uuid,uuid) from public;
-revoke all on function public.post_sales_invoice(uuid,uuid) from public;
-revoke all on function public.post_expense(uuid,uuid) from public;
-revoke all on function public.post_payment(uuid,uuid,jsonb) from public;
-revoke all on function public.post_manual_journal(uuid,date,text,jsonb,text) from public;
-revoke all on function public.reverse_journal(uuid,date,text) from public;
-
-grant execute on function public.post_purchase_invoice(uuid,uuid) to authenticated;
-grant execute on function public.post_sales_invoice(uuid,uuid) to authenticated;
-grant execute on function public.post_expense(uuid,uuid) to authenticated;
-grant execute on function public.post_payment(uuid,uuid,jsonb) to authenticated;
-grant execute on function public.post_manual_journal(uuid,date,text,jsonb,text) to authenticated;
-grant execute on function public.reverse_journal(uuid,date,text) to authenticated;
-
--- Anonymous clients must never reach privileged accounting/inventory posting RPCs.
--- Signed-in users remain the intended API caller; the functions retain their
--- SECURITY DEFINER boundary and perform their own organization/role checks.
-revoke execute on function public.post_purchase_invoice(uuid,uuid) from anon;
-revoke execute on function public.post_sales_invoice(uuid,uuid) from anon;
-revoke execute on function public.post_expense(uuid,uuid) from anon;
-revoke execute on function public.post_payment(uuid,uuid,jsonb) from anon;
-revoke execute on function public.post_manual_journal(uuid,date,text,jsonb,text) from anon;
-revoke execute on function public.reverse_journal(uuid,date,text) from anon;
-
--- RLS boundary for all 21 public tables.
-do $$ declare t text; begin foreach t in array array['profiles','organizations','organization_users','units_of_measure','products','contacts','number_sequences','accounts','journal_entries','account_transactions','accounting_periods','purchase_invoices','purchase_items','sales_invoices','sales_items','inventory_balances','inventory_transactions','expense_categories','expenses','payments','payment_allocations'] loop execute format('alter table public.%I enable row level security',t); execute format('revoke all on table public.%I from anon,authenticated',t); execute format('grant select on table public.%I to authenticated',t); end loop; end $$;
-
-create policy profiles_select on public.profiles for select to authenticated using((select auth.uid())=id);
-create policy profiles_insert on public.profiles for insert to authenticated with check((select auth.uid())=id);
-create policy profiles_update on public.profiles for update to authenticated using((select auth.uid())=id) with check((select auth.uid())=id);
-create policy organizations_select on public.organizations for select to authenticated using((select private.is_org_member(id)));
-create policy organizations_insert on public.organizations for insert to authenticated with check((select auth.uid()) is not null);
-create policy organizations_update on public.organizations for update to authenticated using((select private.has_org_role(id,array['owner','admin']))) with check((select private.has_org_role(id,array['owner','admin'])));
-create policy organization_users_select on public.organization_users for select to authenticated using((select private.is_org_member(organization_id)));
-create policy organization_users_insert on public.organization_users for insert to authenticated with check((select private.has_org_role(organization_id,array['owner','admin'])));
-create policy organization_users_update on public.organization_users for update to authenticated using((select private.has_org_role(organization_id,array['owner','admin']))) with check((select private.has_org_role(organization_id,array['owner','admin'])));
-create policy organization_users_delete on public.organization_users for delete to authenticated using((select private.has_org_role(organization_id,array['owner','admin'])));
-
-do $$ declare t text; begin foreach t in array array['units_of_measure','products','contacts','number_sequences','accounts','accounting_periods','expense_categories','journal_entries','account_transactions','inventory_balances','inventory_transactions','purchase_invoices','purchase_items','sales_invoices','sales_items','expenses','payments','payment_allocations'] loop execute format('create policy %I_select on public.%I for select to authenticated using ((select private.is_org_member(organization_id)))',t,t); end loop; end $$;
-
-create policy units_write on public.units_of_measure for all to authenticated using((select private.has_org_role(organization_id,array['owner','admin','manager']))) with check((select private.has_org_role(organization_id,array['owner','admin','manager'])));
-create policy products_write on public.products for all to authenticated using((select private.has_org_role(organization_id,array['owner','admin','manager']))) with check((select private.has_org_role(organization_id,array['owner','admin','manager'])));
-create policy contacts_write on public.contacts for all to authenticated using((select private.has_org_role(organization_id,array['owner','admin','manager','staff']))) with check((select private.has_org_role(organization_id,array['owner','admin','manager','staff'])));
-create policy sequences_write on public.number_sequences for update to authenticated using((select private.has_org_role(organization_id,array['owner','admin']))) with check((select private.has_org_role(organization_id,array['owner','admin'])));
-create policy accounts_write on public.accounts for all to authenticated using((select private.has_org_role(organization_id,array['owner','admin']))) with check((select private.has_org_role(organization_id,array['owner','admin'])));
-create policy periods_write on public.accounting_periods for all to authenticated using((select private.has_org_role(organization_id,array['owner','admin']))) with check((select private.has_org_role(organization_id,array['owner','admin'])));
-create policy expense_categories_write on public.expense_categories for all to authenticated using((select private.has_org_role(organization_id,array['owner','admin']))) with check((select private.has_org_role(organization_id,array['owner','admin'])));
-do $$
-declare
-  t text;
-  v_roles text[] := array['owner','admin','manager','staff'];
-  v_tables text[] := array['purchase_invoices','purchase_items','sales_invoices','sales_items','expenses','payments','payment_allocations'];
-begin
-  foreach t in array v_tables loop
-    execute format(
-      'create policy %I_write on public.%I for all to authenticated using ((select private.has_org_role(organization_id,%L::text[]))) with check ((select private.has_org_role(organization_id,%L::text[])))',
-      t,t,v_roles,v_roles
-    );
-  end loop;
-end $$;
-
-grant select,insert,update on public.profiles to authenticated;
-grant select,insert,update on public.organizations to authenticated;
-grant select,insert,update,delete on public.organization_users to authenticated;
-grant select,insert,update,delete on public.units_of_measure to authenticated;
-grant select,insert,update on public.products,public.contacts to authenticated;
-grant select on public.number_sequences to authenticated;
-grant insert,update,delete on public.expense_categories to authenticated;
-grant select,insert,update on public.accounts,public.accounting_periods to authenticated;
-grant select on public.journal_entries,public.account_transactions,public.inventory_balances,public.inventory_transactions to authenticated;
-grant select,insert,update,delete on public.purchase_invoices,public.purchase_items,public.sales_invoices,public.sales_items,public.expenses,public.payments,public.payment_allocations to authenticated;
+-- Inventory opening/adjustment is exposed only through the transactional RPC.
+revoke execute on function public.post_inventory_adjustment(uuid,uuid,date,text,text,numeric,numeric,uuid,uuid,text) from public,anon;
+grant execute on function public.post_inventory_adjustment(uuid,uuid,date,text,text,numeric,numeric,uuid,uuid,text) to authenticated;
