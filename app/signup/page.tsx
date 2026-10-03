@@ -5,6 +5,8 @@ import { FormEvent, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 
 export default function SignupPage() {
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -17,9 +19,11 @@ export default function SignupPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+    const normalizedFullName = fullName.trim();
+    const normalizedPhone = phone.trim();
     const normalizedEmail = email.trim();
 
-    if (!normalizedEmail || !password || !confirmPassword) {
+    if (!normalizedFullName || !normalizedEmail || !password || !confirmPassword) {
       setError("Complete all required fields.");
       return;
     }
@@ -37,7 +41,10 @@ export default function SignupPage() {
     const { data, error: signUpError } = await supabase.auth.signUp({
       email: normalizedEmail,
       password,
-      options: { emailRedirectTo: window.location.origin + "/auth/confirm" },
+      options: {
+        emailRedirectTo: window.location.origin + "/auth/confirm",
+        data: { full_name: normalizedFullName, phone: normalizedPhone || null },
+      },
     });
 
     if (signUpError) {
@@ -47,6 +54,24 @@ export default function SignupPage() {
     }
 
     if (data.session) {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData.user) {
+        setError("Account was created, but the user session could not be initialized. Please sign in.");
+        setPending(false);
+        return;
+      }
+
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .upsert({ id: userData.user.id, full_name: normalizedFullName, phone: normalizedPhone || null }, { onConflict: "id" });
+
+      if (profileError) {
+        await supabase.auth.signOut();
+        setError("Account was created, but your profile could not be initialized. Please try signing in again.");
+        setPending(false);
+        return;
+      }
+
       window.location.assign("/");
       return;
     }
@@ -101,8 +126,18 @@ export default function SignupPage() {
 
           <form onSubmit={handleSubmit} className="auth-form">
             <label className="auth-field">
+              <span>Full name</span>
+              <input className="auth-input" type="text" value={fullName} onChange={(event) => setFullName(event.target.value)} autoComplete="name" autoFocus required maxLength={160} placeholder="Your full name" />
+            </label>
+
+            <label className="auth-field">
+              <span>Phone</span>
+              <input className="auth-input" type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} autoComplete="tel" maxLength={40} placeholder="+880..." />
+            </label>
+
+            <label className="auth-field">
               <span>Email</span>
-              <input className="auth-input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" autoFocus required placeholder="you@company.com" />
+              <input className="auth-input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required placeholder="you@company.com" />
             </label>
 
             <label className="auth-field">

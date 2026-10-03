@@ -38,6 +38,24 @@ function LoginPageContent() {
       return;
     }
 
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) {
+      setError("Signed in, but the user session could not be initialized. Please try again.");
+      setPending(false);
+      return;
+    }
+
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .upsert({ id: userData.user.id, full_name: userData.user.user_metadata?.full_name ?? null, phone: userData.user.user_metadata?.phone ?? null }, { onConflict: "id" });
+
+    if (profileError) {
+      await supabase.auth.signOut();
+      setError("Signed in, but your profile could not be initialized. Please try again.");
+      setPending(false);
+      return;
+    }
+
     window.location.assign(next);
   }
 
@@ -80,6 +98,7 @@ function LoginPageContent() {
 
             {authError === "invalid_confirmation" ? <p className="auth-message error" role="alert">That confirmation link is invalid or incomplete. Request a new confirmation email or sign in.</p> : null}
             {authError === "confirmation_failed" ? <p className="auth-message error" role="alert">That confirmation link has expired or is no longer valid. Please try again.</p> : null}
+            {authError === "profile_setup_failed" ? <p className="auth-message error" role="alert">Email confirmed, but your profile could not be initialized. Please sign in again.</p> : null}
             {error ? <p className="auth-message error" role="alert">{error}</p> : null}
 
             <button className="auth-primary" type="submit" disabled={pending}>

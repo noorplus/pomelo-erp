@@ -14,6 +14,21 @@ export async function GET(request: Request) {
     if (error) {
       return NextResponse.redirect(new URL("/login?error=confirmation_failed", request.url));
     }
+
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) {
+      return NextResponse.redirect(new URL("/login?error=confirmation_failed", request.url));
+    }
+
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .upsert({ id: userData.user.id, full_name: userData.user.user_metadata?.full_name ?? null, phone: userData.user.user_metadata?.phone ?? null }, { onConflict: "id" });
+
+    if (profileError) {
+      await supabase.auth.signOut();
+      return NextResponse.redirect(new URL("/login?error=profile_setup_failed", request.url));
+    }
+
     return NextResponse.redirect(new URL("/", request.url));
   }
 
@@ -24,7 +39,21 @@ export async function GET(request: Request) {
     });
 
     if (!error) {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData.user) {
+        return NextResponse.redirect(new URL("/login?error=confirmation_failed", request.url));
+      }
+
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .upsert({ id: userData.user.id, full_name: userData.user.user_metadata?.full_name ?? null, phone: userData.user.user_metadata?.phone ?? null }, { onConflict: "id" });
+
+      if (profileError) {
+        await supabase.auth.signOut();
+        return NextResponse.redirect(new URL("/login?error=profile_setup_failed", request.url));
+      }
+
+      return NextResponse.redirect(new URL("/", request.url));
     }
   }
 
