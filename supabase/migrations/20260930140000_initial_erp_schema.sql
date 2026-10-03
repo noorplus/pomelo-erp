@@ -937,6 +937,7 @@ declare
   v_product public.products%rowtype;
   v_balance public.inventory_balances%rowtype;
   v_journal public.journal_entries%rowtype;
+  v_journal_id uuid;
   v_tx_id uuid:=gen_random_uuid();
   v_tx_number text;
   v_total_value numeric(20,8);
@@ -1003,10 +1004,6 @@ begin
     if exists(select 1 from public.inventory_transactions where organization_id=p_org_id and product_id=p_product_id) then
       raise exception 'opening inventory cannot be posted after inventory transactions exist';
     end if;
-    if exists(select 1 from public.inventory_transactions where organization_id=p_org_id and transaction_type='opening' and reference_id=p_reference_id) then
-      raise exception 'opening journal already has inventory opening transactions';
-    end if;
-
     v_total_value:=round(p_quantity*p_unit_cost,8);
 
     select coalesce(sum(debit-credit),0) into v_journal_inventory_value
