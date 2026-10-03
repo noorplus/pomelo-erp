@@ -203,7 +203,7 @@ select throws_ok(
     current_setting('erp.opening.journal')::uuid,'Duplicate opening'
   ) $opening_dup$,
   'P0001',
-  'opening inventory cannot be posted after inventory transactions exist'
+  'opening inventory requires zero existing stock'
 );
 
 select * from finish();
