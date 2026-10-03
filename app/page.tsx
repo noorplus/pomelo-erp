@@ -1,10 +1,15 @@
 import Link from "next/link";
 import { ErpPageShell } from "@/components/erp-page-shell";
-import { getCurrentOrganization } from "@/lib/supabase/organization";
+import { findCurrentOrganization } from "@/lib/supabase/organization";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function Home(){
- const org=await getCurrentOrganization(),supabase=await createClient();
+ const supabase=await createClient();
+ const { data: { user } } = await supabase.auth.getUser();
+ if (!user) redirect("/login");
+ const org=await findCurrentOrganization();
+ if (!org) redirect("/onboarding");
  const [
   {count:products},{count:contacts},{count:stockLines},{count:journals},
   {count:accounts},{count:units},{count:periods},{count:openPeriods},
