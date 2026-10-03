@@ -1,0 +1,138 @@
+/* Shared table/form primitives: content-aware sizing and overflow-safe behavior. */
+.data-table-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.data-table-scroll .data-table {
+  width: max-content;
+  min-width: 100%;
+  table-layout: auto;
+}
+
+.data-table th,
+.data-table td {
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.data-table th {
+  width: auto;
+  min-width: max-content;
+}
+
+.data-table td.wrap {
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.data-table th > *,
+.data-table td > * {
+  max-width: none;
+}
+
+.data-table .row-actions {
+  width: 1%;
+}
+
+.shared-form {
+  min-width: 0;
+}
+
+.shared-form-fields {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.shared-form-fields:disabled {
+  opacity: .7;
+}
+
+.shared-form-section {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.shared-form-section-heading {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.shared-form-section-heading h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.shared-form-section-heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.shared-form-field {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+  color: #374151;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.shared-form-field > span {
+  min-width: max-content;
+  white-space: nowrap;
+}
+
+.shared-form-field > span b {
+  color: var(--primary, #2563eb);
+}
+
+.shared-form-field > small {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.shared-form-field input,
+.shared-form-field select,
+.shared-form-field textarea {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.shared-form-actions {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.shared-form-actions > * {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 620px) {
+  .data-table-scroll {
+    width: 100%;
+    max-width: 100vw;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 8px 9px;
+  }
+
+  .shared-form-actions > * {
+    flex: 1 1 auto;
+  }
+}
