@@ -24,9 +24,9 @@ export const ERP_MODULES: readonly ErpModule[] = [
   {
     key: "inventory",
     label: "Inventory",
-    description: "Read-only stock state and immutable inventory history.",
+    description: "Opening stock, controlled adjustments, live balances and immutable inventory history.",
     href: "/inventory",
-    capabilities: ["Current balances", "Inventory valuation", "Movement ledger"],
+    capabilities: ["Opening stock", "Adjustment IN", "Adjustment OUT", "Current balances", "Inventory valuation", "Movement ledger", "Weighted average cost"],
   },
   {
     key: "purchasing",
@@ -68,6 +68,6 @@ export const ERP_MODULES: readonly ErpModule[] = [
     label: "Reports",
     description: "Ledger-derived operational and financial reporting.",
     href: "/reports",
-    capabilities: ["Trial balance", "General ledger", "Inventory", "Sales", "Purchases", "Expenses"],
+    capabilities: ["Trial balance", "General ledger", "Profit & loss", "Balance sheet", "AR", "AP", "Inventory", "Sales", "Purchases", "Expenses", "Cash & bank"],
   },
 ] as const;
