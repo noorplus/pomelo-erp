@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { postOpeningStock } from "@/app/erp/actions";
 
 type Product = { id: string; product_code: string; name: string };
-type Journal = { id: string; entry_number: string; entry_date: string; total_debit: number };
+type Journal = { id: string; entry_number: string; entry_date: string };
 
 export function OpeningStockForm({
   products,
@@ -61,29 +61,11 @@ export function OpeningStockForm({
           </label>
           <label>
             <span>Quantity</span>
-            <input
-              name="quantity"
-              type="number"
-              min="0.000001"
-              step="0.000001"
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              required
-              disabled={isPending}
-            />
+            <input name="quantity" type="number" min="0.000001" step="0.000001" value={quantity} onChange={(e) => setQuantity(e.target.value)} required disabled={isPending} />
           </label>
           <label>
             <span>Unit cost</span>
-            <input
-              name="unit_cost"
-              type="number"
-              min="0"
-              step="0.0001"
-              value={unitCost}
-              onChange={(e) => setUnitCost(e.target.value)}
-              required
-              disabled={isPending}
-            />
+            <input name="unit_cost" type="number" min="0" step="0.0001" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} required disabled={isPending} />
           </label>
           <label>
             <span>Total inventory value</span>
