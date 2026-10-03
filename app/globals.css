@@ -699,3 +699,73 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
   .onboarding-grid{grid-template-columns:1fr}.onboarding-grid .full{grid-column:auto}
 }
 @media(prefers-reduced-motion:reduce){.auth-spinner{animation:none}.auth-primary,.auth-secondary,.auth-input{transition:none}}
+
+
+/* Accounting journal form: database-aligned responsive layout */
+.accounting-posting-panel{overflow:visible}
+.accounting-journal-form{display:grid;gap:12px}
+.accounting-journal-header{grid-template-columns:minmax(150px,.55fr) minmax(150px,.55fr) minmax(240px,1fr)}
+.accounting-journal-description{min-width:0}
+.journal-entry-help{
+  padding:9px 11px;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:var(--soft);
+  color:var(--muted);
+  font-size:10px;
+  line-height:1.5;
+}
+.journal-lines{overflow:visible}
+.journal-line-list{display:grid;gap:8px;padding:0 12px 12px}
+.journal-line{
+  display:grid;
+  grid-template-columns:minmax(230px,1.6fr) minmax(100px,.65fr) minmax(100px,.65fr) minmax(170px,1fr) auto;
+  gap:8px;
+  align-items:end;
+  padding:10px;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:#fff;
+}
+.journal-line label{min-width:0}
+.journal-line input,.journal-line select{min-width:0}
+.journal-account-field select{width:100%}
+.journal-line-description input{width:100%}
+.journal-remove{white-space:nowrap;min-height:36px}
+.journal-summary{margin-top:0}
+.journal-balanced strong{color:#087443}
+.journal-unbalanced strong{color:#b42318}
+.journal-type-badge{
+  display:inline-flex;
+  align-items:center;
+  min-height:22px;
+  padding:0 7px;
+  border:1px solid var(--line);
+  border-radius:999px;
+  background:var(--soft);
+  color:var(--muted);
+  font-size:9px;
+  font-weight:800;
+  text-transform:capitalize;
+}
+@media(max-width:900px){
+  .accounting-journal-header{grid-template-columns:1fr 1fr}
+  .accounting-journal-description{grid-column:1/-1}
+  .journal-line{grid-template-columns:minmax(180px,1fr) minmax(100px,.6fr) minmax(100px,.6fr)}
+  .journal-line-description{grid-column:1/-1}
+  .journal-remove{justify-self:start}
+}
+@media(max-width:620px){
+  .accounting-journal-header{grid-template-columns:1fr}
+  .accounting-journal-description{grid-column:auto}
+  .journal-line-list{padding:0 8px 8px}
+  .journal-line{
+    grid-template-columns:1fr 1fr;
+    gap:9px;
+    padding:10px;
+  }
+  .journal-account-field,
+  .journal-line-description{grid-column:1/-1}
+  .journal-remove{grid-column:1/-1}
+  .journal-line input,.journal-line select{width:100%;box-sizing:border-box}
+}
