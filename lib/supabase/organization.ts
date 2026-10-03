@@ -9,6 +9,24 @@ export type CurrentOrganization = {
   timezone: string;
 };
 
+async function loadOrganization(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  preferredOrganizationId?: string,
+) {
+  let query = supabase
+    .from("organization_users")
+    .select("organization_id, role, organizations!inner(id, name, base_currency, timezone)")
+    .eq("user_id", userId)
+    .eq("is_active", true);
+
+  if (preferredOrganizationId) {
+    query = query.eq("organization_id", preferredOrganizationId);
+  }
+
+  return query.limit(1).maybeSingle();
+}
+
 export async function findCurrentOrganization(): Promise<CurrentOrganization | null> {
   const supabase = await createClient();
   const {
@@ -20,33 +38,29 @@ export async function findCurrentOrganization(): Promise<CurrentOrganization | n
   const cookieStore = await cookies();
   const preferredOrganizationId = cookieStore.get("pomelo_org_id")?.value;
 
-  let query = supabase
-    .from("organization_users")
-    .select("organization_id, role, organizations!inner(id, name, base_currency, timezone)")
-    .eq("user_id", user.id)
-    .eq("is_active", true);
+  let { data, error } = await loadOrganization(supabase, user.id, preferredOrganizationId);
 
-  if (preferredOrganizationId) {
-    query = query.eq("organization_id", preferredOrganizationId);
-  }
+  // A stale organization cookie must never hide a valid active organization.
+  // Also retry once without the preference because a refreshed auth session can
+  // make the organization membership visible again after a transient session
+  // mismatch in a server request.
+  if (error || !data) {
+    if (preferredOrganizationId) {
+      const fallback = await loadOrganization(supabase, user.id);
+      data = fallback.data;
+      error = fallback.error;
+    }
 
-  let { data, error } = await query.limit(1).maybeSingle();
-
-  // A stale organization-selection cookie must not make an otherwise valid
-  // authenticated user appear to have no organization. If the preferred
-  // organization is no longer assigned/active, fall back to any active
-  // organization the user belongs to.
-  if ((error || !data) && preferredOrganizationId) {
-    const fallback = await supabase
-      .from("organization_users")
-      .select("organization_id, role, organizations!inner(id, name, base_currency, timezone)")
-      .eq("user_id", user.id)
-      .eq("is_active", true)
-      .limit(1)
-      .maybeSingle();
-
-    data = fallback.data;
-    error = fallback.error;
+    // If the request still cannot resolve the membership, refresh the auth
+    // session once and retry the membership lookup with no organization cookie.
+    if (error || !data) {
+      const { data: refreshed } = await supabase.auth.refreshSession();
+      if (refreshed.session?.user) {
+        const retry = await loadOrganization(supabase, refreshed.session.user.id);
+        data = retry.data;
+        error = retry.error;
+      }
+    }
   }
 
   if (error || !data) return null;
