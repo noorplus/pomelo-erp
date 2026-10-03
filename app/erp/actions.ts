@@ -273,3 +273,37 @@ export async function updateOrganizationUser(fd: FormData): Promise<ActionState>
     return { success: "Membership updated." };
   } catch (e) { return fail(e); }
 }
+
+export async function postOpeningStock(fd: FormData): Promise<ActionState> {
+  try {
+    const supabase: any = await createClient(), org = await getCurrentOrganization();
+    const productId = s(fd, "product_id");
+    const referenceId = s(fd, "reference_id");
+    const transactionDate = s(fd, "transaction_date");
+    const quantity = n(fd, "quantity");
+    const unitCost = n(fd, "unit_cost");
+    const description = s(fd, "description") || null;
+
+    if (!productId || !referenceId || !transactionDate || quantity <= 0 || unitCost < 0)
+      return { error: "Product, opening journal, date, positive quantity and non-negative unit cost are required." };
+
+    const { error } = await supabase.rpc("post_inventory_adjustment", {
+      p_org_id: org.id,
+      p_product_id: productId,
+      p_transaction_date: transactionDate,
+      p_transaction_type: "opening",
+      p_direction: "in",
+      p_quantity: quantity,
+      p_unit_cost: unitCost,
+      p_offset_account_id: null,
+      p_reference_id: referenceId,
+      p_description: description,
+    });
+    if (error) return { error: dbError(error) };
+
+    revalidatePath("/inventory");
+    revalidatePath("/accounting");
+    revalidatePath("/reports");
+    return { success: "Opening stock posted successfully." };
+  } catch (e) { return fail(e); }
+}
