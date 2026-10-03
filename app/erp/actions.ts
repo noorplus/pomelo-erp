@@ -222,16 +222,32 @@ export async function createAndPostPayment(fd: FormData): Promise<ActionState> {
 export async function postManualJournal(fd: FormData): Promise<ActionState> {
   try {
     const supabase: any = await createClient(), org = await getCurrentOrganization();
+    const entryType = s(fd, "entry_type");
+    const entryDate = s(fd, "entry_date");
+    const description = s(fd, "description");
     const lines = json<{account_id:string;debit:number;credit:number;description?:string;contact_id?:string}>(fd, "lines_json");
+
+    if (!["manual","opening"].includes(entryType)) return { error: "A valid journal type is required." };
+    if (!entryDate) return { error: "Entry date is required." };
+    if (!description) return { error: "Description is required." };
     if (lines.length < 2) return { error: "A journal requires at least two lines." };
-    const debit = num(lines.reduce((a,x)=>a+Number(x.debit||0),0)), credit = num(lines.reduce((a,x)=>a+Number(x.credit||0),0));
+
+    const debit = num(lines.reduce((a,x)=>a+Number(x.debit||0),0));
+    const credit = num(lines.reduce((a,x)=>a+Number(x.credit||0),0));
     if (debit <= 0 || debit !== credit) return { error: "Journal debits and credits must be equal and greater than zero." };
+
     const { error } = await supabase.rpc("post_manual_journal", {
-      p_org_id: org.id, p_entry_date: s(fd,"entry_date"), p_description: s(fd,"description"),
-      p_entry_type: "manual", p_lines: lines as Json,
+      p_org_id: org.id,
+      p_entry_date: entryDate,
+      p_description: description,
+      p_entry_type: entryType,
+      p_lines: lines as Json,
     });
     if (error) return { error: dbError(error) };
-    revalidatePath("/accounting"); revalidatePath("/reports"); return { success: "Journal posted successfully." };
+
+    revalidatePath("/accounting");
+    revalidatePath("/reports");
+    return { success: entryType==="opening" ? "Opening balance posted successfully." : "Journal posted successfully." };
   } catch (e) { return fail(e); }
 }
 
