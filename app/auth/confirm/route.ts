@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     if (error) {
       return NextResponse.redirect(new URL("/login?error=confirmation_failed", request.url));
     }
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
   if (tokenHash && type === "email") {
