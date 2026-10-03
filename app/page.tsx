@@ -8,6 +8,17 @@ export default async function Home(){
  const supabase=await createClient();
  const { data: { user } } = await supabase.auth.getUser();
  if (!user) redirect("/login");
+ // Create a missing profile for new or existing authenticated users.
+ // RLS permits users to insert only their own profile; never use service_role.
+ const { data: profile, error: profileLookupError } = await supabase
+  .from("profiles").select("id").eq("id",user.id).maybeSingle();
+ if (profileLookupError) throw new Error("Unable to load your profile.");
+ if (!profile) {
+  const { error: profileInsertError } = await supabase.from("profiles").upsert(
+   { id: user.id }, { onConflict: "id", ignoreDuplicates: true }
+  );
+  if (profileInsertError) throw new Error("Unable to create your profile.");
+ }
  const org=await findCurrentOrganization();
  if (!org) redirect("/onboarding");
  const [
