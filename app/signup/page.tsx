@@ -47,6 +47,24 @@ export default function SignupPage() {
     }
 
     if (data.session) {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData.user) {
+        setError("Account was created, but the user session could not be initialized. Please sign in.");
+        setPending(false);
+        return;
+      }
+
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .upsert({ id: userData.user.id }, { onConflict: "id" });
+
+      if (profileError) {
+        await supabase.auth.signOut();
+        setError("Account was created, but your profile could not be initialized. Please try signing in again.");
+        setPending(false);
+        return;
+      }
+
       window.location.assign("/");
       return;
     }
