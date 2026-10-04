@@ -1497,6 +1497,13 @@ begin
   v_invoice := private.allocate_number(p.organization_id,'PURCHASE');
   v_payable := p.supplier_id::text;
 
+  if (select count(distinct pr.inventory_account_id)
+      from public.purchase_items pi
+      join public.products pr on pr.organization_id=pi.organization_id and pr.id=pi.product_id
+      where pi.organization_id=p.organization_id and pi.purchase_id=p.id) <> 1 then
+    raise exception 'purchase must use one inventory account';
+  end if;
+
   for i in
     select pi.*, pr.inventory_account_id,
            row_number() over(order by pi.line_number) rn,
@@ -1514,6 +1521,7 @@ begin
       v_running := v_running + v_alloc;
     end if;
     if v_alloc < 0 then raise exception 'purchase discount allocation became negative'; end if;
+    perform private.assert_account_type(p.organization_id,i.inventory_account_id,'ASSET',true);
     v_tx := v_invoice || '-' || i.line_number::text;
     perform private.inventory_in(p.organization_id,i.product_id,p.invoice_date,i.quantity,
       case when i.quantity=0 then 0 else v_alloc/i.quantity end,'PURCHASE',p.id,v_tx);
@@ -1588,6 +1596,22 @@ begin
   end if;
 
   perform private.assert_account_type(s.organization_id,s.receivable_account_id,'ASSET',true);
+  if (select count(distinct pr.sales_account_id)
+      from public.sales_items si
+      join public.products pr on pr.organization_id=si.organization_id and pr.id=si.product_id
+      where si.organization_id=s.organization_id and si.sales_id=s.id) <> 1
+     or
+     (select count(distinct pr.cogs_account_id)
+      from public.sales_items si
+      join public.products pr on pr.organization_id=si.organization_id and pr.id=si.product_id
+      where si.organization_id=s.organization_id and si.sales_id=s.id) <> 1
+     or
+     (select count(distinct pr.inventory_account_id)
+      from public.sales_items si
+      join public.products pr on pr.organization_id=si.organization_id and pr.id=si.product_id
+      where si.organization_id=s.organization_id and si.sales_id=s.id) <> 1 then
+    raise exception 'sales must use one revenue, COGS, and inventory account';
+  end if;
   v_invoice := private.allocate_number(s.organization_id,'SALES');
 
   for i in
@@ -1604,6 +1628,19 @@ begin
            cogs_total=v_cost, updated_at=now()
      where id=i.id;
   end loop;
+
+  perform private.assert_account_type(s.organization_id,
+    (select pr.sales_account_id from public.sales_items si
+     join public.products pr on pr.organization_id=si.organization_id and pr.id=si.product_id
+     where si.sales_id=s.id limit 1),'REVENUE',true);
+  perform private.assert_account_type(s.organization_id,
+    (select pr.cogs_account_id from public.sales_items si
+     join public.products pr on pr.organization_id=si.organization_id and pr.id=si.product_id
+     where si.sales_id=s.id limit 1),'EXPENSE',true);
+  perform private.assert_account_type(s.organization_id,
+    (select pr.inventory_account_id from public.sales_items si
+     join public.products pr on pr.organization_id=si.organization_id and pr.id=si.product_id
+     where si.sales_id=s.id limit 1),'ASSET',true);
 
   v_revenue_account := (select pr.sales_account_id
                         from public.sales_items si
@@ -1741,6 +1778,59 @@ begin
     where pa.payment_id=p.id and pa.document_type <> 'SALES'
   ) then raise exception 'RECEIPT can only allocate to SALES'; end if;
 
+  for v_alloc in
+    select pa.allocated_amount
+    from public.payment_allocations pa
+    where pa.organization_id=p.organization_id and pa.payment_id=p.id
+  loop
+    if v_alloc <= 0 then raise exception 'payment allocation must be positive'; end if;
+  end loop;
+
+  if exists (
+    select 1
+    from public.payment_allocations pa
+    where pa.organization_id=p.organization_id and pa.payment_id=p.id
+      and (
+        (pa.document_type='PURCHASE' and not exists (
+          select 1 from public.purchase d
+          where d.organization_id=p.organization_id and d.id=pa.document_id and d.status='CONFIRMED'
+            and d.supplier_id=p.contact_id
+            and pa.allocated_amount <= d.total_amount - coalesce((
+              select sum(pa2.allocated_amount) from public.payment_allocations pa2
+              join public.payments p2 on p2.organization_id=pa2.organization_id and p2.id=pa2.payment_id
+              where pa2.organization_id=p.organization_id and pa2.document_type='PURCHASE'
+                and pa2.document_id=d.id and p2.status='CONFIRMED' and p2.id<>p.id
+            ),0)
+        ))
+        or
+        (pa.document_type='EXPENSE' and not exists (
+          select 1 from public.expenses d
+          where d.organization_id=p.organization_id and d.id=pa.document_id and d.status='CONFIRMED'
+            and (d.contact_id is null or d.contact_id=p.contact_id)
+            and pa.allocated_amount <= d.amount - coalesce((
+              select sum(pa2.allocated_amount) from public.payment_allocations pa2
+              join public.payments p2 on p2.organization_id=pa2.organization_id and p2.id=pa2.payment_id
+              where pa2.organization_id=p.organization_id and pa2.document_type='EXPENSE'
+                and pa2.document_id=d.id and p2.status='CONFIRMED' and p2.id<>p.id
+            ),0)
+        ))
+        or
+        (pa.document_type='SALES' and not exists (
+          select 1 from public.sales d
+          where d.organization_id=p.organization_id and d.id=pa.document_id and d.status='CONFIRMED'
+            and d.customer_id=p.contact_id
+            and pa.allocated_amount <= d.total_amount - coalesce((
+              select sum(pa2.allocated_amount) from public.payment_allocations pa2
+              join public.payments p2 on p2.organization_id=pa2.organization_id and p2.id=pa2.payment_id
+              where pa2.organization_id=p.organization_id and pa2.document_type='SALES'
+                and pa2.document_id=d.id and p2.status='CONFIRMED' and p2.id<>p.id
+            ),0)
+        ))
+      )
+  ) then
+    raise exception 'payment allocation is invalid, over-allocated, or document/contact does not match';
+  end if;
+
   v_num:=private.allocate_number(p.organization_id,'PAYMENT');
 
   if p.payment_type='PAYMENT' then
@@ -1787,17 +1877,19 @@ declare
   v_journal uuid;
   v_total numeric:=0;
   v_inventory_account uuid;
+  v_running numeric:=0;
+  v_count integer:=0;
 begin
   select * into r from public.purchase_returns where id=p_id for update;
   if not found then raise exception 'purchase return not found'; end if;
   perform private.assert_member(r.organization_id);
   if r.status <> 'DRAFT' then raise exception 'only draft purchase returns can be confirmed'; end if;
 
-  select sum(pri.line_total), count(*) into v_total,v_journal
+  select coalesce(sum(pri.line_total),0), count(*) into v_total,v_count
   from public.purchase_return_items pri
   where pri.organization_id=r.organization_id and pri.purchase_return_id=r.id;
-  if coalesce(v_total,0) <> r.subtotal or coalesce(v_journal::text,'')='' then
-    if coalesce(v_total,0) <> r.subtotal then raise exception 'purchase return subtotal does not match items'; end if;
+  if v_count=0 or v_total <> r.subtotal then
+    raise exception 'purchase return subtotal does not match items';
   end if;
   if r.total_amount <> r.subtotal-r.discount_amount then raise exception 'purchase return total is inconsistent'; end if;
   if not exists(select 1 from public.purchase p where p.organization_id=r.organization_id and p.id=r.purchase_id and p.status='CONFIRMED') then
@@ -1807,16 +1899,39 @@ begin
 
   v_num:=private.allocate_number(r.organization_id,'PURCHASE_RETURN');
 
+  if (select count(distinct pr.inventory_account_id)
+      from public.purchase_return_items pri
+      join public.products pr on pr.organization_id=pri.organization_id and pr.id=pri.product_id
+      where pri.organization_id=r.organization_id and pri.purchase_return_id=r.id) <> 1 then
+    raise exception 'purchase return must use one inventory account';
+  end if;
+
   for i in
-    select pri.*,pi.purchase_id,pr.inventory_account_id
+    select pri.*,pi.purchase_id,pr.inventory_account_id,
+           row_number() over(order by pri.line_number) rn,
+           count(*) over() cnt
     from public.purchase_return_items pri
     join public.purchase_items pi on pi.organization_id=pri.organization_id and pi.id=pri.purchase_item_id
     join public.products pr on pr.organization_id=pri.organization_id and pr.id=pri.product_id
     where pri.organization_id=r.organization_id and pri.purchase_return_id=r.id
     order by pri.line_number
   loop
-    if pi.product_id is null then raise exception 'invalid purchase return line'; end if;
-    perform private.inventory_out(r.organization_id,i.product_id,r.return_date,i.quantity,'PURCHASE_RETURN',r.id,v_num||'-'||i.line_number::text);
+    if i.purchase_id <> r.purchase_id then raise exception 'purchase return line references another purchase'; end if;
+    if i.product_id <> (select pi2.product_id from public.purchase_items pi2 where pi2.organization_id=r.organization_id and pi2.id=i.purchase_item_id) then
+      raise exception 'purchase return product does not match original purchase item';
+    end if;
+    if i.rn=i.cnt then
+      i.line_total := round(r.total_amount-v_running,4);
+    else
+      i.line_total := round(i.line_total-(case when r.subtotal=0 then 0 else i.line_total/r.subtotal*r.discount_amount end),4);
+      v_running := v_running+i.line_total;
+    end if;
+    if i.line_total < 0 then raise exception 'purchase return discount allocation became negative'; end if;
+    perform private.inventory_out(
+      r.organization_id,i.product_id,r.return_date,i.quantity,
+      case when i.quantity=0 then 0 else i.line_total/i.quantity end,
+      'PURCHASE_RETURN',r.id,v_num||'-'||i.line_number::text
+    );
     v_inventory_account:=i.inventory_account_id;
   end loop;
 
