@@ -1186,6 +1186,16 @@ begin
     v_account := (v_line->>'account_id')::uuid;
     v_contact := nullif(v_line->>'contact_id','')::uuid;
 
+    if not exists (
+      select 1 from public.accounts a
+      where a.organization_id=p_organization_id
+        and a.id=v_account
+        and a.is_active
+        and a.is_postable
+    ) then
+      raise exception 'journal account is missing, inactive, or non-postable';
+    end if;
+
     if (v_line->>'debit')::numeric < 0 or (v_line->>'credit')::numeric < 0 then
       raise exception 'journal amounts cannot be negative';
     end if;
@@ -1521,6 +1531,7 @@ begin
     end if;
     if v_alloc < 0 then raise exception 'purchase discount allocation became negative'; end if;
     perform private.assert_account_type(p.organization_id,i.inventory_account_id,'ASSET',true);
+    v_inventory_account := i.inventory_account_id;
     v_tx := v_invoice || '-' || i.line_number::text;
     perform private.inventory_in(p.organization_id,i.product_id,p.invoice_date,i.quantity,
       case when i.quantity=0 then 0 else v_alloc/i.quantity end,'PURCHASE',p.id,v_tx);
@@ -1536,7 +1547,7 @@ begin
     'Purchase '||v_invoice,
     jsonb_build_array(
       jsonb_build_object('account_id',
-        (select a.id from public.accounts a where a.organization_id=p.organization_id and a.account_code='1200'),
+        v_inventory_account,
         'debit',p.total_amount,'credit',0,'contact_id',p.supplier_id,'description','Inventory purchase'),
       jsonb_build_object('account_id',p.payable_account_id,
         'debit',0,'credit',p.total_amount,'contact_id',p.supplier_id,'description','Accounts payable')
@@ -2440,6 +2451,22 @@ begin
 
   if v_lines<2 then raise exception 'journal entry requires at least two lines'; end if;
   if v_debit<>v_credit then raise exception 'journal entry is not balanced'; end if;
+
+  if exists (
+    select 1
+    from public.account_transactions at
+    where at.organization_id=j.organization_id
+      and at.journal_entry_id=j.id
+      and not exists (
+        select 1 from public.accounts a
+        where a.organization_id=j.organization_id
+          and a.id=at.account_id
+          and a.is_active
+          and a.is_postable
+      )
+  ) then
+    raise exception 'manual journal contains an inactive or non-postable account';
+  end if;
 
   v_number:=private.allocate_number(j.organization_id,'JOURNAL_ENTRY');
 
