@@ -562,6 +562,17 @@ select ok(
 -- Full cancellation/reversal coverage
 -- ---------------------------------------------------------------------------
 -- Purchase cancellation
+insert into public.products(
+  organization_id,name,unit_id,inventory_account_id,sales_account_id,cogs_account_id
+)
+select o.id,'Cancellation Product A',u.id,inv.id,rev.id,cogs.id
+from public.organizations o
+join public.units_of_measure u on u.organization_id=o.id and u.name='pcs'
+join public.accounts inv on inv.organization_id=o.id and inv.account_code='1200'
+join public.accounts rev on rev.organization_id=o.id and rev.account_code='4000'
+join public.accounts cogs on cogs.organization_id=o.id and cogs.account_code='5000'
+where o.name='ERP Transaction Test';
+
 insert into public.purchase(
   organization_id,supplier_id,invoice_date,subtotal,discount_amount,total_amount,
   payable_account_id,created_by
@@ -577,7 +588,7 @@ insert into public.purchase_items(
 )
 select p.organization_id,p.id,1,pr.id,5,10,50
 from public.purchase p
-join public.products pr on pr.organization_id=p.organization_id
+join public.products pr on pr.organization_id=p.organization_id and pr.name='Cancellation Product A'
 where p.organization_id=(select id from public.organizations where name='ERP Transaction Test')
   and p.status='DRAFT'
 order by p.created_at desc limit 1;
@@ -600,8 +611,11 @@ select is(
 );
 
 select is(
-  (select quantity from public.inventory_balances where organization_id=(select id from public.organizations where name='ERP Transaction Test')),
-  16::numeric,
+  (select quantity from public.inventory_balances ib
+   join public.products pr on pr.organization_id=ib.organization_id and pr.id=ib.product_id
+   where ib.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and pr.name='Cancellation Product A'),
+  0::numeric,
   'purchase cancellation reverses inventory'
 );
 
