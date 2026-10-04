@@ -1445,7 +1445,7 @@ create or replace function public.onboard_organization(
 )
 returns uuid
 language sql
-security invoker
+security definer
 set search_path = ''
 as $$
   select private.onboard_organization(p_name,p_base_currency,p_timezone);
@@ -1555,7 +1555,7 @@ $$;
 revoke all on function private.confirm_purchase(uuid) from public, anon, authenticated;
 
 create or replace function public.confirm_purchase(p_id uuid)
-returns uuid language sql security invoker set search_path=''
+returns uuid language sql security definer set search_path=''
 as $$ select private.confirm_purchase(p_id); $$;
 revoke execute on function public.confirm_purchase(uuid) from public, anon;
 grant execute on function public.confirm_purchase(uuid) to authenticated;
@@ -1681,7 +1681,7 @@ $$;
 revoke all on function private.confirm_sales(uuid) from public, anon, authenticated;
 
 create or replace function public.confirm_sales(p_id uuid)
-returns uuid language sql security invoker set search_path=''
+returns uuid language sql security definer set search_path=''
 as $$ select private.confirm_sales(p_id); $$;
 revoke execute on function public.confirm_sales(uuid) from public, anon;
 grant execute on function public.confirm_sales(uuid) to authenticated;
@@ -1728,7 +1728,7 @@ $$;
 revoke all on function private.confirm_expense(uuid) from public, anon, authenticated;
 
 create or replace function public.confirm_expense(p_id uuid)
-returns uuid language sql security invoker set search_path=''
+returns uuid language sql security definer set search_path=''
 as $$ select private.confirm_expense(p_id); $$;
 revoke execute on function public.confirm_expense(uuid) from public, anon;
 grant execute on function public.confirm_expense(uuid) to authenticated;
@@ -1861,7 +1861,7 @@ $$;
 revoke all on function private.confirm_payment(uuid) from public, anon, authenticated;
 
 create or replace function public.confirm_payment(p_id uuid)
-returns uuid language sql security invoker set search_path=''
+returns uuid language sql security definer set search_path=''
 as $$ select private.confirm_payment(p_id); $$;
 revoke execute on function public.confirm_payment(uuid) from public, anon;
 grant execute on function public.confirm_payment(uuid) to authenticated;
@@ -1952,7 +1952,7 @@ $$;
 revoke all on function private.confirm_purchase_return(uuid) from public, anon, authenticated;
 
 create or replace function public.confirm_purchase_return(p_id uuid)
-returns uuid language sql security invoker set search_path=''
+returns uuid language sql security definer set search_path=''
 as $$ select private.confirm_purchase_return(p_id); $$;
 revoke execute on function public.confirm_purchase_return(uuid) from public, anon;
 grant execute on function public.confirm_purchase_return(uuid) to authenticated;
@@ -2023,7 +2023,7 @@ $$;
 revoke all on function private.confirm_sales_return(uuid) from public, anon, authenticated;
 
 create or replace function public.confirm_sales_return(p_id uuid)
-returns uuid language sql security invoker set search_path=''
+returns uuid language sql security definer set search_path=''
 as $$ select private.confirm_sales_return(p_id); $$;
 revoke execute on function public.confirm_sales_return(uuid) from public, anon;
 grant execute on function public.confirm_sales_return(uuid) to authenticated;
@@ -2193,22 +2193,22 @@ $$;
 revoke all on function private.cancel_document(text,uuid,date) from public, anon, authenticated;
 
 create or replace function public.cancel_purchase(p_id uuid,p_cancel_date date default current_date)
-returns uuid language sql security invoker set search_path=''
+returns uuid language sql security definer set search_path=''
 as $$ select private.cancel_document('PURCHASE',p_id,p_cancel_date); $$;
 create or replace function public.cancel_sales(p_id uuid,p_cancel_date date default current_date)
-returns uuid language sql security invoker set search_path=''
+returns uuid language sql security definer set search_path=''
 as $$ select private.cancel_document('SALES',p_id,p_cancel_date); $$;
 create or replace function public.cancel_expense(p_id uuid,p_cancel_date date default current_date)
-returns uuid language sql security invoker set search_path=''
+returns uuid language sql security definer set search_path=''
 as $$ select private.cancel_document('EXPENSE',p_id,p_cancel_date); $$;
 create or replace function public.cancel_payment(p_id uuid,p_cancel_date date default current_date)
-returns uuid language sql security invoker set search_path=''
+returns uuid language sql security definer set search_path=''
 as $$ select private.cancel_document('PAYMENT',p_id,p_cancel_date); $$;
 create or replace function public.cancel_purchase_return(p_id uuid,p_cancel_date date default current_date)
-returns uuid language sql security invoker set search_path=''
+returns uuid language sql security definer set search_path=''
 as $$ select private.cancel_document('PURCHASE_RETURN',p_id,p_cancel_date); $$;
 create or replace function public.cancel_sales_return(p_id uuid,p_cancel_date date default current_date)
-returns uuid language sql security invoker set search_path=''
+returns uuid language sql security definer set search_path=''
 as $$ select private.cancel_document('SALES_RETURN',p_id,p_cancel_date); $$;
 
 revoke execute on function public.cancel_purchase(uuid,date),
