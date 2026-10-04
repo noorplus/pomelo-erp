@@ -3,7 +3,7 @@
 
 begin;
 
-select plan(55);
+select plan(56);
 
 -- ---------------------------------------------------------------------------
 -- Schema/security baseline
@@ -596,6 +596,16 @@ order by p.created_at desc limit 1;
 select public.confirm_purchase(
   (select id from public.purchase where organization_id=(select id from public.organizations where name='ERP Transaction Test')
    and status='DRAFT' order by created_at desc limit 1)
+);
+
+select is(
+  (select count(*)::bigint
+   from public.inventory_transactions it
+   join public.products pr on pr.organization_id=it.organization_id and pr.id=it.product_id
+   where it.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and pr.name='Cancellation Product A'),
+  1::bigint,
+  'fresh cancellation product has exactly one inventory movement before cancellation'
 );
 
 select public.cancel_purchase(
