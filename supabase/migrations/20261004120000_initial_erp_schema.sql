@@ -2114,6 +2114,15 @@ begin
 
   v_period := private.require_open_period(v_org,p_cancel_date);
 
+  if p_kind='PAYMENT' and exists (
+    select 1
+    from public.payment_allocations pa
+    where pa.organization_id=v_org
+      and pa.payment_id=p_id
+  ) then
+    raise exception 'cannot cancel PAYMENT with payment allocations';
+  end if;
+
   if p_kind in ('PURCHASE','SALES','EXPENSE') and exists (
     select 1
     from public.payment_allocations pa
