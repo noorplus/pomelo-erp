@@ -1535,11 +1535,8 @@ begin
     v_tx := v_invoice || '-' || i.line_number::text;
     perform private.inventory_in(p.organization_id,i.product_id,p.invoice_date,i.quantity,
       case when i.quantity=0 then 0 else v_alloc/i.quantity end,'PURCHASE',p.id,v_tx);
-    update public.purchase_items
-       set unit_cost = case when i.quantity=0 then 0 else round(v_alloc/i.quantity,4),
-           line_total = v_alloc,
-           updated_at=now()
-     where id=i.id;
+    -- Preserve the source line total. The document discount is allocated
+    -- only to the inventory valuation and posting amount.
   end loop;
 
   v_journal := private.post_journal(
