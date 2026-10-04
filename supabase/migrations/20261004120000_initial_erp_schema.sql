@@ -2080,6 +2080,19 @@ begin
 
   v_period := private.require_open_period(v_org,p_cancel_date);
 
+  if p_kind in ('PURCHASE','SALES','EXPENSE') and exists (
+    select 1
+    from public.payment_allocations pa
+    join public.payments py
+      on py.organization_id=pa.organization_id and py.id=pa.payment_id
+    where pa.organization_id=v_org
+      and pa.document_type=p_kind
+      and pa.document_id=p_id
+      and py.status='CONFIRMED'
+  ) then
+    raise exception 'cannot cancel % with confirmed payment allocations',p_kind;
+  end if;
+
   select je.entry_type into v_type from public.journal_entries je where je.organization_id=v_org and je.id=v_original_journal;
   v_number := private.allocate_number(v_org,'JOURNAL_ENTRY');
 
