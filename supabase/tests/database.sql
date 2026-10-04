@@ -44,8 +44,13 @@ select ok(
 );
 
 select ok(
-  not has_function_privilege('authenticated','public.allocate_number(uuid,text)','EXECUTE'),
-  'authenticated users cannot directly allocate business numbers'
+  not exists (
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid=p.pronamespace
+    where n.nspname='public' and p.proname='allocate_number'
+  ),
+  'public direct number allocator is not exposed'
 );
 
 select ok(
