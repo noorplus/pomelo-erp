@@ -716,7 +716,43 @@ select throws_ok(
   'allocated payment cannot be cancelled'
 );
 
--- Purchase-return cancellation
+-- Purchase-return cancellation on a fresh product with no later movement.
+insert into public.products(
+  organization_id,name,unit_id,inventory_account_id,sales_account_id,cogs_account_id
+)
+select o.id,'Cancellation Product B',u.id,inv.id,rev.id,cogs.id
+from public.organizations o
+join public.units_of_measure u on u.organization_id=o.id and u.name='pcs'
+join public.accounts inv on inv.organization_id=o.id and inv.account_code='1200'
+join public.accounts rev on rev.organization_id=o.id and rev.account_code='4000'
+join public.accounts cogs on cogs.organization_id=o.id and cogs.account_code='5000'
+where o.name='ERP Transaction Test';
+
+insert into public.purchase(
+  organization_id,supplier_id,invoice_date,subtotal,discount_amount,total_amount,
+  payable_account_id,created_by
+)
+select o.id,c.id,current_date,40,0,40,a.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Supplier A'
+join public.accounts a on a.organization_id=o.id and a.account_code='2000'
+where o.name='ERP Transaction Test';
+
+insert into public.purchase_items(
+  organization_id,purchase_id,line_number,product_id,quantity,unit_cost,line_total
+)
+select p.organization_id,p.id,1,pr.id,4,10,40
+from public.purchase p
+join public.products pr on pr.organization_id=p.organization_id and pr.name='Cancellation Product B'
+where p.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+  and p.status='DRAFT'
+order by p.created_at desc limit 1;
+
+select public.confirm_purchase(
+  (select id from public.purchase where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+   and status='DRAFT' order by created_at desc limit 1)
+);
+
 insert into public.purchase_returns(
   organization_id,purchase_id,supplier_id,return_date,subtotal,discount_amount,total_amount,
   payable_account_id,created_by
@@ -727,7 +763,7 @@ join public.purchase p on p.organization_id=o.id and p.status='CONFIRMED'
 join public.contacts c on c.organization_id=o.id and c.name='Supplier A'
 join public.accounts a on a.organization_id=o.id and a.account_code='2000'
 where o.name='ERP Transaction Test'
-order by p.created_at limit 1;
+order by p.created_at desc limit 1;
 
 insert into public.purchase_return_items(
   organization_id,purchase_return_id,line_number,purchase_item_id,product_id,quantity,unit_cost,line_total
@@ -755,7 +791,68 @@ select ok(
   'purchase-return cancellation creates a reversal'
 );
 
--- Sales-return cancellation
+-- Sales-return cancellation on another fresh product.
+insert into public.products(
+  organization_id,name,unit_id,inventory_account_id,sales_account_id,cogs_account_id
+)
+select o.id,'Cancellation Product C',u.id,inv.id,rev.id,cogs.id
+from public.organizations o
+join public.units_of_measure u on u.organization_id=o.id and u.name='pcs'
+join public.accounts inv on inv.organization_id=o.id and inv.account_code='1200'
+join public.accounts rev on rev.organization_id=o.id and rev.account_code='4000'
+join public.accounts cogs on cogs.organization_id=o.id and cogs.account_code='5000'
+where o.name='ERP Transaction Test';
+
+insert into public.purchase(
+  organization_id,supplier_id,invoice_date,subtotal,discount_amount,total_amount,
+  payable_account_id,created_by
+)
+select o.id,c.id,current_date,40,0,40,a.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Supplier A'
+join public.accounts a on a.organization_id=o.id and a.account_code='2000'
+where o.name='ERP Transaction Test';
+
+insert into public.purchase_items(
+  organization_id,purchase_id,line_number,product_id,quantity,unit_cost,line_total
+)
+select p.organization_id,p.id,1,pr.id,4,10,40
+from public.purchase p
+join public.products pr on pr.organization_id=p.organization_id and pr.name='Cancellation Product C'
+where p.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+  and p.status='DRAFT'
+order by p.created_at desc limit 1;
+
+select public.confirm_purchase(
+  (select id from public.purchase where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+   and status='DRAFT' order by created_at desc limit 1)
+);
+
+insert into public.sales(
+  organization_id,customer_id,invoice_date,subtotal,discount_amount,total_amount,
+  receivable_account_id,created_by
+)
+select o.id,c.id,current_date,15,0,15,a.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Customer A'
+join public.accounts a on a.organization_id=o.id and a.account_code='1100'
+where o.name='ERP Transaction Test';
+
+insert into public.sales_items(
+  organization_id,sales_id,line_number,product_id,quantity,unit_price,line_total
+)
+select s.organization_id,s.id,1,pr.id,1,15,15
+from public.sales s
+join public.products pr on pr.organization_id=s.organization_id and pr.name='Cancellation Product C'
+where s.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+  and s.status='DRAFT'
+order by s.created_at desc limit 1;
+
+select public.confirm_sales(
+  (select id from public.sales where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+   and status='DRAFT' order by created_at desc limit 1)
+);
+
 insert into public.sales_returns(
   organization_id,sales_id,customer_id,return_date,subtotal,discount_amount,total_amount,
   receivable_account_id,created_by
@@ -766,7 +863,7 @@ join public.sales s on s.organization_id=o.id and s.status='CONFIRMED'
 join public.contacts c on c.organization_id=o.id and c.name='Customer A'
 join public.accounts a on a.organization_id=o.id and a.account_code='1100'
 where o.name='ERP Transaction Test'
-order by s.created_at limit 1;
+order by s.created_at desc limit 1;
 
 insert into public.sales_return_items(
   organization_id,sales_return_id,line_number,sales_item_id,product_id,quantity,unit_price,line_total
