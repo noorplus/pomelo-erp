@@ -2294,6 +2294,53 @@ for each row execute function private.assign_master_number();
 
 
 -- -----------------------------------------------------------------------------
+-- Controlled accounting period creation
+-- -----------------------------------------------------------------------------
+create or replace function private.create_accounting_period(
+  p_organization_id uuid,
+  p_name text,
+  p_start_date date,
+  p_end_date date
+)
+returns uuid
+language plpgsql
+security definer
+set search_path=''
+as $
+declare
+  v_id uuid;
+begin
+  perform private.assert_member(p_organization_id);
+  if p_start_date>p_end_date then raise exception 'period start date must not exceed end date'; end if;
+  insert into public.accounting_periods(organization_id,name,start_date,end_date,status)
+  values(p_organization_id,p_name,p_start_date,p_end_date,'OPEN')
+  returning id into v_id;
+  return v_id;
+end;
+$;
+
+revoke all on function private.create_accounting_period(uuid,text,date,date) from public,anon,authenticated;
+
+create or replace function public.create_accounting_period(
+  p_name text,p_start_date date,p_end_date date
+)
+returns uuid
+language sql
+security definer
+set search_path=''
+as $
+  select private.create_accounting_period(
+    (select ou.organization_id from public.organization_users ou
+     where ou.user_id=auth.uid() and ou.is_active
+     order by ou.created_at limit 1),
+    p_name,p_start_date,p_end_date
+  );
+$;
+
+revoke execute on function public.create_accounting_period(text,date,date) from public,anon;
+grant execute on function public.create_accounting_period(text,date,date) to authenticated;
+
+-- -----------------------------------------------------------------------------
 -- Controlled accounting period close
 -- -----------------------------------------------------------------------------
 create or replace function private.close_period(p_period_id uuid)
@@ -2412,11 +2459,60 @@ returns uuid
 language plpgsql
 security definer
 set search_path=''
-as $$
+as $
+declare
+  j public.journal_entries%rowtype;
+  v_period uuid;
+  v_number text;
+  v_reversal uuid;
+  v_line record;
 begin
-  return private.cancel_document('JOURNAL',p_journal_entry_id,p_cancel_date);
+  select * into j
+  from public.journal_entries
+  where id=p_journal_entry_id
+  for update;
+
+  if not found then raise exception 'journal entry not found'; end if;
+  perform private.assert_member(j.organization_id);
+  if j.status <> 'CONFIRMED' then raise exception 'only confirmed journals can be cancelled'; end if;
+
+  v_period:=private.require_open_period(j.organization_id,p_cancel_date);
+  v_number:=private.allocate_number(j.organization_id,'JOURNAL_ENTRY');
+
+  insert into public.journal_entries(
+    organization_id,entry_number,accounting_period_id,entry_date,entry_type,status,
+    reference_type,reference_id,description,posted_at,reversal_of_id,created_by
+  )
+  values(
+    j.organization_id,v_number,v_period,p_cancel_date,j.entry_type,'CANCELLED',
+    'JOURNAL',j.id,'Reversal of '||coalesce(j.entry_number,''),now(),j.id,auth.uid()
+  )
+  returning id into v_reversal;
+
+  for v_line in
+    select account_id,line_number,description,debit,credit,contact_id
+    from public.account_transactions
+    where organization_id=j.organization_id and journal_entry_id=j.id
+    order by line_number
+  loop
+    insert into public.account_transactions(
+      organization_id,journal_entry_id,account_id,line_number,description,
+      debit,credit,contact_id
+    )
+    values(
+      j.organization_id,v_reversal,v_line.account_id,v_line.line_number,
+      'Reversal: '||coalesce(v_line.description,''),
+      v_line.credit,v_line.debit,v_line.contact_id
+    );
+  end loop;
+
+  update public.journal_entries
+     set status='CANCELLED',updated_at=now()
+   where id=j.id;
+
+  return v_reversal;
 end;
-$$;
+$;
 
 revoke all on function private.cancel_journal_entry(uuid,date) from public,anon,authenticated;
 
