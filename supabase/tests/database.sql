@@ -3,7 +3,7 @@
 
 begin;
 
-select plan(45);
+select plan(55);
 
 -- ---------------------------------------------------------------------------
 -- Schema/security baseline
@@ -556,6 +556,242 @@ select ok(
       and entry_type='ADJUSTMENT' and status='CANCELLED'
   ),
   'manual journal cancellation creates a reversal lifecycle'
+);
+
+-- ---------------------------------------------------------------------------
+-- Full cancellation/reversal coverage
+-- ---------------------------------------------------------------------------
+-- Purchase cancellation
+insert into public.purchase(
+  organization_id,supplier_id,invoice_date,subtotal,discount_amount,total_amount,
+  payable_account_id,created_by
+)
+select o.id,c.id,current_date,50,0,50,a.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Supplier A'
+join public.accounts a on a.organization_id=o.id and a.account_code='2000'
+where o.name='ERP Transaction Test';
+
+insert into public.purchase_items(
+  organization_id,purchase_id,line_number,product_id,quantity,unit_cost,line_total
+)
+select p.organization_id,p.id,1,pr.id,5,10,50
+from public.purchase p
+join public.products pr on pr.organization_id=p.organization_id
+where p.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+  and p.status='DRAFT'
+order by p.created_at desc limit 1;
+
+select public.confirm_purchase(
+  (select id from public.purchase where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+   and status='DRAFT' order by created_at desc limit 1)
+);
+
+select public.cancel_purchase(
+  (select id from public.purchase where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+   and status='CONFIRMED' order by created_at desc limit 1)
+);
+
+select is(
+  (select status from public.purchase where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+   order by created_at desc limit 1),
+  'CANCELLED'::public.document_status,
+  'purchase cancellation changes status to CANCELLED'
+);
+
+select is(
+  (select quantity from public.inventory_balances where organization_id=(select id from public.organizations where name='ERP Transaction Test')),
+  16::numeric,
+  'purchase cancellation reverses inventory'
+);
+
+-- Sales cancellation
+insert into public.sales(
+  organization_id,customer_id,invoice_date,subtotal,discount_amount,total_amount,
+  receivable_account_id,created_by
+)
+select o.id,c.id,current_date,15,0,15,a.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Customer A'
+join public.accounts a on a.organization_id=o.id and a.account_code='1100'
+where o.name='ERP Transaction Test';
+
+insert into public.sales_items(
+  organization_id,sales_id,line_number,product_id,quantity,unit_price,line_total
+)
+select s.organization_id,s.id,1,pr.id,1,15,15
+from public.sales s
+join public.products pr on pr.organization_id=s.organization_id
+where s.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+  and s.status='DRAFT'
+order by s.created_at desc limit 1;
+
+select public.confirm_sales(
+  (select id from public.sales where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+   and status='DRAFT' order by created_at desc limit 1)
+);
+
+select public.cancel_sales(
+  (select id from public.sales where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+   and status='CONFIRMED' order by created_at desc limit 1)
+);
+
+select ok(
+  exists(select 1 from public.sales where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+         and status='CANCELLED' and invoice_id='SAL-000002'),
+  'sales cancellation creates a reversal'
+);
+
+select is(
+  (select quantity from public.inventory_balances where organization_id=(select id from public.organizations where name='ERP Transaction Test')),
+  16::numeric,
+  'sales cancellation restores inventory'
+);
+
+-- Expense cancellation
+insert into public.expenses(
+  organization_id,expense_category_id,contact_id,payable_account_id,
+  expense_date,amount,description,created_by
+)
+select o.id,ec.id,c.id,a.id,current_date,13,'Cancellation expense',auth.uid()
+from public.organizations o
+join public.expense_categories ec on ec.organization_id=o.id
+join public.contacts c on c.organization_id=o.id and c.name='Supplier A'
+join public.accounts a on a.organization_id=o.id and a.account_code='2000'
+where o.name='ERP Transaction Test';
+
+select public.confirm_expense(
+  (select id from public.expenses where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+   and status='DRAFT' order by created_at desc limit 1)
+);
+
+select public.cancel_expense(
+  (select id from public.expenses where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+   and status='CONFIRMED' order by created_at desc limit 1)
+);
+
+select ok(
+  exists(select 1 from public.expenses where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+         and status='CANCELLED' and amount=13),
+  'expense cancellation creates a reversal'
+);
+
+-- Payment cancellation without allocations
+insert into public.payments(
+  organization_id,payment_type,contact_id,payment_date,amount,
+  account_id,settlement_account_id,created_by
+)
+select o.id,'PAYMENT',c.id,current_date,5,ap.id,cash.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Supplier A'
+join public.accounts ap on ap.organization_id=o.id and ap.account_code='2000'
+join public.accounts cash on cash.organization_id=o.id and cash.account_code='1000'
+where o.name='ERP Transaction Test';
+
+select public.confirm_payment(
+  (select id from public.payments where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+   and status='DRAFT' and amount=5)
+);
+
+select public.cancel_payment(
+  (select id from public.payments where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+   and status='CONFIRMED' and amount=5)
+);
+
+select ok(
+  exists(select 1 from public.payments where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+         and status='CANCELLED' and amount=5),
+  'unallocated payment cancellation creates a reversal'
+);
+
+-- Allocated payment cancellation must be blocked.
+select throws_ok(
+  $select public.cancel_payment(
+      (select id from public.payments
+       where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+       and status='CONFIRMED' and amount=90)
+  )$,
+  'P0001',
+  'cannot cancel PAYMENT with payment allocations',
+  'allocated payment cannot be cancelled'
+);
+
+-- Purchase-return cancellation
+insert into public.purchase_returns(
+  organization_id,purchase_id,supplier_id,return_date,subtotal,discount_amount,total_amount,
+  payable_account_id,created_by
+)
+select o.id,p.id,c.id,current_date,10,0,10,a.id,auth.uid()
+from public.organizations o
+join public.purchase p on p.organization_id=o.id and p.status='CONFIRMED'
+join public.contacts c on c.organization_id=o.id and c.name='Supplier A'
+join public.accounts a on a.organization_id=o.id and a.account_code='2000'
+where o.name='ERP Transaction Test'
+order by p.created_at limit 1;
+
+insert into public.purchase_return_items(
+  organization_id,purchase_return_id,line_number,purchase_item_id,product_id,quantity,unit_cost,line_total
+)
+select r.organization_id,r.id,1,pi.id,pi.product_id,1,10,10
+from public.purchase_returns r
+join public.purchase_items pi on pi.organization_id=r.organization_id and pi.purchase_id=r.purchase_id
+where r.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+  and r.status='DRAFT'
+order by r.created_at desc limit 1;
+
+select public.confirm_purchase_return(
+  (select id from public.purchase_returns where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+   and status='DRAFT' order by created_at desc limit 1)
+);
+
+select public.cancel_purchase_return(
+  (select id from public.purchase_returns where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+   and status='CONFIRMED' order by created_at desc limit 1)
+);
+
+select ok(
+  exists(select 1 from public.purchase_returns where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+         and status='CANCELLED'),
+  'purchase-return cancellation creates a reversal'
+);
+
+-- Sales-return cancellation
+insert into public.sales_returns(
+  organization_id,sales_id,customer_id,return_date,subtotal,discount_amount,total_amount,
+  receivable_account_id,created_by
+)
+select o.id,s.id,c.id,current_date,15,0,15,a.id,auth.uid()
+from public.organizations o
+join public.sales s on s.organization_id=o.id and s.status='CONFIRMED'
+join public.contacts c on c.organization_id=o.id and c.name='Customer A'
+join public.accounts a on a.organization_id=o.id and a.account_code='1100'
+where o.name='ERP Transaction Test'
+order by s.created_at limit 1;
+
+insert into public.sales_return_items(
+  organization_id,sales_return_id,line_number,sales_item_id,product_id,quantity,unit_price,line_total
+)
+select r.organization_id,r.id,1,si.id,si.product_id,1,15,15
+from public.sales_returns r
+join public.sales_items si on si.organization_id=r.organization_id and si.sales_id=r.sales_id
+where r.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+  and r.status='DRAFT'
+order by r.created_at desc limit 1;
+
+select public.confirm_sales_return(
+  (select id from public.sales_returns where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+   and status='DRAFT' order by created_at desc limit 1)
+);
+
+select public.cancel_sales_return(
+  (select id from public.sales_returns where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+   and status='CONFIRMED' order by created_at desc limit 1)
+);
+
+select ok(
+  exists(select 1 from public.sales_returns where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+         and status='CANCELLED'),
+  'sales-return cancellation creates a reversal'
 );
 
 -- ---------------------------------------------------------------------------
