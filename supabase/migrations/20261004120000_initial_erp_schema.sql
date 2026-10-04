@@ -910,9 +910,7 @@ begin
 end;
 $$;
 
--- Direct number allocation is intentionally not granted to anonymous users.
-revoke all on function public.allocate_number(uuid, text) from public;
-grant execute on function public.allocate_number(uuid, text) to authenticated;
+drop function public.allocate_number(uuid, text);
 
 -- -----------------------------------------------------------------------------
 -- Journal validation helper
@@ -921,7 +919,7 @@ create or replace function public.validate_journal_balance(p_journal_entry_id uu
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 declare
   v_org uuid;
@@ -929,25 +927,27 @@ declare
   v_debit numeric(30,4);
   v_credit numeric(30,4);
 begin
-  select organization_id into v_org
-  from public.journal_entries
-  where id = p_journal_entry_id;
+  select je.organization_id into v_org
+  from public.journal_entries je
+  where je.id = p_journal_entry_id;
 
   if v_org is null then
     raise exception 'journal entry not found';
   end if;
 
   if not exists (
-    select 1 from public.organization_users
-    where organization_id = v_org and user_id = auth.uid() and is_active
+    select 1 from public.organization_users ou
+    where ou.organization_id = v_org
+      and ou.user_id = auth.uid()
+      and ou.is_active
   ) then
     raise exception 'not an active organization member';
   end if;
 
-  select count(*), coalesce(sum(debit),0), coalesce(sum(credit),0)
+  select count(*), coalesce(sum(at.debit),0), coalesce(sum(at.credit),0)
     into v_lines, v_debit, v_credit
-  from public.account_transactions
-  where journal_entry_id = p_journal_entry_id;
+  from public.account_transactions at
+  where at.journal_entry_id = p_journal_entry_id;
 
   if v_lines < 2 then
     raise exception 'journal entry must contain at least two lines';
@@ -959,7 +959,7 @@ begin
 end;
 $$;
 
-revoke all on function public.validate_journal_balance(uuid) from public;
+revoke all on function public.validate_journal_balance(uuid) from public, anon;
 grant execute on function public.validate_journal_balance(uuid) to authenticated;
 
 -- -----------------------------------------------------------------------------
@@ -970,7 +970,7 @@ returns boolean
 language sql
 stable
 security definer
-set search_path = public
+set search_path = ''
 as $$
   select exists (
     select 1
@@ -981,9 +981,8 @@ as $$
   );
 $$;
 
-revoke all on function public.is_org_member(uuid) from public;
+revoke all on function public.is_org_member(uuid) from public, anon;
 grant execute on function public.is_org_member(uuid) to authenticated;
-
 
 -- -----------------------------------------------------------------------------
 -- Private transactional engine
@@ -2225,15 +2224,6 @@ grant execute on function public.cancel_purchase(uuid,date),
   public.cancel_purchase_return(uuid,date),
   public.cancel_sales_return(uuid,date)
 to authenticated;
-
--- The legacy public allocator remains for compatibility only but cannot be
--- invoked by application roles. All posting paths use private.allocate_number.
-revoke all on function public.allocate_number(uuid,text) from public, anon, authenticated;
-
--- Tighten the existing definer helper search paths to the current Supabase
--- recommendation and keep them callable only where required.
-alter function public.validate_journal_balance(uuid) set search_path = '';
-alter function public.is_org_member(uuid) set search_path = '';
 
 
 
