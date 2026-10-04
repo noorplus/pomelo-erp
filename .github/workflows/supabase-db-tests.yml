@@ -15,33 +15,23 @@ jobs:
   database:
     name: Migration and database tests
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
           version: latest
-
       - name: Start local Supabase
         run: supabase start
-
       - name: Reset database from migrations and seed
         run: supabase db reset
-
       - name: Verify migration history
         run: supabase migration list
-
-      - name: Run database smoke tests
-        run: |
-          if [ -f supabase/tests/database.sql ]; then
-            supabase db query --local --file supabase/tests/database.sql
-          else
-            echo "No database test file found yet."
-          fi
-
+      - name: Run pgTAP database tests
+        run: supabase test db
+      - name: Lint database
+        run: supabase db lint --level error
       - name: Stop local Supabase
         if: always()
         run: supabase stop
