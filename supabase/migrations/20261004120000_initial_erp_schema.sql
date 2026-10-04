@@ -1953,7 +1953,6 @@ begin
     if i.line_total < 0 then raise exception 'purchase return discount allocation became negative'; end if;
     perform private.inventory_out(
       r.organization_id,i.product_id,r.return_date,i.quantity,
-      case when i.quantity=0 then 0 else i.line_total/i.quantity end,
       'PURCHASE_RETURN',r.id,v_num||'-'||i.line_number::text
     );
     v_inventory_account:=i.inventory_account_id;
