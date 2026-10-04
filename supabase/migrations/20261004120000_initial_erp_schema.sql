@@ -2323,39 +2323,48 @@ returns uuid
 language plpgsql
 security definer
 set search_path=''
-as $$
+as $function$
 declare
   v_id uuid;
 begin
   perform private.assert_member(p_organization_id);
-  if p_start_date>p_end_date then raise exception 'period start date must not exceed end date'; end if;
-  insert into public.accounting_periods(organization_id,name,start_date,end_date,status)
+  if p_start_date > p_end_date then
+    raise exception 'period start date must not exceed end date';
+  end if;
+
+  insert into public.accounting_periods(
+    organization_id,name,start_date,end_date,status
+  )
   values(p_organization_id,p_name,p_start_date,p_end_date,'OPEN')
   returning id into v_id;
+
   return v_id;
 end;
-$;
+$function$;
 
-revoke all on function private.create_accounting_period(uuid,text,date,date) from public,anon,authenticated;
+revoke all on function private.create_accounting_period(uuid,text,date,date)
+from public,anon,authenticated;
 
 create or replace function public.create_accounting_period(
-  p_name text,p_start_date date,p_end_date date
+  p_organization_id uuid,
+  p_name text,
+  p_start_date date,
+  p_end_date date
 )
 returns uuid
 language sql
 security definer
 set search_path=''
-as $$
+as $function$
   select private.create_accounting_period(
-    (select ou.organization_id from public.organization_users ou
-     where ou.user_id=auth.uid() and ou.is_active
-     order by ou.created_at limit 1),
-    p_name,p_start_date,p_end_date
+    p_organization_id,p_name,p_start_date,p_end_date
   );
-$;
+$function$;
 
-revoke execute on function public.create_accounting_period(text,date,date) from public,anon;
-grant execute on function public.create_accounting_period(text,date,date) to authenticated;
+revoke execute on function public.create_accounting_period(uuid,text,date,date)
+from public,anon;
+grant execute on function public.create_accounting_period(uuid,text,date,date)
+to authenticated;
 
 -- -----------------------------------------------------------------------------
 -- Controlled accounting period close
