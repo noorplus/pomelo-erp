@@ -27,7 +27,7 @@ jobs:
       - name: Reset database from migrations and seed
         run: supabase db reset
       - name: Verify migration history
-        run: supabase migration list
+        run: supabase migration list --local
       - name: Run pgTAP database tests
         run: supabase test db
       - name: Lint database
