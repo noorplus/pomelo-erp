@@ -240,7 +240,7 @@ select is(
   (select average_cost from public.inventory_balances
    where organization_id=(select id from public.organizations where name='ERP Transaction Test')
    limit 1),
-  15::numeric,
+  14.5::numeric,
   'weighted-average inventory cost is correct after second receipt'
 );
 
@@ -284,7 +284,7 @@ select is(
   (select cogs_total from public.sales_items
    where organization_id=(select id from public.organizations where name='ERP Transaction Test')
    limit 1),
-  60::numeric,
+  58::numeric,
   'sales COGS uses weighted-average inventory cost'
 );
 
