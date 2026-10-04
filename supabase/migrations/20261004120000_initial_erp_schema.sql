@@ -2286,16 +2286,21 @@ returns trigger
 language plpgsql
 security definer
 set search_path=''
-as $$
+as $function$
 begin
-  if TG_TABLE_NAME='products' and NEW.product_code is null then
-    NEW.product_code := private.allocate_number(NEW.organization_id,'PRODUCT');
-  elsif TG_TABLE_NAME='contacts' and NEW.contact_number is null then
-    NEW.contact_number := private.allocate_number(NEW.organization_id,'CONTACT');
+  if TG_TABLE_NAME='products' then
+    if NEW.product_code is null then
+      NEW.product_code := private.allocate_number(NEW.organization_id,'PRODUCT');
+    end if;
+  elsif TG_TABLE_NAME='contacts' then
+    if NEW.contact_number is null then
+      NEW.contact_number := private.allocate_number(NEW.organization_id,'CONTACT');
+    end if;
   end if;
+
   return NEW;
 end;
-$$;
+$function$;
 
 revoke all on function private.assign_master_number() from public, anon, authenticated;
 
