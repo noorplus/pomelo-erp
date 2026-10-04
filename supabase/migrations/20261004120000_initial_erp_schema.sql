@@ -2223,6 +2223,37 @@ alter function public.validate_journal_balance(uuid) set search_path = '';
 alter function public.is_org_member(uuid) set search_path = '';
 
 
+
+-- Automatic master numbering. Product/contact numbers are assigned at insert
+-- time; transactional document numbers are assigned only on confirmation.
+create or replace function private.assign_master_number()
+returns trigger
+language plpgsql
+security definer
+set search_path=''
+as $$
+begin
+  if TG_TABLE_NAME='products' and NEW.product_code is null then
+    NEW.product_code := private.allocate_number(NEW.organization_id,'PRODUCT');
+  elsif TG_TABLE_NAME='contacts' and NEW.contact_number is null then
+    NEW.contact_number := private.allocate_number(NEW.organization_id,'CONTACT');
+  end if;
+  return NEW;
+end;
+$$;
+
+revoke all on function private.assign_master_number() from public, anon, authenticated;
+
+drop trigger if exists products_assign_number on public.products;
+create trigger products_assign_number
+before insert on public.products
+for each row execute function private.assign_master_number();
+
+drop trigger if exists contacts_assign_number on public.contacts;
+create trigger contacts_assign_number
+before insert on public.contacts
+for each row execute function private.assign_master_number();
+
 -- -----------------------------------------------------------------------------
 -- RLS
 -- -----------------------------------------------------------------------------
@@ -2460,6 +2491,48 @@ create policy payments_delete on public.payments
 
 create policy payment_allocations_select on public.payment_allocations
   for select to authenticated using (public.is_org_member(organization_id));
+create policy payment_allocations_insert on public.payment_allocations
+  for insert to authenticated
+  with check (
+    public.is_org_member(organization_id)
+    and exists (
+      select 1 from public.payments p
+      where p.organization_id=payment_allocations.organization_id
+        and p.id=payment_id
+        and p.status='DRAFT'
+    )
+  );
+create policy payment_allocations_update on public.payment_allocations
+  for update to authenticated
+  using (
+    public.is_org_member(organization_id)
+    and exists (
+      select 1 from public.payments p
+      where p.organization_id=payment_allocations.organization_id
+        and p.id=payment_id
+        and p.status='DRAFT'
+    )
+  )
+  with check (
+    public.is_org_member(organization_id)
+    and exists (
+      select 1 from public.payments p
+      where p.organization_id=payment_allocations.organization_id
+        and p.id=payment_id
+        and p.status='DRAFT'
+    )
+  );
+create policy payment_allocations_delete on public.payment_allocations
+  for delete to authenticated
+  using (
+    public.is_org_member(organization_id)
+    and exists (
+      select 1 from public.payments p
+      where p.organization_id=payment_allocations.organization_id
+        and p.id=payment_id
+        and p.status='DRAFT'
+    )
+  );
 
 create policy purchase_returns_select on public.purchase_returns
   for select to authenticated using (public.is_org_member(organization_id));
