@@ -29,7 +29,7 @@ create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
 set search_path = public
-as $
+as $$
 begin
   new.updated_at := now();
   return new;
@@ -866,7 +866,7 @@ returns text
 language plpgsql
 security definer
 set search_path = public, extensions
-as $
+as $$
 declare
   v_prefix text;
   v_next bigint;
@@ -920,7 +920,7 @@ returns void
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 declare
   v_org uuid;
   v_lines integer;
@@ -971,7 +971,7 @@ language sql
 stable
 security definer
 set search_path = ''
-as $
+as $$
   select exists (
     select 1
     from public.organization_users ou
@@ -996,7 +996,7 @@ returns void
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 begin
   if (auth.uid() is null) then
     raise exception 'authentication required';
@@ -1021,7 +1021,7 @@ returns text
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 declare
   v_prefix text;
   v_next bigint;
@@ -1062,7 +1062,7 @@ returns uuid
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 declare
   v_period uuid;
 begin
@@ -1096,7 +1096,7 @@ returns void
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 declare
   v_type text;
   v_postable boolean;
@@ -1138,7 +1138,7 @@ returns uuid
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 declare
   v_period uuid;
   v_journal uuid;
@@ -1233,7 +1233,7 @@ returns numeric
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 declare
   v_qty numeric(20,4);
   v_value numeric(20,4);
@@ -1301,7 +1301,7 @@ returns numeric
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 declare
   v_qty numeric(20,4);
   v_value numeric(20,4);
@@ -1367,7 +1367,7 @@ returns uuid
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 declare
   v_org uuid;
   v_period uuid;
@@ -1456,7 +1456,7 @@ returns uuid
 language sql
 security definer
 set search_path = ''
-as $
+as $$
   select private.onboard_organization(p_name,p_base_currency,p_timezone);
 $$;
 
@@ -1468,7 +1468,7 @@ returns uuid
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 declare
   p public.purchase%rowtype;
   i record;
@@ -1572,7 +1572,7 @@ returns uuid
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 declare
   s public.sales%rowtype;
   i record;
@@ -1696,7 +1696,7 @@ grant execute on function public.confirm_sales(uuid) to authenticated;
 create or replace function private.confirm_expense(p_id uuid)
 returns uuid
 language plpgsql security definer set search_path=''
-as $
+as $$
 declare
   e public.expenses%rowtype;
   v_num text;
@@ -1743,7 +1743,7 @@ grant execute on function public.confirm_expense(uuid) to authenticated;
 create or replace function private.confirm_payment(p_id uuid)
 returns uuid
 language plpgsql security definer set search_path=''
-as $
+as $$
 declare
   p public.payments%rowtype;
   v_num text;
@@ -1876,7 +1876,7 @@ grant execute on function public.confirm_payment(uuid) to authenticated;
 create or replace function private.confirm_purchase_return(p_id uuid)
 returns uuid
 language plpgsql security definer set search_path=''
-as $
+as $$
 declare
   r public.purchase_returns%rowtype;
   i record;
@@ -1984,7 +1984,7 @@ grant execute on function public.confirm_purchase_return(uuid) to authenticated;
 create or replace function private.confirm_sales_return(p_id uuid)
 returns uuid
 language plpgsql security definer set search_path=''
-as $
+as $$
 declare
   r public.sales_returns%rowtype;
   i record;
@@ -2077,7 +2077,7 @@ create or replace function private.cancel_document(
 )
 returns uuid
 language plpgsql security definer set search_path=''
-as $
+as $$
 declare
   v_org uuid;
   v_status public.document_status;
@@ -2379,7 +2379,7 @@ returns void
 language plpgsql
 security definer
 set search_path=''
-as $
+as $$
 declare
   v_org uuid;
   v_status public.accounting_period_status;
@@ -2432,7 +2432,7 @@ returns uuid
 language plpgsql
 security definer
 set search_path=''
-as $
+as $$
 declare
   j public.journal_entries%rowtype;
   v_number text;
