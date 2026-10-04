@@ -2018,7 +2018,6 @@ begin
     where sri.organization_id=r.organization_id and sri.sales_return_id=r.id
     order by sri.line_number
   loop
-    if i.sales_id <> r.sales_id then raise exception 'sales return line references another sale'; end if;
     if i.quantity > (
       (select si0.quantity from public.sales_items si0
        where si0.organization_id=r.organization_id and si0.id=i.sales_item_id)
