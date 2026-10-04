@@ -1891,8 +1891,8 @@ begin
     raise exception 'purchase return subtotal does not match items';
   end if;
   if r.total_amount <> r.subtotal-r.discount_amount then raise exception 'purchase return total is inconsistent'; end if;
-  if not exists(select 1 from public.purchase p where p.organization_id=r.organization_id and p.id=r.purchase_id and p.status='CONFIRMED') then
-    raise exception 'purchase return must reference a confirmed purchase';
+  if not exists(select 1 from public.purchase p where p.organization_id=r.organization_id and p.id=r.purchase_id and p.status='CONFIRMED' and p.supplier_id=r.supplier_id) then
+    raise exception 'purchase return must reference a confirmed purchase for the same supplier';
   end if;
   perform private.assert_account_type(r.organization_id,r.payable_account_id,'LIABILITY',true);
 
@@ -1916,6 +1916,23 @@ begin
     order by pri.line_number
   loop
     if i.purchase_id <> r.purchase_id then raise exception 'purchase return line references another purchase'; end if;
+    if i.quantity > (
+      (select pi0.quantity from public.purchase_items pi0
+       where pi0.organization_id=r.organization_id and pi0.id=i.purchase_item_id)
+      - coalesce((
+        select sum(pri2.quantity)
+        from public.purchase_return_items pri2
+        join public.purchase_returns rr
+          on rr.organization_id=pri2.organization_id and rr.id=pri2.purchase_return_id
+        where pri2.organization_id=r.organization_id
+          and pri2.purchase_item_id=i.purchase_item_id
+          and rr.purchase_id=r.purchase_id
+          and rr.status='CONFIRMED'
+          and rr.id<>r.id
+      ),0)
+    ) then
+      raise exception 'purchase return quantity exceeds purchased quantity';
+    end if;
     if i.product_id <> (select pi2.product_id from public.purchase_items pi2 where pi2.organization_id=r.organization_id and pi2.id=i.purchase_item_id) then
       raise exception 'purchase return product does not match original purchase item';
     end if;
@@ -1979,8 +1996,8 @@ begin
     raise exception 'sales return subtotal does not match items';
   end if;
   if r.total_amount <> r.subtotal-r.discount_amount then raise exception 'sales return total is inconsistent'; end if;
-  if not exists(select 1 from public.sales s where s.organization_id=r.organization_id and s.id=r.sales_id and s.status='CONFIRMED') then
-    raise exception 'sales return must reference a confirmed sale';
+  if not exists(select 1 from public.sales s where s.organization_id=r.organization_id and s.id=r.sales_id and s.status='CONFIRMED' and s.customer_id=r.customer_id) then
+    raise exception 'sales return must reference a confirmed sale for the same customer';
   end if;
   perform private.assert_account_type(r.organization_id,r.receivable_account_id,'ASSET',true);
 
@@ -1994,6 +2011,24 @@ begin
     where sri.organization_id=r.organization_id and sri.sales_return_id=r.id
     order by sri.line_number
   loop
+    if i.sales_id <> r.sales_id then raise exception 'sales return line references another sale'; end if;
+    if i.quantity > (
+      (select si0.quantity from public.sales_items si0
+       where si0.organization_id=r.organization_id and si0.id=i.sales_item_id)
+      - coalesce((
+        select sum(sri2.quantity)
+        from public.sales_return_items sri2
+        join public.sales_returns rr
+          on rr.organization_id=sri2.organization_id and rr.id=sri2.sales_return_id
+        where sri2.organization_id=r.organization_id
+          and sri2.sales_item_id=i.sales_item_id
+          and rr.sales_id=r.sales_id
+          and rr.status='CONFIRMED'
+          and rr.id<>r.id
+      ),0)
+    ) then
+      raise exception 'sales return quantity exceeds sold quantity';
+    end if;
     if i.original_cogs is null then raise exception 'sales item cost is missing'; end if;
     perform private.inventory_in(r.organization_id,i.product_id,r.return_date,i.quantity,i.original_cogs,'SALES_RETURN',r.id,v_num||'-'||i.line_number::text);
     v_cogs:=v_cogs + round(i.quantity*i.original_cogs,4);
@@ -2257,6 +2292,144 @@ create trigger contacts_assign_number
 before insert on public.contacts
 for each row execute function private.assign_master_number();
 
+
+-- -----------------------------------------------------------------------------
+-- Controlled accounting period close
+-- -----------------------------------------------------------------------------
+create or replace function private.close_period(p_period_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path=''
+as $$
+declare
+  v_org uuid;
+  v_status public.accounting_period_status;
+begin
+  select organization_id,status into v_org,v_status
+  from public.accounting_periods
+  where id=p_period_id
+  for update;
+
+  if v_org is null then raise exception 'accounting period not found'; end if;
+  perform private.assert_member(v_org);
+
+  if v_status='CLOSED' then
+    raise exception 'accounting period is already closed';
+  end if;
+
+  if exists (
+    select 1
+    from public.journal_entries je
+    where je.organization_id=v_org
+      and je.accounting_period_id=p_period_id
+      and je.status='DRAFT'
+  ) then
+    raise exception 'cannot close period with draft journal entries';
+  end if;
+
+  update public.accounting_periods
+     set status='CLOSED',closed_at=now(),closed_by=auth.uid(),updated_at=now()
+   where id=p_period_id;
+end;
+$$;
+
+revoke all on function private.close_period(uuid) from public,anon,authenticated;
+
+create or replace function public.close_accounting_period(p_period_id uuid)
+returns void
+language sql
+security definer
+set search_path=''
+as $$ select private.close_period(p_period_id); $$;
+
+revoke execute on function public.close_accounting_period(uuid) from public,anon;
+grant execute on function public.close_accounting_period(uuid) to authenticated;
+
+-- -----------------------------------------------------------------------------
+-- Controlled manual journal lifecycle
+-- -----------------------------------------------------------------------------
+create or replace function private.confirm_journal_entry(p_journal_entry_id uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path=''
+as $$
+declare
+  j public.journal_entries%rowtype;
+  v_number text;
+  v_debit numeric(30,4);
+  v_credit numeric(30,4);
+  v_lines integer;
+begin
+  select * into j
+  from public.journal_entries
+  where id=p_journal_entry_id
+  for update;
+
+  if not found then raise exception 'journal entry not found'; end if;
+  perform private.assert_member(j.organization_id);
+
+  if j.status <> 'DRAFT' then raise exception 'only draft journal entries can be confirmed'; end if;
+  if j.entry_type not in ('OPENING','ADJUSTMENT','OTHER') then
+    raise exception 'manual confirmation is limited to OPENING, ADJUSTMENT or OTHER journals';
+  end if;
+
+  perform private.require_open_period(j.organization_id,j.entry_date);
+
+  select count(*),coalesce(sum(at.debit),0),coalesce(sum(at.credit),0)
+    into v_lines,v_debit,v_credit
+  from public.account_transactions at
+  where at.organization_id=j.organization_id and at.journal_entry_id=j.id;
+
+  if v_lines<2 then raise exception 'journal entry requires at least two lines'; end if;
+  if v_debit<>v_credit then raise exception 'journal entry is not balanced'; end if;
+
+  v_number:=private.allocate_number(j.organization_id,'JOURNAL_ENTRY');
+
+  update public.journal_entries
+     set entry_number=v_number,status='CONFIRMED',posted_at=now(),updated_at=now()
+   where id=j.id;
+
+  return j.id;
+end;
+$$;
+
+revoke all on function private.confirm_journal_entry(uuid) from public,anon,authenticated;
+
+create or replace function public.confirm_journal_entry(p_journal_entry_id uuid)
+returns uuid
+language sql
+security definer
+set search_path=''
+as $$ select private.confirm_journal_entry(p_journal_entry_id); $$;
+
+revoke execute on function public.confirm_journal_entry(uuid) from public,anon;
+grant execute on function public.confirm_journal_entry(uuid) to authenticated;
+
+create or replace function private.cancel_journal_entry(p_journal_entry_id uuid,p_cancel_date date default current_date)
+returns uuid
+language plpgsql
+security definer
+set search_path=''
+as $$
+begin
+  return private.cancel_document('JOURNAL',p_journal_entry_id,p_cancel_date);
+end;
+$$;
+
+revoke all on function private.cancel_journal_entry(uuid,date) from public,anon,authenticated;
+
+create or replace function public.cancel_journal_entry(p_journal_entry_id uuid,p_cancel_date date default current_date)
+returns uuid
+language sql
+security definer
+set search_path=''
+as $$ select private.cancel_journal_entry(p_journal_entry_id,p_cancel_date); $$;
+
+revoke execute on function public.cancel_journal_entry(uuid,date) from public,anon;
+grant execute on function public.cancel_journal_entry(uuid,date) to authenticated;
+
 -- -----------------------------------------------------------------------------
 -- RLS
 -- -----------------------------------------------------------------------------
@@ -2381,6 +2554,18 @@ create policy journal_entries_delete on public.journal_entries
 
 create policy account_transactions_select on public.account_transactions
   for select to authenticated using (public.is_org_member(organization_id));
+create policy account_transactions_insert_draft on public.account_transactions
+  for insert to authenticated
+  with check (
+    public.is_org_member(organization_id)
+    and exists (
+      select 1 from public.journal_entries je
+      where je.organization_id=account_transactions.organization_id
+        and je.id=journal_entry_id
+        and je.status='DRAFT'
+        and je.entry_type in ('OPENING','ADJUSTMENT','OTHER')
+    )
+  );
 
 -- Ledger rows are immutable and cannot be directly inserted/updated/deleted by the app.
 
