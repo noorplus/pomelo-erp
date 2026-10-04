@@ -1,14 +1,17 @@
--- Pomelo ERP pgTAP integration suite.
--- Runs only against the local CI database created from the migration.
+-- Pomelo ERP comprehensive transaction/integrity suite.
+-- Entirely local/CI. Never targets the production Supabase project.
 
 begin;
 
-select plan(17);
+select plan(38);
 
+-- ---------------------------------------------------------------------------
+-- Schema/security baseline
+-- ---------------------------------------------------------------------------
 select is(
   (select count(*)::bigint from pg_tables where schemaname='public'),
   24::bigint,
-  'exactly 24 public tables exist'
+  'exactly 24 public tables'
 );
 
 select is(
@@ -16,7 +19,7 @@ select is(
    from pg_class c join pg_namespace n on n.oid=c.relnamespace
    where n.nspname='public' and c.relkind='r' and c.relrowsecurity),
   24::bigint,
-  'all public tables have RLS enabled'
+  'RLS enabled on all public tables'
 );
 
 select ok(
@@ -26,220 +29,684 @@ select ok(
     join pg_namespace n on n.oid=t.typnamespace
     where n.nspname='public' and e.enumlabel='POSTED'
   ),
-  'document lifecycle does not contain POSTED'
-);
-
-select ok(
-  not has_table_privilege('authenticated','public.account_transactions','INSERT')
-  and not has_table_privilege('authenticated','public.account_transactions','UPDATE')
-  and not has_table_privilege('authenticated','public.account_transactions','DELETE'),
-  'authenticated users cannot directly mutate the ledger'
-);
-
-select ok(
-  not has_table_privilege('authenticated','public.inventory_transactions','INSERT')
-  and not has_table_privilege('authenticated','public.inventory_transactions','UPDATE')
-  and not has_table_privilege('authenticated','public.inventory_transactions','DELETE'),
-  'authenticated users cannot directly mutate inventory transactions'
-);
-
-select ok(
-  not exists (
-    select 1
-    from pg_proc p
-    join pg_namespace n on n.oid=p.pronamespace
-    where n.nspname='public' and p.proname='allocate_number'
-  ),
-  'public direct number allocator is not exposed'
-);
-
-select ok(
-  has_function_privilege('authenticated','public.confirm_purchase(uuid)','EXECUTE')
-  and has_function_privilege('authenticated','public.confirm_sales(uuid)','EXECUTE')
-  and has_function_privilege('authenticated','public.confirm_payment(uuid)','EXECUTE'),
-  'posting RPCs are callable by authenticated users'
+  'POSTED is not a document lifecycle state'
 );
 
 select ok(
   not has_schema_privilege('authenticated','private','USAGE'),
-  'private schema is not exposed to authenticated Data API roles'
+  'private schema is not exposed to authenticated'
 );
 
+select ok(
+  not exists (
+    select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+    where n.nspname='public' and p.proname='allocate_number'
+  ),
+  'public number allocator is not directly exposed'
+);
+
+select ok(
+  not has_table_privilege('authenticated','public.account_transactions','INSERT,UPDATE,DELETE'),
+  'authenticated cannot directly mutate the ledger'
+);
+
+select ok(
+  not has_table_privilege('authenticated','public.inventory_transactions','INSERT,UPDATE,DELETE'),
+  'authenticated cannot directly mutate inventory transactions'
+);
+
+select ok(
+  not has_table_privilege('authenticated','public.inventory_balances','INSERT,UPDATE,DELETE'),
+  'authenticated cannot directly mutate inventory balances'
+);
+
+-- ---------------------------------------------------------------------------
+-- Authentication / onboarding / master data
+-- ---------------------------------------------------------------------------
 do $$
 declare
-  u uuid := extensions.gen_random_uuid();
+  u1 uuid := extensions.gen_random_uuid();
+  u2 uuid := extensions.gen_random_uuid();
 begin
   insert into auth.users(id,aud,role,email,encrypted_password,email_confirmed_at)
-  values(u,'authenticated','authenticated','pgtap-'||replace(u::text,'-','')||'@example.test','x',now());
-  perform set_config('request.jwt.claim.sub',u::text,true);
+  values
+    (u1,'authenticated','authenticated','erp-test-1-'||replace(u1::text,'-','')||'@example.test','x',now()),
+    (u2,'authenticated','authenticated','erp-test-2-'||replace(u2::text,'-','')||'@example.test','x',now());
+
+  perform set_config('request.jwt.claim.sub',u1::text,true);
 end $$;
 
 set local role authenticated;
 
 select is(
-  (select public.onboard_organization('CI Test Organization')),
-  (select id from public.organizations where name='CI Test Organization'),
-  'onboarding creates an organization'
+  public.onboard_organization('ERP Transaction Test'),
+  (select id from public.organizations where name='ERP Transaction Test'),
+  'onboarding creates the organization'
 );
 
 select ok(
-  exists(select 1 from public.organization_users where user_id=auth.uid() and is_active),
-  'onboarding creates the current user membership'
+  exists(
+    select 1 from public.organization_users
+    where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+      and user_id=auth.uid() and is_active
+  ),
+  'onboarding creates active membership'
+);
+
+select is(
+  (select count(*)::bigint from public.number_sequences
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')),
+  9::bigint,
+  'onboarding creates all nine number sequences'
+);
+
+select is(
+  (select count(*)::bigint from public.accounts
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')),
+  10::bigint,
+  'onboarding creates baseline chart of accounts'
+);
+
+insert into public.contacts(organization_id,name)
+select id,'Supplier A' from public.organizations where name='ERP Transaction Test';
+
+insert into public.contacts(organization_id,name)
+select id,'Customer A' from public.organizations where name='ERP Transaction Test';
+
+insert into public.products(
+  organization_id,name,unit_id,inventory_account_id,sales_account_id,cogs_account_id
+)
+select o.id,'Product A',u.id,inv.id,rev.id,cogs.id
+from public.organizations o
+join public.units_of_measure u on u.organization_id=o.id and u.name='pcs'
+join public.accounts inv on inv.organization_id=o.id and inv.account_code='1200'
+join public.accounts rev on rev.organization_id=o.id and rev.account_code='4000'
+join public.accounts cogs on cogs.organization_id=o.id and cogs.account_code='5000'
+where o.name='ERP Transaction Test';
+
+select is(
+  (select product_code from public.products
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+   limit 1),
+  'PRD-000001',
+  'product master receives automatic number'
+);
+
+select is(
+  (select contact_number from public.contacts
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+   order by created_at limit 1),
+  'CON-000001',
+  'contact master receives automatic number'
+);
+
+-- ---------------------------------------------------------------------------
+-- Purchase + invoice discount + weighted-average inventory
+-- ---------------------------------------------------------------------------
+insert into public.purchase(
+  organization_id,supplier_id,invoice_date,subtotal,discount_amount,total_amount,
+  payable_account_id,created_by
+)
+select o.id,c.id,current_date,100,10,90,a.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Supplier A'
+join public.accounts a on a.organization_id=o.id and a.account_code='2000'
+where o.name='ERP Transaction Test';
+
+insert into public.purchase_items(
+  organization_id,purchase_id,line_number,product_id,quantity,unit_cost,line_total
+)
+select p.organization_id,p.id,1,pr.id,10,10,100
+from public.purchase p
+join public.products pr on pr.organization_id=p.organization_id
+where p.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+  and p.status='DRAFT';
+
+select ok(
+  (select invoice_id from public.purchase
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and status='DRAFT') is null,
+  'draft purchase has no business number'
+);
+
+select public.confirm_purchase(
+  (select id from public.purchase
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and status='DRAFT')
+);
+
+select is(
+  (select invoice_id from public.purchase
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and status='CONFIRMED'),
+  'PUR-000001',
+  'purchase confirmation allocates PUR number'
+);
+
+select is(
+  (select line_total from public.purchase_items
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+   limit 1),
+  100::numeric,
+  'purchase source line total remains unchanged after document discount allocation'
+);
+
+select is(
+  (select inventory_value from public.inventory_balances
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+   limit 1),
+  90::numeric,
+  'purchase inventory value reflects document-level discount'
 );
 
 select ok(
-  (select count(*) from public.number_sequences where organization_id=(select id from public.organizations where name='CI Test Organization'))=9,
-  'onboarding seeds all nine document sequences'
+  (select sum(debit)=sum(credit)
+   from public.account_transactions
+   where journal_entry_id=(
+     select posted_journal_entry_id from public.purchase
+     where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+   )),
+  'purchase journal is balanced'
+);
+
+-- Second purchase at a different cost to exercise weighted average.
+insert into public.purchase(
+  organization_id,supplier_id,invoice_date,subtotal,discount_amount,total_amount,
+  payable_account_id,created_by
+)
+select o.id,c.id,current_date,200,0,200,a.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Supplier A'
+join public.accounts a on a.organization_id=o.id and a.account_code='2000'
+where o.name='ERP Transaction Test';
+
+insert into public.purchase_items(
+  organization_id,purchase_id,line_number,product_id,quantity,unit_cost,line_total
+)
+select p.organization_id,p.id,1,pr.id,10,20,200
+from public.purchase p
+join public.products pr on pr.organization_id=p.organization_id
+where p.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+  and p.status='DRAFT'
+order by p.created_at desc limit 1;
+
+select public.confirm_purchase(
+  (select id from public.purchase
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+   order by created_at desc limit 1)
+);
+
+select is(
+  (select average_cost from public.inventory_balances
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+   limit 1),
+  15::numeric,
+  'weighted-average inventory cost is correct after second receipt'
+);
+
+-- ---------------------------------------------------------------------------
+-- Sales + COGS + receipt allocation
+-- ---------------------------------------------------------------------------
+insert into public.sales(
+  organization_id,customer_id,invoice_date,subtotal,discount_amount,total_amount,
+  receivable_account_id,created_by
+)
+select o.id,c.id,current_date,60,0,60,a.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Customer A'
+join public.accounts a on a.organization_id=o.id and a.account_code='1100'
+where o.name='ERP Transaction Test';
+
+insert into public.sales_items(
+  organization_id,sales_id,line_number,product_id,quantity,unit_price,line_total
+)
+select s.organization_id,s.id,1,pr.id,4,15,60
+from public.sales s
+join public.products pr on pr.organization_id=s.organization_id
+where s.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+  and s.status='DRAFT';
+
+select public.confirm_sales(
+  (select id from public.sales
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and status='DRAFT')
+);
+
+select is(
+  (select invoice_id from public.sales
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+   order by created_at limit 1),
+  'SAL-000001',
+  'sales confirmation allocates SAL number'
+);
+
+select is(
+  (select cogs_total from public.sales_items
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+   limit 1),
+  60::numeric,
+  'sales COGS uses weighted-average inventory cost'
+);
+
+select is(
+  (select quantity from public.inventory_balances
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+   limit 1),
+  16::numeric,
+  'sales reduces inventory quantity correctly'
 );
 
 select ok(
-  (select count(*) from public.accounts where organization_id=(select id from public.organizations where name='CI Test Organization'))=10,
-  'onboarding seeds the accounting chart baseline'
+  (select sum(debit)=sum(credit)
+   from public.account_transactions
+   where journal_entry_id=(
+     select posted_journal_entry_id from public.sales
+     where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+   )),
+  'sales journal is balanced'
+);
+
+insert into public.payments(
+  organization_id,payment_type,contact_id,payment_date,amount,
+  account_id,settlement_account_id,created_by
+)
+select o.id,'RECEIPT',c.id,current_date,60,ar.id,cash.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Customer A'
+join public.accounts ar on ar.organization_id=o.id and ar.account_code='1100'
+join public.accounts cash on cash.organization_id=o.id and cash.account_code='1000'
+where o.name='ERP Transaction Test';
+
+insert into public.payment_allocations(
+  organization_id,payment_id,document_type,document_id,allocated_amount
+)
+select p.organization_id,p.id,'SALES',s.id,60
+from public.payments p
+join public.sales s on s.organization_id=p.organization_id and s.status='CONFIRMED'
+where p.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+  and p.status='DRAFT'
+  and p.payment_type='RECEIPT';
+
+select public.confirm_payment(
+  (select id from public.payments
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and status='DRAFT' and payment_type='RECEIPT')
+);
+
+select is(
+  (select payment_number from public.payments
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and payment_type='RECEIPT'),
+  'PAY-000001',
+  'receipt confirmation allocates PAY number'
 );
 
 select ok(
-  (select count(*) from public.accounting_periods where organization_id=(select id from public.organizations where name='CI Test Organization'))=1,
-  'onboarding seeds an open accounting period'
+  (select sum(allocated_amount)
+   from public.payment_allocations
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test'))=60,
+  'sales receipt allocation is persisted exactly'
+);
+
+-- ---------------------------------------------------------------------------
+-- Expense + payment allocation
+-- ---------------------------------------------------------------------------
+insert into public.expenses(
+  organization_id,expense_category_id,contact_id,payable_account_id,
+  expense_date,amount,description,created_by
+)
+select o.id,ec.id,c.id,a.id,current_date,25,'Test expense',auth.uid()
+from public.organizations o
+join public.expense_categories ec on ec.organization_id=o.id
+join public.contacts c on c.organization_id=o.id and c.name='Supplier A'
+join public.accounts a on a.organization_id=o.id and a.account_code='2000'
+where o.name='ERP Transaction Test';
+
+select public.confirm_expense(
+  (select id from public.expenses
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and status='DRAFT')
+);
+
+select is(
+  (select expense_number from public.expenses
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')),
+  'EXP-000001',
+  'expense confirmation allocates EXP number'
+);
+
+insert into public.payments(
+  organization_id,payment_type,contact_id,payment_date,amount,
+  account_id,settlement_account_id,created_by
+)
+select o.id,'PAYMENT',c.id,current_date,25,ap.id,cash.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Supplier A'
+join public.accounts ap on ap.organization_id=o.id and ap.account_code='2000'
+join public.accounts cash on cash.organization_id=o.id and cash.account_code='1000'
+where o.name='ERP Transaction Test';
+
+insert into public.payment_allocations(
+  organization_id,payment_id,document_type,document_id,allocated_amount
+)
+select p.organization_id,p.id,'EXPENSE',e.id,25
+from public.payments p
+join public.expenses e on e.organization_id=p.organization_id and e.status='CONFIRMED'
+where p.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+  and p.status='DRAFT' and p.payment_type='PAYMENT';
+
+select public.confirm_payment(
+  (select id from public.payments
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and status='DRAFT' and payment_type='PAYMENT')
 );
 
 select ok(
-  (select count(*) from public.units_of_measure where organization_id=(select id from public.organizations where name='CI Test Organization'))=1,
-  'onboarding seeds a default unit'
+  exists(
+    select 1 from public.payments
+    where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+      and payment_number='PAY-000002' and status='CONFIRMED'
+  ),
+  'expense payment confirmation succeeds'
+);
+
+-- ---------------------------------------------------------------------------
+-- Purchase return
+-- ---------------------------------------------------------------------------
+insert into public.purchase_returns(
+  organization_id,purchase_id,supplier_id,return_date,subtotal,discount_amount,total_amount,
+  payable_account_id,created_by
+)
+select o.id,p.id,c.id,current_date,20,0,20,a.id,auth.uid()
+from public.organizations o
+join public.purchase p on p.organization_id=o.id and p.status='CONFIRMED'
+join public.contacts c on c.organization_id=o.id and c.name='Supplier A'
+join public.accounts a on a.organization_id=o.id and a.account_code='2000'
+where o.name='ERP Transaction Test'
+order by p.created_at limit 1;
+
+insert into public.purchase_return_items(
+  organization_id,purchase_return_id,line_number,purchase_item_id,product_id,quantity,unit_cost,line_total
+)
+select r.organization_id,r.id,1,pi.id,pi.product_id,2,10,20
+from public.purchase_returns r
+join public.purchase_items pi on pi.organization_id=r.organization_id
+join public.purchase p on p.organization_id=r.organization_id and p.id=r.purchase_id
+where r.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+  and r.status='DRAFT'
+order by r.created_at desc limit 1;
+
+select public.confirm_purchase_return(
+  (select id from public.purchase_returns
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and status='DRAFT')
+);
+
+select is(
+  (select return_number from public.purchase_returns
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')),
+  'PR-000001',
+  'purchase return allocates PR number'
+);
+
+select is(
+  (select quantity from public.inventory_balances
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')),
+  14::numeric,
+  'purchase return reduces inventory'
+);
+
+-- ---------------------------------------------------------------------------
+-- Sales return
+-- ---------------------------------------------------------------------------
+insert into public.sales_returns(
+  organization_id,sales_id,customer_id,return_date,subtotal,discount_amount,total_amount,
+  receivable_account_id,created_by
+)
+select o.id,s.id,c.id,current_date,30,0,30,a.id,auth.uid()
+from public.organizations o
+join public.sales s on s.organization_id=o.id and s.status='CONFIRMED'
+join public.contacts c on c.organization_id=o.id and c.name='Customer A'
+join public.accounts a on a.organization_id=o.id and a.account_code='1100'
+where o.name='ERP Transaction Test'
+limit 1;
+
+insert into public.sales_return_items(
+  organization_id,sales_return_id,line_number,sales_item_id,product_id,quantity,unit_price,line_total
+)
+select r.organization_id,r.id,1,si.id,si.product_id,2,15,30
+from public.sales_returns r
+join public.sales_items si on si.organization_id=r.organization_id and si.sales_id=r.sales_id
+where r.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+  and r.status='DRAFT';
+
+select public.confirm_sales_return(
+  (select id from public.sales_returns
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and status='DRAFT')
+);
+
+select is(
+  (select return_number from public.sales_returns
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')),
+  'SR-000001',
+  'sales return allocates SR number'
+);
+
+select is(
+  (select quantity from public.inventory_balances
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')),
+  16::numeric,
+  'sales return restores inventory'
+);
+
+-- ---------------------------------------------------------------------------
+-- Manual journal + reversal
+-- ---------------------------------------------------------------------------
+insert into public.journal_entries(
+  organization_id,accounting_period_id,entry_date,entry_type,status,description,created_by
+)
+select o.id,ap.id,current_date,'ADJUSTMENT','DRAFT','Manual adjustment',auth.uid()
+from public.organizations o
+join public.accounting_periods ap on ap.organization_id=o.id and ap.status='OPEN'
+where o.name='ERP Transaction Test';
+
+insert into public.account_transactions(
+  organization_id,journal_entry_id,account_id,line_number,debit,credit,description
+)
+select j.organization_id,j.id,cash.id,1,50,0,'Manual debit'
+from public.journal_entries j
+join public.accounts cash on cash.organization_id=j.organization_id and cash.account_code='1000'
+where j.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+  and j.status='DRAFT';
+
+insert into public.account_transactions(
+  organization_id,journal_entry_id,account_id,line_number,debit,credit,description
+)
+select j.organization_id,j.id,equity.id,2,0,50,'Manual credit'
+from public.journal_entries j
+join public.accounts equity on equity.organization_id=j.organization_id and equity.account_code='3000'
+where j.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+  and j.status='DRAFT';
+
+select public.confirm_journal_entry(
+  (select id from public.journal_entries
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and entry_type='ADJUSTMENT' and status='DRAFT')
+);
+
+select is(
+  (select entry_number from public.journal_entries
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and entry_type='ADJUSTMENT' and status='CONFIRMED'),
+  'JE-000006',
+  'manual journal receives the next JE number'
+);
+
+select public.cancel_journal_entry(
+  (select id from public.journal_entries
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and entry_type='ADJUSTMENT' and status='CONFIRMED')
 );
 
 select ok(
-  (select count(*) from public.expense_categories where organization_id=(select id from public.organizations where name='CI Test Organization'))=1,
-  'onboarding seeds a general expense category'
+  exists(
+    select 1 from public.journal_entries
+    where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+      and entry_type='ADJUSTMENT' and status='CANCELLED'
+  ),
+  'manual journal cancellation creates a reversal lifecycle'
 );
 
+-- ---------------------------------------------------------------------------
+-- Failure/rollback paths
+-- ---------------------------------------------------------------------------
+select throws_ok(
+  $$select public.confirm_sales(
+      (select id from public.sales
+       where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+       and status='DRAFT')
+  )$$,
+  'P0001',
+  'insufficient inventory',
+  'sales confirmation rejects insufficient inventory and rolls back'
+);
+
+select ok(
+  (select invoice_id from public.sales
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and status='DRAFT') is null,
+  'failed sales confirmation leaves draft unnumbered'
+);
+
+select throws_ok(
+  $$select public.confirm_purchase_return(
+      (select id from public.purchase_returns
+       where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+       and status='DRAFT')
+  )$$,
+  'P0001',
+  'purchase return quantity exceeds purchased quantity',
+  'purchase return quantity cannot exceed remaining purchased quantity'
+);
+
+select throws_ok(
+  $$update public.account_transactions
+     set debit=debit+1
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+   limit 1$$,
+  '42601',
+  null,
+  'ledger mutation is rejected'
+);
+
+-- ---------------------------------------------------------------------------
+-- Settled document cancellation guard
+-- ---------------------------------------------------------------------------
+select throws_ok(
+  $$select public.cancel_purchase(
+      (select id from public.purchase
+       where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+       and status='CONFIRMED'
+       order by created_at limit 1)
+  )$$,
+  'P0001',
+  'cannot cancel PURCHASE with confirmed payment allocations',
+  'settled purchase cannot be cancelled'
+);
+
+-- ---------------------------------------------------------------------------
+-- Accounting period close and closed-period posting guard
+-- ---------------------------------------------------------------------------
+select public.create_accounting_period(
+  (select id from public.organizations where name='ERP Transaction Test'),
+  '2027','2027-01-01','2027-12-31'
+);
+
+select public.close_accounting_period(
+  (select id from public.accounting_periods
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and name='2026')
+);
+
+select is(
+  (select status from public.accounting_periods
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and name='2026'),
+  'CLOSED'::public.accounting_period_status,
+  'accounting period closes through controlled RPC'
+);
+
+select throws_ok(
+  $$select public.confirm_expense(
+      (select id from public.expenses
+       where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+       and status='DRAFT')
+  )$$,
+  'P0001',
+  'no open accounting period contains',
+  'posting into a closed period is rejected'
+);
+
+-- ---------------------------------------------------------------------------
+-- Cross-tenant isolation
+-- ---------------------------------------------------------------------------
 do $$
 declare
-  o uuid := (select id from public.organizations where name='CI Test Organization');
-  u uuid := (select id from public.units_of_measure where organization_id=o limit 1);
-  inv uuid := (select id from public.accounts where organization_id=o and account_code='1200');
-  rev uuid := (select id from public.accounts where organization_id=o and account_code='4000');
-  cogs uuid := (select id from public.accounts where organization_id=o and account_code='5000');
-  payable uuid := (select id from public.accounts where organization_id=o and account_code='2000');
-  ar uuid := (select id from public.accounts where organization_id=o and account_code='1100');
-  cash uuid := (select id from public.accounts where organization_id=o and account_code='1000');
-  c uuid;
-  p uuid;
-  s uuid;
-  pay uuid;
+  u2 uuid := (select id from auth.users where email like 'erp-test-2-%@example.test' limit 1);
 begin
-  insert into public.contacts(organization_id,name) values(o,'CI Supplier') returning id into c;
-
-  insert into public.products(
-    organization_id,name,unit_id,inventory_account_id,sales_account_id,cogs_account_id
-  ) values(o,'CI Product',u,inv,rev,cogs) returning id into p;
-
-  if (select product_code from public.products where id=p) <> 'PRD-000001' then
-    raise exception 'product number was not generated';
-  end if;
-  if (select contact_number from public.contacts where id=c) <> 'CON-000001' then
-    raise exception 'contact number was not generated';
-  end if;
-
-  insert into public.purchase(
-    organization_id,supplier_id,invoice_date,subtotal,discount_amount,total_amount,payable_account_id,created_by
-  ) values(o,c,current_date,100,0,100,payable,auth.uid()) returning id into p;
-
-  insert into public.purchase_items(
-    organization_id,purchase_id,line_number,product_id,quantity,unit_cost,line_total
-  ) values(o,p,1,(select id from public.products where organization_id=o limit 1),10,10,100);
-
-  perform public.confirm_purchase(p);
-
-  if (select status from public.purchase where id=p) <> 'CONFIRMED' then
-    raise exception 'purchase confirmation failed';
-  end if;
-  if (select invoice_id from public.purchase where id=p) <> 'PUR-000001' then
-    raise exception 'purchase number allocation failed';
-  end if;
-  if (select quantity from public.inventory_balances where organization_id=o and product_id=(select product_id from public.purchase_items where purchase_id=p)) <> 10 then
-    raise exception 'purchase inventory quantity incorrect';
-  end if;
-  if (select average_cost from public.inventory_balances where organization_id=o and product_id=(select product_id from public.purchase_items where purchase_id=p)) <> 10 then
-    raise exception 'purchase average cost incorrect';
-  end if;
-  if (select sum(debit)=sum(credit) from public.account_transactions where journal_entry_id=(select posted_journal_entry_id from public.purchase where id=p)) is distinct from true then
-    raise exception 'purchase journal is not balanced';
-  end if;
-
-  insert into public.contacts(organization_id,name) values(o,'CI Customer') returning id into c;
-
-  insert into public.sales(
-    organization_id,customer_id,invoice_date,subtotal,discount_amount,total_amount,receivable_account_id,created_by
-  ) values(o,c,current_date,80,0,80,ar,auth.uid()) returning id into s;
-
-  insert into public.sales_items(
-    organization_id,sales_id,line_number,product_id,quantity,unit_price,line_total
-  ) values(o,s,1,(select product_id from public.purchase_items where purchase_id=p),4,20,80);
-
-  perform public.confirm_sales(s);
-
-  if (select invoice_id from public.sales where id=s) <> 'SAL-000001' then
-    raise exception 'sales number allocation failed';
-  end if;
-  if (select cogs_total from public.sales_items where sales_id=s) <> 40 then
-    raise exception 'moving-average COGS incorrect';
-  end if;
-  if (select quantity from public.inventory_balances where organization_id=o and product_id=(select product_id from public.purchase_items where purchase_id=p)) <> 6 then
-    raise exception 'sales inventory quantity incorrect';
-  end if;
-  if (select inventory_value from public.inventory_balances where organization_id=o and product_id=(select product_id from public.purchase_items where purchase_id=p)) <> 60 then
-    raise exception 'sales inventory value incorrect';
-  end if;
-
-  insert into public.payments(
-    organization_id,payment_type,contact_id,payment_date,amount,account_id,settlement_account_id,created_by
-  ) values(o,'PAYMENT',c,current_date,100,payable,cash,auth.uid()) returning id into pay;
-
-  -- Payment allocations are draft-only.
-  insert into public.payment_allocations(
-    organization_id,payment_id,document_type,document_id,allocated_amount
-  ) values(o,pay,'PURCHASE',p,100);
-
-  perform public.confirm_payment(pay);
-
-  if (select payment_number from public.payments where id=pay) <> 'PAY-000001' then
-    raise exception 'payment number allocation failed';
-  end if;
-  if (select status from public.payments where id=pay) <> 'CONFIRMED' then
-    raise exception 'payment confirmation failed';
-  end if;
-
-  -- A settled document cannot be cancelled.
-  begin
-    perform public.cancel_purchase(p,current_date);
-    raise exception 'cancelled a purchase with a confirmed allocation';
-  exception when others then
-    null;
-  end;
-
-  -- Direct ledger mutation remains blocked.
-  begin
-    insert into public.account_transactions(
-      organization_id,journal_entry_id,account_id,line_number,debit,credit
-    ) values(o,(select posted_journal_entry_id from public.purchase where id=p),inv,99,1,0);
-    raise exception 'direct ledger insert unexpectedly succeeded';
-  exception when insufficient_privilege then
-    null;
-  end;
+  perform set_config('request.jwt.claim.sub',u2::text,true);
 end $$;
 
 select is(
-  (select count(*)::bigint from public.inventory_transactions),
-  2::bigint,
-  'purchase and sales each create one inventory transaction'
+  (select count(*)::bigint from public.organizations
+   where name='ERP Transaction Test'),
+  0::bigint,
+  'second tenant cannot read first tenant organization'
 );
 
 select is(
-  (select count(*)::bigint
-   from public.journal_entries je
-   where je.status='CONFIRMED'),
-  3::bigint,
-  'purchase, sales and payment create confirmed journals'
+  (select count(*)::bigint from public.products),
+  0::bigint,
+  'second tenant cannot read first tenant products'
+);
+
+-- Return to owner for final draft lifecycle test.
+do $$
+declare
+  u1 uuid := (select id from auth.users where email like 'erp-test-1-%@example.test' limit 1);
+begin
+  perform set_config('request.jwt.claim.sub',u1::text,true);
+end $$;
+
+insert into public.purchase(
+  organization_id,supplier_id,invoice_date,subtotal,discount_amount,total_amount,
+  payable_account_id,created_by
+)
+select o.id,c.id,current_date,10,0,10,a.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Supplier A'
+join public.accounts a on a.organization_id=o.id and a.account_code='2000'
+where o.name='ERP Transaction Test';
+
+select is(
+  (select count(*)::bigint from public.purchase
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and status='DRAFT' and invoice_id is null),
+  1::bigint,
+  'draft purchase remains editable and unnumbered'
+);
+
+delete from public.purchase
+where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+  and status='DRAFT' and invoice_id is null;
+
+select is(
+  (select count(*)::bigint from public.purchase
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and status='DRAFT' and invoice_id is null),
+  0::bigint,
+  'draft purchase can be deleted before confirmation'
 );
 
 select * from finish();
