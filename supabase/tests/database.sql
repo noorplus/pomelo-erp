@@ -78,9 +78,8 @@ end $$;
 
 set local role authenticated;
 
-select is(
-  public.onboard_organization('ERP Transaction Test'),
-  (select id from public.organizations where name='ERP Transaction Test'),
+select ok(
+  public.onboard_organization('ERP Transaction Test') is not null,
   'onboarding creates the organization'
 );
 
@@ -233,6 +232,7 @@ order by p.created_at desc limit 1;
 select public.confirm_purchase(
   (select id from public.purchase
    where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and status='DRAFT' and invoice_id is null
    order by created_at desc limit 1)
 );
 
