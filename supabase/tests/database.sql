@@ -3,7 +3,7 @@
 
 begin;
 
-select plan(38);
+select plan(45);
 
 -- ---------------------------------------------------------------------------
 -- Schema/security baseline
@@ -539,7 +539,7 @@ select is(
   (select entry_number from public.journal_entries
    where organization_id=(select id from public.organizations where name='ERP Transaction Test')
      and entry_type='ADJUSTMENT' and status='CONFIRMED'),
-  'JE-000006',
+  'JE-000009',
   'manual journal receives the next JE number'
 );
 
@@ -561,6 +561,26 @@ select ok(
 -- ---------------------------------------------------------------------------
 -- Failure/rollback paths
 -- ---------------------------------------------------------------------------
+insert into public.sales(
+  organization_id,customer_id,invoice_date,subtotal,discount_amount,total_amount,
+  receivable_account_id,created_by
+)
+select o.id,c.id,current_date,9990,0,9990,a.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Customer A'
+join public.accounts a on a.organization_id=o.id and a.account_code='1100'
+where o.name='ERP Transaction Test';
+
+insert into public.sales_items(
+  organization_id,sales_id,line_number,product_id,quantity,unit_price,line_total
+)
+select s.organization_id,s.id,1,pr.id,999,10,9990
+from public.sales s
+join public.products pr on pr.organization_id=s.organization_id
+where s.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+  and s.status='DRAFT'
+order by s.created_at desc limit 1;
+
 select throws_ok(
   $$select public.confirm_sales(
       (select id from public.sales
@@ -579,25 +599,87 @@ select ok(
   'failed sales confirmation leaves draft unnumbered'
 );
 
+insert into public.purchase_returns(
+  organization_id,purchase_id,supplier_id,return_date,subtotal,discount_amount,total_amount,
+  payable_account_id,created_by
+)
+select o.id,p.id,c.id,current_date,90,0,90,a.id,auth.uid()
+from public.organizations o
+join public.purchase p on p.organization_id=o.id and p.status='CONFIRMED'
+join public.contacts c on c.organization_id=o.id and c.name='Supplier A'
+join public.accounts a on a.organization_id=o.id and a.account_code='2000'
+where o.name='ERP Transaction Test'
+order by p.created_at limit 1;
+
+insert into public.purchase_return_items(
+  organization_id,purchase_return_id,line_number,purchase_item_id,product_id,quantity,unit_cost,line_total
+)
+select r.organization_id,r.id,1,pi.id,pi.product_id,9,10,90
+from public.purchase_returns r
+join public.purchase_items pi on pi.organization_id=r.organization_id and pi.purchase_id=r.purchase_id
+where r.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+  and r.status='DRAFT'
+order by r.created_at desc limit 1;
+
 select throws_ok(
-  $$select public.confirm_purchase_return(
+  $select public.confirm_purchase_return(
       (select id from public.purchase_returns
        where organization_id=(select id from public.organizations where name='ERP Transaction Test')
        and status='DRAFT')
-  )$$,
+  )$,
   'P0001',
   'purchase return quantity exceeds purchased quantity',
   'purchase return quantity cannot exceed remaining purchased quantity'
 );
 
 select throws_ok(
-  $$update public.account_transactions
+  $update public.account_transactions
      set debit=debit+1
-   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
-   limit 1$$,
+   where id=(select id from public.account_transactions
+             where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+             limit 1)$,
   '42601',
   null,
   'ledger mutation is rejected'
+);
+
+-- ---------------------------------------------------------------------------
+-- Purchase payment allocation + settled cancellation guard
+-- ---------------------------------------------------------------------------
+insert into public.payments(
+  organization_id,payment_type,contact_id,payment_date,amount,
+  account_id,settlement_account_id,created_by
+)
+select o.id,'PAYMENT',c.id,current_date,90,ap.id,cash.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Supplier A'
+join public.accounts ap on ap.organization_id=o.id and ap.account_code='2000'
+join public.accounts cash on cash.organization_id=o.id and cash.account_code='1000'
+where o.name='ERP Transaction Test';
+
+insert into public.payment_allocations(
+  organization_id,payment_id,document_type,document_id,allocated_amount
+)
+select p.organization_id,p.id,'PURCHASE',pu.id,90
+from public.payments p
+join public.purchase pu on pu.organization_id=p.organization_id and pu.status='CONFIRMED'
+where p.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+  and p.status='DRAFT' and p.payment_type='PAYMENT'
+order by pu.created_at limit 1;
+
+select public.confirm_payment(
+  (select id from public.payments
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and status='DRAFT' and amount=90)
+);
+
+select ok(
+  exists(
+    select 1 from public.payments
+    where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+      and payment_number='PAY-003' and status='CONFIRMED'
+  ),
+  'purchase payment allocation confirms'
 );
 
 -- ---------------------------------------------------------------------------
@@ -618,6 +700,17 @@ select throws_ok(
 -- ---------------------------------------------------------------------------
 -- Accounting period close and closed-period posting guard
 -- ---------------------------------------------------------------------------
+insert into public.expenses(
+  organization_id,expense_category_id,contact_id,payable_account_id,
+  expense_date,amount,description,created_by
+)
+select o.id,ec.id,c.id,a.id,current_date,12,'Closed period test expense',auth.uid()
+from public.organizations o
+join public.expense_categories ec on ec.organization_id=o.id
+join public.contacts c on c.organization_id=o.id and c.name='Supplier A'
+join public.accounts a on a.organization_id=o.id and a.account_code='2000'
+where o.name='ERP Transaction Test';
+
 select public.create_accounting_period(
   (select id from public.organizations where name='ERP Transaction Test'),
   '2027','2027-01-01','2027-12-31'
