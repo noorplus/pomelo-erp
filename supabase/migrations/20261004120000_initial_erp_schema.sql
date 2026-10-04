@@ -2501,7 +2501,7 @@ returns uuid
 language plpgsql
 security definer
 set search_path=''
-as $$
+as $function$
 declare
   j public.journal_entries%rowtype;
   v_period uuid;
@@ -2554,8 +2554,7 @@ begin
 
   return v_reversal;
 end;
-$;
-
+$function$;
 revoke all on function private.cancel_journal_entry(uuid,date) from public,anon,authenticated;
 
 create or replace function public.cancel_journal_entry(p_journal_entry_id uuid,p_cancel_date date default current_date)
