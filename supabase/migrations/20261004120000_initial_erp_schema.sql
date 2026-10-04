@@ -2662,6 +2662,40 @@ create policy account_transactions_insert_draft on public.account_transactions
         and je.entry_type in ('OPENING','ADJUSTMENT','OTHER')
     )
   );
+create policy account_transactions_update_draft on public.account_transactions
+  for update to authenticated
+  using (
+    public.is_org_member(organization_id)
+    and exists (
+      select 1 from public.journal_entries je
+      where je.organization_id=account_transactions.organization_id
+        and je.id=journal_entry_id
+        and je.status='DRAFT'
+        and je.entry_type in ('OPENING','ADJUSTMENT','OTHER')
+    )
+  )
+  with check (
+    public.is_org_member(organization_id)
+    and exists (
+      select 1 from public.journal_entries je
+      where je.organization_id=account_transactions.organization_id
+        and je.id=journal_entry_id
+        and je.status='DRAFT'
+        and je.entry_type in ('OPENING','ADJUSTMENT','OTHER')
+    )
+  );
+create policy account_transactions_delete_draft on public.account_transactions
+  for delete to authenticated
+  using (
+    public.is_org_member(organization_id)
+    and exists (
+      select 1 from public.journal_entries je
+      where je.organization_id=account_transactions.organization_id
+        and je.id=journal_entry_id
+        and je.status='DRAFT'
+        and je.entry_type in ('OPENING','ADJUSTMENT','OTHER')
+    )
+  );
 
 -- Ledger rows are immutable and cannot be directly inserted/updated/deleted by the app.
 
