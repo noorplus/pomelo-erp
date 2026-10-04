@@ -3,7 +3,7 @@
 
 begin;
 
-select plan(22);
+select plan(17);
 
 select is(
   (select count(*)::bigint from pg_tables where schemaname='public'),
