@@ -253,7 +253,7 @@ insert into public.sales(
 )
 select o.id,c.id,current_date,60,0,60,a.id,auth.uid()
 from public.organizations o
-join public.contacts c on c.organization_id=o.id and c.name='Customer A'
+join public.contacts c on c.organization_id=o.id and c.name='Cancellation Customer'
 join public.accounts a on a.organization_id=o.id and a.account_code='1100'
 where o.name='ERP Transaction Test';
 
@@ -609,13 +609,23 @@ select is(
 );
 
 select public.cancel_purchase(
-  (select id from public.purchase where organization_id=(select id from public.organizations where name='ERP Transaction Test')
-   and status='CONFIRMED' order by created_at desc limit 1)
+  (select p.id
+   from public.purchase p
+   join public.purchase_items pi on pi.organization_id=p.organization_id and pi.purchase_id=p.id
+   join public.products pr on pr.organization_id=pi.organization_id and pr.id=pi.product_id
+   where p.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and p.status='CONFIRMED' and pr.name='Cancellation Product A'
+   limit 1)
 );
 
 select is(
-  (select status from public.purchase where organization_id=(select id from public.organizations where name='ERP Transaction Test')
-   order by created_at desc limit 1),
+  (select p.status
+   from public.purchase p
+   join public.purchase_items pi on pi.organization_id=p.organization_id and pi.purchase_id=p.id
+   join public.products pr on pr.organization_id=pi.organization_id and pr.id=pi.product_id
+   where p.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and pr.name='Cancellation Product A'
+   limit 1),
   'CANCELLED'::public.document_status,
   'purchase cancellation changes status to CANCELLED'
 );
@@ -630,6 +640,20 @@ select is(
 );
 
 -- Sales cancellation
+insert into public.contacts(organization_id,name)
+select id,'Cancellation Customer' from public.organizations where name='ERP Transaction Test';
+
+insert into public.products(
+  organization_id,name,unit_id,inventory_account_id,sales_account_id,cogs_account_id
+)
+select o.id,'Cancellation Product D',u.id,inv.id,rev.id,cogs.id
+from public.organizations o
+join public.units_of_measure u on u.organization_id=o.id and u.name='pcs'
+join public.accounts inv on inv.organization_id=o.id and inv.account_code='1200'
+join public.accounts rev on rev.organization_id=o.id and rev.account_code='4000'
+join public.accounts cogs on cogs.organization_id=o.id and cogs.account_code='5000'
+where o.name='ERP Transaction Test';
+
 insert into public.sales(
   organization_id,customer_id,invoice_date,subtotal,discount_amount,total_amount,
   receivable_account_id,created_by
@@ -645,7 +669,7 @@ insert into public.sales_items(
 )
 select s.organization_id,s.id,1,pr.id,1,15,15
 from public.sales s
-join public.products pr on pr.organization_id=s.organization_id
+join public.products pr on pr.organization_id=s.organization_id and pr.name='Cancellation Product D'
 where s.organization_id=(select id from public.organizations where name='ERP Transaction Test')
   and s.status='DRAFT'
 order by s.created_at desc limit 1;
@@ -657,7 +681,9 @@ select public.confirm_sales(
 
 select public.cancel_sales(
   (select id from public.sales where organization_id=(select id from public.organizations where name='ERP Transaction Test')
-   and status='CONFIRMED' order by created_at desc limit 1)
+   and status='CONFIRMED'
+   and customer_id=(select id from public.contacts where organization_id=(select id from public.organizations where name='ERP Transaction Test') and name='Cancellation Customer')
+   limit 1)
 );
 
 select ok(
