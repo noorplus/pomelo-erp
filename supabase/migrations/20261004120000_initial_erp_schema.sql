@@ -2323,7 +2323,7 @@ returns uuid
 language plpgsql
 security definer
 set search_path=''
-as $
+as $$
 declare
   v_id uuid;
 begin
@@ -2345,7 +2345,7 @@ returns uuid
 language sql
 security definer
 set search_path=''
-as $
+as $$
   select private.create_accounting_period(
     (select ou.organization_id from public.organization_users ou
      where ou.user_id=auth.uid() and ou.is_active
@@ -2492,7 +2492,7 @@ returns uuid
 language plpgsql
 security definer
 set search_path=''
-as $
+as $$
 declare
   j public.journal_entries%rowtype;
   v_period uuid;
