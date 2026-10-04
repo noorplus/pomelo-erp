@@ -2179,7 +2179,7 @@ begin
       from public.inventory_transactions later
       where later.organization_id=v_org
         and later.product_id=v_tx.product_id
-        and (later.created_at > v_tx.created_at or (later.created_at=v_tx.created_at and later.id<>v_tx.id))
+        and later.created_at > v_tx.created_at
     ) then
       raise exception 'cannot cancel % because later inventory movement exists for product %',p_kind,v_tx.product_id;
     end if;
