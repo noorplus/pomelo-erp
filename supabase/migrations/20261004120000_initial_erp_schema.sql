@@ -2979,7 +2979,7 @@ grant usage on schema public to authenticated;
 grant select, insert, update, delete on all tables in schema public to authenticated;
 
 -- Ledgers/derived state are readable but not directly writable by the app.
-revoke insert, update, delete on public.account_transactions from authenticated;
+
 revoke insert, update, delete on public.inventory_balances from authenticated;
 revoke insert, update, delete on public.inventory_transactions from authenticated;
 revoke insert, update, delete on public.number_sequences from authenticated;
