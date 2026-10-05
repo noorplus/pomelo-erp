@@ -654,6 +654,33 @@ join public.accounts rev on rev.organization_id=o.id and rev.account_code='4000'
 join public.accounts cogs on cogs.organization_id=o.id and cogs.account_code='5000'
 where o.name='ERP Transaction Test';
 
+insert into public.purchase(
+  organization_id,supplier_id,invoice_date,subtotal,discount_amount,total_amount,
+  payable_account_id,created_by
+)
+select o.id,c.id,current_date,10,0,10,a.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Supplier A'
+join public.accounts a on a.organization_id=o.id and a.account_code='2000'
+where o.name='ERP Transaction Test';
+
+insert into public.purchase_items(
+  organization_id,purchase_id,line_number,product_id,quantity,unit_cost,line_total
+)
+select p.organization_id,p.id,1,pr.id,1,10,10
+from public.purchase p
+join public.products pr on pr.organization_id=p.organization_id and pr.name='Cancellation Product D'
+where p.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+  and p.status='DRAFT'
+order by p.created_at desc limit 1;
+
+select public.confirm_purchase(
+  (select id from public.purchase
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and status='DRAFT' and invoice_id is null
+   order by created_at desc limit 1)
+);
+
 insert into public.sales(
   organization_id,customer_id,invoice_date,subtotal,discount_amount,total_amount,
   receivable_account_id,created_by
