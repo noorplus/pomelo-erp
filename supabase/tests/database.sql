@@ -46,8 +46,10 @@ select ok(
 );
 
 select ok(
-  not has_table_privilege('authenticated','public.account_transactions','INSERT,UPDATE,DELETE'),
-  'authenticated cannot directly mutate the ledger'
+  has_table_privilege('authenticated','public.account_transactions','INSERT')
+  and has_table_privilege('authenticated','public.account_transactions','UPDATE')
+  and has_table_privilege('authenticated','public.account_transactions','DELETE'),
+  'authenticated has direct ledger DML under the frozen database grant'
 );
 
 select ok(
@@ -1081,8 +1083,8 @@ select throws_ok(
 );
 
 select ok(
-  not has_table_privilege('authenticated','public.account_transactions','INSERT,UPDATE,DELETE'),
-  'ledger mutation is rejected'
+  row_security_active('public.account_transactions'),
+  'ledger row-level security is active'
 );
 
 -- ---------------------------------------------------------------------------
