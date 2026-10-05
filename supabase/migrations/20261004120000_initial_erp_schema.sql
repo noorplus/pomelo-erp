@@ -1750,11 +1750,11 @@ begin
 
   select
     count(distinct pr.sales_account_id),
-    max(pr.sales_account_id),
+    (array_agg(distinct pr.sales_account_id))[1],
     count(distinct pr.cogs_account_id),
-    max(pr.cogs_account_id),
+    (array_agg(distinct pr.cogs_account_id))[1],
     count(distinct pr.inventory_account_id),
-    max(pr.inventory_account_id)
+    (array_agg(distinct pr.inventory_account_id))[1]
     into
       v_sales_account_count,
       v_revenue_account,
