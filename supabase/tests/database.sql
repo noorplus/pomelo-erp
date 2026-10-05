@@ -788,7 +788,7 @@ select throws_ok(
       (select id from public.payments
        where organization_id=(select id from public.organizations where name='ERP Transaction Test')
        and status='CONFIRMED' and amount=90)
-  )$,
+  )$,,
   'P0001',
   'cannot cancel PAYMENT with payment allocations',
   'allocated payment cannot be cancelled'
@@ -1036,7 +1036,7 @@ select throws_ok(
       (select id from public.purchase_returns
        where organization_id=(select id from public.organizations where name='ERP Transaction Test')
        and status='DRAFT')
-  )$,
+  )$,,
   'P0001',
   'purchase return quantity exceeds purchased quantity',
   'purchase return quantity cannot exceed remaining purchased quantity'
@@ -1047,7 +1047,7 @@ select throws_ok(
      set debit=debit+1
    where id=(select id from public.account_transactions
              where organization_id=(select id from public.organizations where name='ERP Transaction Test')
-             limit 1)$,
+             limit 1)$,,
   '42601',
   null,
   'ledger mutation is rejected'
