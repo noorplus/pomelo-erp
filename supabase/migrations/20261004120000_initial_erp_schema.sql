@@ -1741,131 +1741,143 @@ revoke execute on function public.confirm_expense(uuid) from public, anon;
 grant execute on function public.confirm_expense(uuid) to authenticated;
 
 create or replace function private.confirm_payment(p_id uuid)
-returns uuid
-language plpgsql security definer set search_path=''
+returns uuid language plpgsql security definer set search_path=''
 as $$
 declare
   p public.payments%rowtype;
-  v_num text;
-  v_journal uuid;
-  v_alloc numeric(20,4);
-  v_expected text;
-  v_account_type text;
+  v_num text; v_journal uuid; v_alloc numeric(20,4); v_account_type text;
+  a record; v_total numeric(20,4); v_returns numeric(20,4); v_base numeric(20,4);
+  v_incoming numeric(20,4); v_refunded numeric(20,4); v_capacity numeric(20,4);
+  v_expected text; v_doc_status public.document_status; v_doc_contact uuid;
 begin
   select * into p from public.payments where id=p_id for update;
   if not found then raise exception 'payment not found'; end if;
   perform private.assert_member(p.organization_id);
   if p.status <> 'DRAFT' then raise exception 'only draft payments can be confirmed'; end if;
 
-  perform private.assert_account_type(p.organization_id,p.settlement_account_id,'ASSET',true);
-  select a.account_type into v_account_type from public.accounts a
-  where a.organization_id=p.organization_id and a.id=p.account_id and a.is_active;
-  if v_account_type is null then raise exception 'payment account is missing or inactive'; end if;
-
-  v_expected := case when p.payment_type='PAYMENT' then 'LIABILITY' else 'ASSET' end;
-  if v_account_type <> v_expected then
-    raise exception 'payment counterparty account must be %',v_expected;
-  end if;
-
   select coalesce(sum(pa.allocated_amount),0) into v_alloc
-  from public.payment_allocations pa
-  where pa.organization_id=p.organization_id and pa.payment_id=p.id;
+  from public.payment_allocations pa where pa.organization_id=p.organization_id and pa.payment_id=p.id;
+  if v_alloc > p.amount then raise exception 'allocated amount exceeds payment amount'; end if;
 
-  if v_alloc > p.amount then
-    raise exception 'allocated amount exceeds payment amount';
-  end if;
-
-  if p.payment_type='PAYMENT' and exists (
-    select 1 from public.payment_allocations pa
-    where pa.payment_id=p.id and pa.document_type not in ('PURCHASE','EXPENSE')
-  ) then raise exception 'PAYMENT can only allocate to PURCHASE or EXPENSE'; end if;
-
-  if p.payment_type='RECEIPT' and exists (
-    select 1 from public.payment_allocations pa
-    where pa.payment_id=p.id and pa.document_type <> 'SALES'
-  ) then raise exception 'RECEIPT can only allocate to SALES'; end if;
-
-  for v_alloc in
-    select pa.allocated_amount
+  for a in
+    select pa.document_type, pa.document_id, sum(pa.allocated_amount)::numeric(20,4) allocated_amount
     from public.payment_allocations pa
     where pa.organization_id=p.organization_id and pa.payment_id=p.id
+    group by pa.document_type, pa.document_id
   loop
-    if v_alloc <= 0 then raise exception 'payment allocation must be positive'; end if;
+    v_doc_status := null; v_doc_contact := null; v_total := null; v_returns := 0; v_incoming := 0; v_refunded := 0;
+
+    if a.document_type='PURCHASE' then
+      select d.total_amount,d.status,d.supplier_id into v_total,v_doc_status,v_doc_contact
+      from public.purchase d where d.organization_id=p.organization_id and d.id=a.document_id;
+      if v_total is null then raise exception 'purchase document not found'; end if;
+      if v_doc_contact <> p.contact_id then raise exception 'payment contact does not match purchase supplier'; end if;
+
+      select coalesce(sum(r.total_amount),0) into v_returns
+      from public.purchase_returns r
+      where r.organization_id=p.organization_id and r.purchase_id=a.document_id and r.status='CONFIRMED';
+      v_base := case when v_doc_status='CANCELLED' then 0 else v_total-v_returns end;
+
+      select coalesce(sum(pa.allocated_amount),0) into v_incoming
+      from public.payment_allocations pa join public.payments py on py.organization_id=pa.organization_id and py.id=pa.payment_id
+      where pa.organization_id=p.organization_id and pa.document_type='PURCHASE' and pa.document_id=a.document_id
+        and py.status='CONFIRMED' and py.payment_type='PAYMENT' and py.id<>p.id;
+      select coalesce(sum(pa.allocated_amount),0) into v_refunded
+      from public.payment_allocations pa join public.payments py on py.organization_id=pa.organization_id and py.id=pa.payment_id
+      where pa.organization_id=p.organization_id and pa.document_type='PURCHASE' and pa.document_id=a.document_id
+        and py.status='CONFIRMED' and py.payment_type='RECEIPT' and py.id<>p.id;
+
+      if p.payment_type='PAYMENT' then
+        if v_doc_status <> 'CONFIRMED' then raise exception 'PAYMENT can only allocate to confirmed PURCHASE'; end if;
+        v_capacity := greatest(0,v_base-v_incoming+v_refunded); v_expected := 'LIABILITY';
+        if a.allocated_amount > v_capacity then raise exception 'purchase payment allocation exceeds outstanding payable'; end if;
+      elsif p.payment_type='RECEIPT' then
+        if v_doc_status not in ('CONFIRMED','CANCELLED') then raise exception 'supplier refund can only allocate to confirmed or cancelled PURCHASE'; end if;
+        v_capacity := greatest(0,v_incoming-v_refunded-v_base); v_expected := 'LIABILITY';
+        if a.allocated_amount > v_capacity then raise exception 'supplier refund exceeds refundable amount'; end if;
+      else raise exception 'unsupported payment type'; end if;
+
+    elsif a.document_type='SALES' then
+      select d.total_amount,d.status,d.customer_id into v_total,v_doc_status,v_doc_contact
+      from public.sales d where d.organization_id=p.organization_id and d.id=a.document_id;
+      if v_total is null then raise exception 'sales document not found'; end if;
+      if v_doc_contact <> p.contact_id then raise exception 'payment contact does not match sales customer'; end if;
+
+      select coalesce(sum(r.total_amount),0) into v_returns
+      from public.sales_returns r where r.organization_id=p.organization_id and r.sales_id=a.document_id and r.status='CONFIRMED';
+      v_base := case when v_doc_status='CANCELLED' then 0 else v_total-v_returns end;
+
+      select coalesce(sum(pa.allocated_amount),0) into v_incoming
+      from public.payment_allocations pa join public.payments py on py.organization_id=pa.organization_id and py.id=pa.payment_id
+      where pa.organization_id=p.organization_id and pa.document_type='SALES' and pa.document_id=a.document_id
+        and py.status='CONFIRMED' and py.payment_type='RECEIPT' and py.id<>p.id;
+      select coalesce(sum(pa.allocated_amount),0) into v_refunded
+      from public.payment_allocations pa join public.payments py on py.organization_id=pa.organization_id and py.id=pa.payment_id
+      where pa.organization_id=p.organization_id and pa.document_type='SALES' and pa.document_id=a.document_id
+        and py.status='CONFIRMED' and py.payment_type='PAYMENT' and py.id<>p.id;
+
+      if p.payment_type='RECEIPT' then
+        if v_doc_status <> 'CONFIRMED' then raise exception 'RECEIPT can only allocate to confirmed SALES'; end if;
+        v_capacity := greatest(0,v_base-v_incoming+v_refunded); v_expected := 'ASSET';
+        if a.allocated_amount > v_capacity then raise exception 'sales receipt allocation exceeds outstanding receivable'; end if;
+      elsif p.payment_type='PAYMENT' then
+        if v_doc_status not in ('CONFIRMED','CANCELLED') then raise exception 'customer refund can only allocate to confirmed or cancelled SALES'; end if;
+        v_capacity := greatest(0,v_incoming-v_refunded-v_base); v_expected := 'ASSET';
+        if a.allocated_amount > v_capacity then raise exception 'customer refund exceeds refundable amount'; end if;
+      else raise exception 'unsupported payment type'; end if;
+
+    elsif a.document_type='EXPENSE' then
+      if p.payment_type <> 'PAYMENT' then raise exception 'RECEIPT can only allocate to SALES or PURCHASE'; end if;
+      select d.amount,d.status,d.contact_id into v_total,v_doc_status,v_doc_contact
+      from public.expenses d where d.organization_id=p.organization_id and d.id=a.document_id;
+      if v_total is null then raise exception 'expense document not found'; end if;
+      if v_doc_contact is not null and v_doc_contact <> p.contact_id then raise exception 'payment contact does not match expense contact'; end if;
+      if v_doc_status <> 'CONFIRMED' then raise exception 'PAYMENT can only allocate to confirmed EXPENSE'; end if;
+      select coalesce(sum(pa.allocated_amount),0) into v_incoming
+      from public.payment_allocations pa join public.payments py on py.organization_id=pa.organization_id and py.id=pa.payment_id
+      where pa.organization_id=p.organization_id and pa.document_type='EXPENSE' and pa.document_id=a.document_id
+        and py.status='CONFIRMED' and py.payment_type='PAYMENT' and py.id<>p.id;
+      v_capacity := greatest(0,v_total-v_incoming); v_expected := 'LIABILITY';
+      if a.allocated_amount > v_capacity then raise exception 'expense payment allocation exceeds outstanding payable'; end if;
+    else
+      raise exception 'unsupported payment allocation document type';
+    end if;
+
+    select a2.account_type into v_account_type
+    from public.accounts a2 where a2.organization_id=p.organization_id and a2.id=p.account_id and a2.is_active;
+    if v_account_type is null then raise exception 'payment account is missing or inactive'; end if;
+    if v_account_type <> v_expected then raise exception 'payment counterparty account must be %',v_expected; end if;
   end loop;
 
-  if exists (
-    select 1
-    from public.payment_allocations pa
-    where pa.organization_id=p.organization_id and pa.payment_id=p.id
-      and (
-        (pa.document_type='PURCHASE' and not exists (
-          select 1 from public.purchase d
-          where d.organization_id=p.organization_id and d.id=pa.document_id and d.status='CONFIRMED'
-            and d.supplier_id=p.contact_id
-            and pa.allocated_amount <= d.total_amount - coalesce((
-              select sum(pa2.allocated_amount) from public.payment_allocations pa2
-              join public.payments p2 on p2.organization_id=pa2.organization_id and p2.id=pa2.payment_id
-              where pa2.organization_id=p.organization_id and pa2.document_type='PURCHASE'
-                and pa2.document_id=d.id and p2.status='CONFIRMED' and p2.id<>p.id
-            ),0)
-        ))
-        or
-        (pa.document_type='EXPENSE' and not exists (
-          select 1 from public.expenses d
-          where d.organization_id=p.organization_id and d.id=pa.document_id and d.status='CONFIRMED'
-            and (d.contact_id is null or d.contact_id=p.contact_id)
-            and pa.allocated_amount <= d.amount - coalesce((
-              select sum(pa2.allocated_amount) from public.payment_allocations pa2
-              join public.payments p2 on p2.organization_id=pa2.organization_id and p2.id=pa2.payment_id
-              where pa2.organization_id=p.organization_id and pa2.document_type='EXPENSE'
-                and pa2.document_id=d.id and p2.status='CONFIRMED' and p2.id<>p.id
-            ),0)
-        ))
-        or
-        (pa.document_type='SALES' and not exists (
-          select 1 from public.sales d
-          where d.organization_id=p.organization_id and d.id=pa.document_id and d.status='CONFIRMED'
-            and d.customer_id=p.contact_id
-            and pa.allocated_amount <= d.total_amount - coalesce((
-              select sum(pa2.allocated_amount) from public.payment_allocations pa2
-              join public.payments p2 on p2.organization_id=pa2.organization_id and p2.id=pa2.payment_id
-              where pa2.organization_id=p.organization_id and pa2.document_type='SALES'
-                and pa2.document_id=d.id and p2.status='CONFIRMED' and p2.id<>p.id
-            ),0)
-        ))
-      )
-  ) then
-    raise exception 'payment allocation is invalid, over-allocated, or document/contact does not match';
+  if not exists (select 1 from public.payment_allocations where organization_id=p.organization_id and payment_id=p.id) then
+    v_expected := case when p.payment_type='PAYMENT' then 'LIABILITY' else 'ASSET' end;
+    select a2.account_type into v_account_type from public.accounts a2
+    where a2.organization_id=p.organization_id and a2.id=p.account_id and a2.is_active;
+    if v_account_type is null then raise exception 'payment account is missing or inactive'; end if;
+    if v_account_type <> v_expected then raise exception 'payment counterparty account must be %',v_expected; end if;
   end if;
 
+  perform private.assert_account_type(p.organization_id,p.settlement_account_id,'ASSET',true);
   v_num:=private.allocate_number(p.organization_id,'PAYMENT');
 
   if p.payment_type='PAYMENT' then
-    v_journal:=private.post_journal(
-      p.organization_id,p.payment_date,'PAYMENT','PAYMENT',p.id,'Payment '||v_num,
+    v_journal:=private.post_journal(p.organization_id,p.payment_date,'PAYMENT','PAYMENT',p.id,'Payment '||v_num,
       jsonb_build_array(
-        jsonb_build_object('account_id',p.account_id,'debit',p.amount,'credit',0,'contact_id',p.contact_id,'description','Payable settlement'),
-        jsonb_build_object('account_id',p.settlement_account_id,'debit',0,'credit',p.amount,'contact_id',p.contact_id,'description','Cash/bank payment')
-      )
-    );
+        jsonb_build_object('account_id',p.account_id,'debit',p.amount,'credit',0,'contact_id',p.contact_id,'description','Payable/receivable settlement'),
+        jsonb_build_object('account_id',p.settlement_account_id,'debit',0,'credit',p.amount,'contact_id',p.contact_id,'description','Cash/bank payment')));
   else
-    v_journal:=private.post_journal(
-      p.organization_id,p.payment_date,'PAYMENT','PAYMENT',p.id,'Receipt '||v_num,
+    v_journal:=private.post_journal(p.organization_id,p.payment_date,'PAYMENT','PAYMENT',p.id,'Receipt '||v_num,
       jsonb_build_array(
         jsonb_build_object('account_id',p.settlement_account_id,'debit',p.amount,'credit',0,'contact_id',p.contact_id,'description','Cash/bank receipt'),
-        jsonb_build_object('account_id',p.account_id,'debit',0,'credit',p.amount,'contact_id',p.contact_id,'description','Receivable settlement')
-      )
-    );
+        jsonb_build_object('account_id',p.account_id,'debit',0,'credit',p.amount,'contact_id',p.contact_id,'description','Receivable/payable settlement')));
   end if;
 
-  update public.payments
-     set payment_number=v_num,status='CONFIRMED',posted_journal_entry_id=v_journal,updated_at=now()
-   where id=p.id;
+  update public.payments set payment_number=v_num,status='CONFIRMED',posted_journal_entry_id=v_journal,updated_at=now() where id=p.id;
   return v_journal;
 end;
 $$;
 
-revoke all on function private.confirm_payment(uuid) from public, anon, authenticated;
+revoke all on function private.confirm_payment(uuid) from public,anon,authenticated;
 
 create or replace function public.confirm_payment(p_id uuid)
 returns uuid language sql security definer set search_path=''
@@ -2093,8 +2105,6 @@ declare
   v_avg numeric;
   v_new_qty numeric;
   v_new_value numeric;
-  v_inventory_account uuid;
-  v_adjustment_account uuid;
 begin
   if p_kind not in ('PURCHASE','SALES','EXPENSE','PAYMENT','PURCHASE_RETURN','SALES_RETURN') then
     raise exception 'unsupported document type';
@@ -2121,35 +2131,22 @@ begin
   v_period := private.require_open_period(v_org,p_cancel_date);
 
   if p_kind='PAYMENT' and exists (
-    select 1
-    from public.payment_allocations pa
-    where pa.organization_id=v_org
-      and pa.payment_id=p_id
+    select 1 from public.payment_allocations pa
+    where pa.organization_id=v_org and pa.payment_id=p_id
   ) then
     raise exception 'cannot cancel PAYMENT with payment allocations';
   end if;
 
-  if p_kind in ('PURCHASE','SALES','EXPENSE') and exists (
-    select 1
-    from public.payment_allocations pa
-    join public.payments py
-      on py.organization_id=pa.organization_id and py.id=pa.payment_id
-    where pa.organization_id=v_org
-      and pa.document_type=p_kind
-      and pa.document_id=p_id
-      and py.status='CONFIRMED'
-  ) then
-    raise exception 'cannot cancel % with confirmed payment allocations',p_kind;
-  end if;
-
-  select je.entry_type into v_type from public.journal_entries je where je.organization_id=v_org and je.id=v_original_journal;
+  select je.entry_type into v_type
+  from public.journal_entries je
+  where je.organization_id=v_org and je.id=v_original_journal;
   v_number := private.allocate_number(v_org,'JOURNAL_ENTRY');
 
   insert into public.journal_entries(
     organization_id,entry_number,accounting_period_id,entry_date,entry_type,status,
     reference_type,reference_id,description,posted_at,reversal_of_id,created_by
   )
-  values(v_org,v_number,v_period,p_cancel_date,v_type,'CANCELLED',
+  values(v_org,v_number,v_period,v_type,'CANCELLED',
          p_kind,p_id,'Reversal of '||v_doc_number,now(),v_original_journal,auth.uid())
   returning id into v_reversal;
 
@@ -2170,30 +2167,22 @@ begin
 
   for v_tx in
     select * from public.inventory_transactions it
-    where it.organization_id=v_org and it.reference_id=p_id
-      and it.reference_type=p_kind
+    where it.organization_id=v_org and it.reference_id=p_id and it.reference_type=p_kind
     order by it.created_at desc
   loop
     if exists (
-      select 1
-      from public.inventory_transactions later
-      where later.organization_id=v_org
-        and later.product_id=v_tx.product_id
-        and later.created_at > v_tx.created_at
+      select 1 from public.inventory_transactions later
+      where later.organization_id=v_org and later.product_id=v_tx.product_id and later.created_at > v_tx.created_at
     ) then
       raise exception 'cannot cancel % because later inventory movement exists for product %',p_kind,v_tx.product_id;
     end if;
 
-    select ib.quantity,ib.inventory_value,ib.average_cost
-      into v_qty,v_value,v_avg
+    select ib.quantity,ib.inventory_value,ib.average_cost into v_qty,v_value,v_avg
     from public.inventory_balances ib
-    where ib.organization_id=v_org and ib.product_id=v_tx.product_id
-    for update;
+    where ib.organization_id=v_org and ib.product_id=v_tx.product_id for update;
 
     if v_tx.direction='IN' then
-      if v_qty < v_tx.quantity then
-        raise exception 'cannot reverse inventory receipt; current stock is insufficient';
-      end if;
+      if v_qty < v_tx.quantity then raise exception 'cannot reverse inventory receipt; current stock is insufficient'; end if;
       v_new_qty:=v_qty-v_tx.quantity;
       v_new_value:=case when v_new_qty=0 then 0 else round(v_value-v_tx.total_value,4) end;
     else
@@ -2202,10 +2191,8 @@ begin
     end if;
 
     update public.inventory_balances
-       set quantity=v_new_qty,
-           inventory_value=greatest(v_new_value,0),
-           average_cost=case when v_new_qty=0 then 0 else round(v_new_value/v_new_qty,4) end,
-           updated_at=now()
+       set quantity=v_new_qty,inventory_value=greatest(v_new_value,0),
+           average_cost=case when v_new_qty=0 then 0 else round(v_new_value/v_new_qty,4) end,updated_at=now()
      where organization_id=v_org and product_id=v_tx.product_id;
 
     v_new_tx:='REV-'||v_tx.transaction_number;
@@ -2213,33 +2200,25 @@ begin
       organization_id,transaction_number,product_id,transaction_date,transaction_type,direction,
       quantity,unit_cost,total_value,reference_type,reference_id,unit_cost_before,average_cost_after,created_by
     )
-    values(
-      v_org,v_new_tx,v_tx.product_id,p_cancel_date,'CANCELLATION',
+    values(v_org,v_new_tx,v_tx.product_id,p_cancel_date,'CANCELLATION',
       case when v_tx.direction='IN' then 'OUT' else 'IN' end,
       v_tx.quantity,v_tx.unit_cost,v_tx.total_value,'CANCELLATION',p_id,v_avg,
-      case when v_new_qty=0 then 0 else round(v_new_value/v_new_qty,4) end,auth.uid()
-    );
+      case when v_new_qty=0 then 0 else round(v_new_value/v_new_qty,4) end,auth.uid());
   end loop;
 
-  if p_kind='PURCHASE' then
-    update public.purchase set status='CANCELLED',updated_at=now() where id=p_id;
-  elsif p_kind='SALES' then
-    update public.sales set status='CANCELLED',updated_at=now() where id=p_id;
-  elsif p_kind='EXPENSE' then
-    update public.expenses set status='CANCELLED',updated_at=now() where id=p_id;
-  elsif p_kind='PAYMENT' then
-    update public.payments set status='CANCELLED',updated_at=now() where id=p_id;
-  elsif p_kind='PURCHASE_RETURN' then
-    update public.purchase_returns set status='CANCELLED',updated_at=now() where id=p_id;
-  else
-    update public.sales_returns set status='CANCELLED',updated_at=now() where id=p_id;
+  if p_kind='PURCHASE' then update public.purchase set status='CANCELLED',updated_at=now() where id=p_id;
+  elsif p_kind='SALES' then update public.sales set status='CANCELLED',updated_at=now() where id=p_id;
+  elsif p_kind='EXPENSE' then update public.expenses set status='CANCELLED',updated_at=now() where id=p_id;
+  elsif p_kind='PAYMENT' then update public.payments set status='CANCELLED',updated_at=now() where id=p_id;
+  elsif p_kind='PURCHASE_RETURN' then update public.purchase_returns set status='CANCELLED',updated_at=now() where id=p_id;
+  else update public.sales_returns set status='CANCELLED',updated_at=now() where id=p_id;
   end if;
 
   return v_reversal;
 end;
 $$;
 
-revoke all on function private.cancel_document(text,uuid,date) from public, anon, authenticated;
+revoke all on function private.cancel_document(text,uuid,date) from public,anon,authenticated;
 
 create or replace function public.cancel_purchase(p_id uuid,p_cancel_date date default current_date)
 returns uuid language sql security definer set search_path=''
