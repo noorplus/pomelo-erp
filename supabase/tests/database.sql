@@ -1528,12 +1528,9 @@ select is(
 -- Real-life end-to-end operator transaction flow
 -- ---------------------------------------------------------------------------
 do $q$
-declare u3 uuid := extensions.gen_random_uuid();
 begin
-  insert into auth.users(id,aud,role,email,encrypted_password,email_confirmed_at)
-  values (u3,'authenticated','authenticated','erp-real-life-'||replace(u3::text,'-','')||'@example.test','x',now());
-  perform set_config('test.erp_user_3',u3::text,false);
-  perform set_config('request.jwt.claim.sub',u3::text,true);
+  -- Reuse the existing second test user; authenticated must not write auth.users.
+  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_2'),true);
 end $q$;
 
 select ok(public.onboard_organization('ERP Real Life Flow') is not null,
