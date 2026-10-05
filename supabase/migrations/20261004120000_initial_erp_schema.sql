@@ -2337,8 +2337,7 @@ begin
       select 1 from public.inventory_transactions later
       where later.organization_id=v_org
         and later.product_id=v_tx.product_id
-        and later.transaction_number > v_tx.transaction_number
-        and later.reference_type <> 'CANCELLATION'
+        and later.created_at > v_tx.created_at
     ) then
       raise exception 'cannot cancel % because later inventory movement exists for product %',p_kind,v_tx.product_id;
     end if;
