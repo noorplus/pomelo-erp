@@ -600,19 +600,6 @@ select public.confirm_purchase(
    and status='DRAFT' order by created_at desc limit 1)
 );
 
--- Make inventory chronology deterministic inside the single test transaction.
-update public.inventory_transactions
-set created_at = created_at - interval '1 second'
-where organization_id=(select id from public.organizations where name='ERP Transaction Test')
-  and reference_type='PURCHASE'
-  and reference_id=(
-    select id from public.purchase
-    where organization_id=(select id from public.organizations where name='ERP Transaction Test')
-      and status='CONFIRMED'
-    order by created_at desc
-    limit 1
-  );
-
 select is(
   (select count(*)::bigint
    from public.inventory_transactions it
