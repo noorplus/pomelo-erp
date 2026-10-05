@@ -784,11 +784,11 @@ select ok(
 
 -- Allocated payment cancellation must be blocked.
 select throws_ok(
-  $$select public.cancel_payment(
+  $q$select public.cancel_payment(
       (select id from public.payments
        where organization_id=(select id from public.organizations where name='ERP Transaction Test')
        and status='CONFIRMED' and amount=90)
-  )$,
+  )$q$,
   'P0001',
   'cannot cancel PAYMENT with payment allocations',
   'allocated payment cannot be cancelled'
