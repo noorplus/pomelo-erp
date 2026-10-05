@@ -2146,7 +2146,7 @@ begin
     organization_id,entry_number,accounting_period_id,entry_date,entry_type,status,
     reference_type,reference_id,description,posted_at,reversal_of_id,created_by
   )
-  values(v_org,v_number,v_period,v_type,'CANCELLED',
+  values(v_org,v_number,v_period,p_cancel_date,v_type,'CANCELLED',
          p_kind,p_id,'Reversal of '||v_doc_number,now(),v_original_journal,auth.uid())
   returning id into v_reversal;
 
