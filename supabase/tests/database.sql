@@ -3,7 +3,7 @@
 
 begin;
 
-select plan(56);
+select plan(65);
 
 -- ---------------------------------------------------------------------------
 -- Schema/security baseline
@@ -433,7 +433,7 @@ insert into public.purchase_return_items(
 )
 select r.organization_id,r.id,1,pi.id,pi.product_id,2,10,20
 from public.purchase_returns r
-join public.purchase_items pi on pi.organization_id=r.organization_id
+join public.purchase_items pi on pi.organization_id=r.organization_id and pi.purchase_id=r.purchase_id
 join public.purchase p on p.organization_id=r.organization_id and p.id=r.purchase_id
 where r.organization_id=(select id from public.organizations where name='ERP Transaction Test')
   and r.status='DRAFT'
@@ -842,6 +842,8 @@ insert into public.purchase_returns(
 select o.id,p.id,c.id,current_date,10,0,10,a.id,auth.uid()
 from public.organizations o
 join public.purchase p on p.organization_id=o.id and p.status='CONFIRMED'
+join public.purchase_items pi on pi.organization_id=p.organization_id and pi.purchase_id=p.id
+join public.products pr on pr.organization_id=pi.organization_id and pr.id=pi.product_id and pr.name='Cancellation Product B'
 join public.contacts c on c.organization_id=o.id and c.name='Supplier A'
 join public.accounts a on a.organization_id=o.id and a.account_code='2000'
 where o.name='ERP Transaction Test'
@@ -858,13 +860,25 @@ where r.organization_id=(select id from public.organizations where name='ERP Tra
 order by r.created_at desc limit 1;
 
 select public.confirm_purchase_return(
-  (select id from public.purchase_returns where organization_id=(select id from public.organizations where name='ERP Transaction Test')
-   and status='DRAFT' order by created_at desc limit 1)
+  (select r.id
+   from public.purchase_returns r
+   join public.purchase_return_items ri
+     on ri.organization_id=r.organization_id and ri.purchase_return_id=r.id
+   join public.products pr
+     on pr.organization_id=ri.organization_id and pr.id=ri.product_id and pr.name='Cancellation Product B'
+   where r.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and r.status='DRAFT')
 );
 
 select public.cancel_purchase_return(
-  (select id from public.purchase_returns where organization_id=(select id from public.organizations where name='ERP Transaction Test')
-   and status='CONFIRMED' order by created_at desc limit 1)
+  (select r.id
+   from public.purchase_returns r
+   join public.purchase_return_items ri
+     on ri.organization_id=r.organization_id and ri.purchase_return_id=r.id
+   join public.products pr
+     on pr.organization_id=ri.organization_id and pr.id=ri.product_id and pr.name='Cancellation Product B'
+   where r.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and r.status='CONFIRMED')
 );
 
 select ok(
@@ -942,6 +956,8 @@ insert into public.sales_returns(
 select o.id,s.id,c.id,current_date,15,0,15,a.id,auth.uid()
 from public.organizations o
 join public.sales s on s.organization_id=o.id and s.status='CONFIRMED'
+join public.sales_items si on si.organization_id=s.organization_id and si.sales_id=s.id
+join public.products pr on pr.organization_id=si.organization_id and pr.id=si.product_id and pr.name='Cancellation Product C'
 join public.contacts c on c.organization_id=o.id and c.name='Customer A'
 join public.accounts a on a.organization_id=o.id and a.account_code='1100'
 where o.name='ERP Transaction Test'
@@ -1094,7 +1110,7 @@ insert into public.payments(
   organization_id,payment_type,contact_id,payment_date,amount,
   account_id,settlement_account_id,created_by
 )
-select o.id,'PAYMENT',c.id,current_date,90,ap.id,cash.id,auth.uid()
+select o.id,'PAYMENT',c.id,current_date,70,ap.id,cash.id,auth.uid()
 from public.organizations o
 join public.contacts c on c.organization_id=o.id and c.name='Supplier A'
 join public.accounts ap on ap.organization_id=o.id and ap.account_code='2000'
@@ -1104,7 +1120,7 @@ where o.name='ERP Transaction Test';
 insert into public.payment_allocations(
   organization_id,payment_id,document_type,document_id,allocated_amount
 )
-select p.organization_id,p.id,'PURCHASE',pu.id,90
+select p.organization_id,p.id,'PURCHASE',pu.id,70
 from public.payments p
 join public.purchase pu on pu.organization_id=p.organization_id and pu.status='CONFIRMED'
 where p.organization_id=(select id from public.organizations where name='ERP Transaction Test')
@@ -1114,7 +1130,7 @@ order by pu.created_at limit 1;
 select public.confirm_payment(
   (select id from public.payments
    where organization_id=(select id from public.organizations where name='ERP Transaction Test')
-     and status='DRAFT' and amount=90)
+     and status='DRAFT' and amount=70)
 );
 
 select ok(
@@ -1124,25 +1140,287 @@ select ok(
     join public.payment_allocations pa
       on pa.organization_id=p.organization_id and pa.payment_id=p.id
     where p.organization_id=(select id from public.organizations where name='ERP Transaction Test')
-      and p.amount=90 and p.status='CONFIRMED'
+      and p.amount=70 and p.status='CONFIRMED'
       and pa.document_type='PURCHASE'
   ),
   'purchase payment allocation confirms'
 );
 
 -- ---------------------------------------------------------------------------
--- Settled document cancellation guard
+-- Settled document cancellation with later inventory movement guard
 -- ---------------------------------------------------------------------------
-select throws_ok(
-  $$select public.cancel_purchase(
+-- Confirmed allocations no longer block document cancellation by themselves.
+-- Inventory chronology still prevents cancelling a purchase whose product has
+-- later inventory movements, preserving stock-cost integrity.
+select throws_like(
+  $q$select public.cancel_purchase(
       (select id from public.purchase
        where organization_id=(select id from public.organizations where name='ERP Transaction Test')
        and status='CONFIRMED'
+       and exists (
+         select 1
+         from public.inventory_transactions it
+         where it.organization_id=public.purchase.organization_id
+           and it.reference_type='PURCHASE'
+           and it.reference_id=public.purchase.id
+           and exists (
+             select 1
+             from public.inventory_transactions later
+             where later.organization_id=it.organization_id
+               and later.product_id=it.product_id
+               and later.created_at > it.created_at
+           )
+       )
        order by created_at limit 1)
-  )$$,
-  'P0001',
-  'cannot cancel PURCHASE with confirmed payment allocations',
-  'settled purchase cannot be cancelled'
+  )$q$,
+  '%cannot cancel PURCHASE because later inventory movement exists for product%',
+  'settled purchase with later inventory movement cannot be cancelled'
+);
+
+-- ---------------------------------------------------------------------------
+-- Realistic multi-line purchase discount / return / refund scenario
+-- ---------------------------------------------------------------------------
+insert into public.products(
+  organization_id,name,unit_id,inventory_account_id,sales_account_id,cogs_account_id
+)
+select o.id,v.name,u.id,inv.id,rev.id,cogs.id
+from public.organizations o
+cross join (values ('Discount Product A'),('Discount Product B'),('Discount Product C')) v(name)
+join public.units_of_measure u on u.organization_id=o.id and u.name='pcs'
+join public.accounts inv on inv.organization_id=o.id and inv.account_code='1200'
+join public.accounts rev on rev.organization_id=o.id and rev.account_code='4000'
+join public.accounts cogs on cogs.organization_id=o.id and cogs.account_code='5000'
+where o.name='ERP Transaction Test';
+
+insert into public.purchase(
+  organization_id,supplier_id,invoice_date,subtotal,discount_amount,total_amount,
+  payable_account_id,created_by
+)
+select o.id,c.id,current_date,6000,100,5900,a.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Supplier A'
+join public.accounts a on a.organization_id=o.id and a.account_code='2000'
+where o.name='ERP Transaction Test';
+
+insert into public.purchase_items(
+  organization_id,purchase_id,line_number,product_id,quantity,unit_cost,line_total
+)
+select p.organization_id,p.id,v.line_number,pr.id,10,v.unit_cost,10*v.unit_cost
+from public.purchase p
+join (values
+  (1,'Discount Product A',100::numeric),
+  (2,'Discount Product B',200::numeric),
+  (3,'Discount Product C',300::numeric)
+) v(line_number,product_name,unit_cost) on true
+join public.products pr on pr.organization_id=p.organization_id and pr.name=v.product_name
+where p.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+  and p.status='DRAFT'
+order by p.created_at desc limit 3;
+
+select public.confirm_purchase(
+  (select id from public.purchase
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and status='DRAFT' and subtotal=6000
+   order by created_at desc limit 1)
+);
+
+select is(
+  (select it.unit_cost
+   from public.inventory_transactions it
+   join public.products pr on pr.organization_id=it.organization_id and pr.id=it.product_id
+   where it.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and it.reference_type='PURCHASE'
+     and pr.name='Discount Product A'
+   order by it.created_at desc limit 1),
+  96.6667::numeric,
+  'quantity-based discount gives Product A the effective unit cost'
+);
+
+select is(
+  (select it.unit_cost
+   from public.inventory_transactions it
+   join public.products pr on pr.organization_id=it.organization_id and pr.id=it.product_id
+   where it.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and it.reference_type='PURCHASE'
+     and pr.name='Discount Product B'
+   order by it.created_at desc limit 1),
+  196.6667::numeric,
+  'quantity-based discount gives Product B the effective unit cost'
+);
+
+select is(
+  (select it.unit_cost
+   from public.inventory_transactions it
+   join public.products pr on pr.organization_id=it.organization_id and pr.id=it.product_id
+   where it.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and it.reference_type='PURCHASE'
+     and pr.name='Discount Product C'
+   order by it.created_at desc limit 1),
+  296.6666::numeric,
+  'rounding remainder is absorbed by the final purchase line'
+);
+
+select is(
+  (select ib.inventory_value
+   from public.inventory_balances ib
+   join public.products pr on pr.organization_id=ib.organization_id and pr.id=ib.product_id
+   where ib.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and pr.name='Discount Product A'),
+  966.6670::numeric,
+  'Product A inventory value uses discounted cost'
+);
+
+select is(
+  (select coalesce(sum(ib.inventory_value),0)
+   from public.inventory_balances ib
+   join public.products pr on pr.organization_id=ib.organization_id and pr.id=ib.product_id
+   where ib.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and pr.name like 'Discount Product %'),
+  5900.0000::numeric,
+  'multi-line purchase inventory value exactly equals net invoice total'
+);
+
+insert into public.payments(
+  organization_id,payment_type,contact_id,payment_date,amount,
+  account_id,settlement_account_id,created_by
+)
+select o.id,'PAYMENT',c.id,current_date,5900,ap.id,cash.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Supplier A'
+join public.accounts ap on ap.organization_id=o.id and ap.account_code='2000'
+join public.accounts cash on cash.organization_id=o.id and cash.account_code='1000'
+where o.name='ERP Transaction Test';
+
+insert into public.payment_allocations(
+  organization_id,payment_id,document_type,document_id,allocated_amount
+)
+select p.organization_id,p.id,'PURCHASE',pu.id,5900
+from public.payments p
+join public.purchase pu on pu.organization_id=p.organization_id
+  and pu.status='CONFIRMED' and pu.subtotal=6000
+where p.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+  and p.status='DRAFT' and p.amount=5900;
+
+select public.confirm_payment(
+  (select id from public.payments
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and status='DRAFT' and amount=5900
+   order by created_at desc limit 1)
+);
+
+insert into public.purchase_returns(
+  organization_id,purchase_id,supplier_id,return_date,subtotal,discount_amount,total_amount,
+  payable_account_id,created_by
+)
+select o.id,p.id,c.id,current_date,393.3334,0,393.3334,a.id,auth.uid()
+from public.organizations o
+join public.purchase p on p.organization_id=o.id and p.status='CONFIRMED' and p.subtotal=6000
+join public.contacts c on c.organization_id=o.id and c.name='Supplier A'
+join public.accounts a on a.organization_id=o.id and a.account_code='2000'
+where o.name='ERP Transaction Test';
+
+insert into public.purchase_return_items(
+  organization_id,purchase_return_id,line_number,purchase_item_id,product_id,quantity,unit_cost,line_total
+)
+select r.organization_id,r.id,1,pi.id,pi.product_id,2,196.6667,393.3334
+from public.purchase_returns r
+join public.purchase_items pi on pi.organization_id=r.organization_id and pi.purchase_id=r.purchase_id
+join public.products pr on pr.organization_id=pi.organization_id and pr.id=pi.product_id and pr.name='Discount Product B'
+where r.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+  and r.status='DRAFT'
+order by r.created_at desc limit 1;
+
+select public.confirm_purchase_return(
+  (select id from public.purchase_returns
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and status='DRAFT' and total_amount=393.3334
+   order by created_at desc limit 1)
+);
+
+select is(
+  (select it.unit_cost
+   from public.inventory_transactions it
+   join public.products pr on pr.organization_id=it.organization_id and pr.id=it.product_id
+   where it.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and it.reference_type='PURCHASE_RETURN'
+     and pr.name='Discount Product B'
+   order by it.created_at desc limit 1),
+  196.6667::numeric,
+  'purchase return uses original discounted unit cost'
+);
+
+select is(
+  (select ib.inventory_value
+   from public.inventory_balances ib
+   join public.products pr on pr.organization_id=ib.organization_id and pr.id=ib.product_id
+   where ib.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and pr.name='Discount Product B'),
+  1573.3336::numeric,
+  'purchase return removes inventory at original discounted cost'
+);
+
+insert into public.payments(
+  organization_id,payment_type,contact_id,payment_date,amount,
+  account_id,settlement_account_id,created_by
+)
+select o.id,'RECEIPT',c.id,current_date,393.3334,ap.id,cash.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Supplier A'
+join public.accounts ap on ap.organization_id=o.id and ap.account_code='2000'
+join public.accounts cash on cash.organization_id=o.id and cash.account_code='1000'
+where o.name='ERP Transaction Test';
+
+insert into public.payment_allocations(
+  organization_id,payment_id,document_type,document_id,allocated_amount
+)
+select p.organization_id,p.id,'PURCHASE',pu.id,393.3334
+from public.payments p
+join public.purchase pu on pu.organization_id=p.organization_id and pu.status='CONFIRMED' and pu.subtotal=6000
+where p.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+  and p.status='DRAFT' and p.payment_type='RECEIPT' and p.amount=393.3334;
+
+select public.confirm_payment(
+  (select id from public.payments
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and status='DRAFT' and payment_type='RECEIPT' and amount=393.3334
+   order by created_at desc limit 1)
+);
+
+select is(
+  (select coalesce(sum(at.debit-at.credit),0)
+   from public.account_transactions at
+   join public.journal_entries je
+     on je.organization_id=at.organization_id and je.id=at.journal_entry_id
+   join public.accounts a
+     on a.organization_id=at.organization_id and a.id=at.account_id
+   join public.contacts c
+     on c.organization_id=at.organization_id and c.id=at.contact_id
+   where at.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and a.account_code='2000'
+     and c.name='Supplier A'
+     and (
+       je.reference_id=(select p.id from public.purchase p where p.organization_id=at.organization_id and p.subtotal=6000 limit 1)
+       or je.reference_id=(select r.id from public.purchase_returns r where r.organization_id=at.organization_id and r.total_amount=393.3334 limit 1)
+       or je.reference_id in (
+         select p.id from public.payments p
+         where p.organization_id=at.organization_id
+           and p.amount in (5900,393.3334)
+           and p.status='CONFIRMED'
+       )
+     )),
+  0::numeric,
+  'supplier payable is exactly settled with no rounding residual'
+);
+
+select is(
+  (select coalesce(sum(at.debit-at.credit),0)
+   from public.account_transactions at
+   join public.journal_entries je on je.organization_id=at.organization_id and je.id=at.journal_entry_id
+   where at.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and je.reference_type='PURCHASE'
+     and je.reference_id=(select p.id from public.purchase p where p.organization_id=at.organization_id and p.subtotal=6000 limit 1)),
+  0::numeric,
+  'discounted purchase and refund leave no residual ledger amount'
 );
 
 -- ---------------------------------------------------------------------------
