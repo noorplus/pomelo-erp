@@ -1015,26 +1015,55 @@ insert into public.purchase_returns(
   organization_id,purchase_id,supplier_id,return_date,subtotal,discount_amount,total_amount,
   payable_account_id,created_by
 )
-select o.id,p.id,c.id,current_date,90,0,90,a.id,auth.uid()
+select o.id,p.id,c.id,current_date,10,0,10,a.id,auth.uid()
 from public.organizations o
 join public.purchase p on p.organization_id=o.id and p.status='CONFIRMED'
+join public.purchase_items pi on pi.organization_id=p.organization_id and pi.purchase_id=p.id
+join public.products pr on pr.organization_id=pi.organization_id and pr.id=pi.product_id and pr.name='Cancellation Product B'
 join public.contacts c on c.organization_id=o.id and c.name='Supplier A'
 join public.accounts a on a.organization_id=o.id and a.account_code='2000'
 where o.name='ERP Transaction Test'
-  and exists (
-    select 1 from public.purchase_returns prior_return
-    where prior_return.organization_id=p.organization_id
-      and prior_return.purchase_id=p.id
-      and prior_return.status='CONFIRMED'
-  )
-order by p.created_at limit 1;
+limit 1;
 
 insert into public.purchase_return_items(
   organization_id,purchase_return_id,line_number,purchase_item_id,product_id,quantity,unit_cost,line_total
 )
-select r.organization_id,r.id,1,pi.id,pi.product_id,9,10,90
+select r.organization_id,r.id,1,pi.id,pi.product_id,1,10,10
 from public.purchase_returns r
 join public.purchase_items pi on pi.organization_id=r.organization_id and pi.purchase_id=r.purchase_id
+join public.products pr on pr.organization_id=pi.organization_id and pr.id=pi.product_id and pr.name='Cancellation Product B'
+where r.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+  and r.status='DRAFT'
+order by r.created_at desc limit 1;
+
+select public.confirm_purchase_return(
+  (select id from public.purchase_returns
+   where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and status='DRAFT'
+   order by created_at desc limit 1)
+);
+
+insert into public.purchase_returns(
+  organization_id,purchase_id,supplier_id,return_date,subtotal,discount_amount,total_amount,
+  payable_account_id,created_by
+)
+select o.id,p.id,c.id,current_date,40,0,40,a.id,auth.uid()
+from public.organizations o
+join public.purchase p on p.organization_id=o.id and p.status='CONFIRMED'
+join public.purchase_items pi on pi.organization_id=p.organization_id and pi.purchase_id=p.id
+join public.products pr on pr.organization_id=pi.organization_id and pr.id=pi.product_id and pr.name='Cancellation Product B'
+join public.contacts c on c.organization_id=o.id and c.name='Supplier A'
+join public.accounts a on a.organization_id=o.id and a.account_code='2000'
+where o.name='ERP Transaction Test'
+limit 1;
+
+insert into public.purchase_return_items(
+  organization_id,purchase_return_id,line_number,purchase_item_id,product_id,quantity,unit_cost,line_total
+)
+select r.organization_id,r.id,1,pi.id,pi.product_id,4,10,40
+from public.purchase_returns r
+join public.purchase_items pi on pi.organization_id=r.organization_id and pi.purchase_id=r.purchase_id
+join public.products pr on pr.organization_id=pi.organization_id and pr.id=pi.product_id and pr.name='Cancellation Product B'
 where r.organization_id=(select id from public.organizations where name='ERP Transaction Test')
   and r.status='DRAFT'
 order by r.created_at desc limit 1;
@@ -1043,7 +1072,8 @@ select throws_ok(
   $q$select public.confirm_purchase_return(
       (select id from public.purchase_returns
        where organization_id=(select id from public.organizations where name='ERP Transaction Test')
-       and status='DRAFT')
+         and status='DRAFT'
+       order by created_at desc limit 1)
   )$q$,
   'P0001',
   'purchase return quantity exceeds purchased quantity',
@@ -1147,11 +1177,11 @@ select is(
 );
 
 select throws_like(
-  $select public.confirm_expense(
+  $q$select public.confirm_expense(
       (select id from public.expenses
        where organization_id=(select id from public.organizations where name='ERP Transaction Test')
        and status='DRAFT')
-  )$,
+  )$q$,
   '%no open accounting period contains%',
   'posting into a closed period is rejected'
 );
@@ -1159,10 +1189,10 @@ select throws_like(
 -- ---------------------------------------------------------------------------
 -- Cross-tenant isolation
 -- ---------------------------------------------------------------------------
-do $
+do $q$
 begin
   perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_2')::uuid::text,true);
-end $;
+end $q$;
 
 select is(
   (select count(*)::bigint from public.organizations
@@ -1178,10 +1208,10 @@ select is(
 );
 
 -- Return to owner for final draft lifecycle test.
-do $
+do $q$
 begin
   perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_1')::uuid::text,true);
-end $;
+end $q$;
 
 insert into public.purchase(
   organization_id,supplier_id,invoice_date,subtotal,discount_amount,total_amount,
