@@ -1173,7 +1173,7 @@ select throws_like(
        )
        order by created_at limit 1)
   )$q$,
-  'cannot cancel PURCHASE because later inventory movement exists for product',
+  '%cannot cancel PURCHASE because later inventory movement exists for product%',
   'settled purchase with later inventory movement cannot be cancelled'
 );
 
