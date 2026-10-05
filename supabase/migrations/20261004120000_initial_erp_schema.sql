@@ -1331,6 +1331,191 @@ before insert or update or delete on public.journal_entries
 for each row
 execute function public.guard_journal_entry_period();
 
+
+-- -----------------------------------------------------------------------------
+-- Organization membership management
+-- -----------------------------------------------------------------------------
+-- The existing schema has no role/owner column, so membership management is
+-- intentionally scoped to authenticated active organization members. Removing
+-- a user deactivates the existing membership row rather than deleting it.
+create or replace function public.add_organization_user(
+  p_organization_id uuid,
+  p_user_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $ou$
+declare
+  v_org_active boolean;
+  v_existing_id uuid;
+begin
+  if auth.uid() is null then
+    raise exception 'authentication required';
+  end if;
+
+  if not public.is_org_member(p_organization_id) then
+    raise exception 'organization membership required';
+  end if;
+
+  select o.is_active into v_org_active
+  from public.organizations o
+  where o.id = p_organization_id;
+
+  if not found then
+    raise exception 'organization not found';
+  end if;
+
+  if not v_org_active then
+    raise exception 'organization is inactive';
+  end if;
+
+  if not exists (select 1 from auth.users u where u.id = p_user_id) then
+    raise exception 'target user does not exist';
+  end if;
+
+  select ou.id into v_existing_id
+  from public.organization_users ou
+  where ou.organization_id = p_organization_id
+    and ou.user_id = p_user_id
+  for update;
+
+  if found then
+    update public.organization_users
+       set is_active = true, updated_at = now()
+     where id = v_existing_id;
+    return;
+  end if;
+
+  insert into public.organization_users (organization_id, user_id, is_active)
+  values (p_organization_id, p_user_id, true);
+end;
+$ou$;
+
+revoke all on function public.add_organization_user(uuid, uuid) from public;
+grant execute on function public.add_organization_user(uuid, uuid) to authenticated;
+
+create or replace function public.add_organization_user_by_email(
+  p_organization_id uuid,
+  p_email text
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $ou$
+declare
+  v_user_id uuid;
+begin
+  if p_email is null or length(btrim(p_email)) = 0 then
+    raise exception 'email is required';
+  end if;
+
+  select u.id into v_user_id
+  from auth.users u
+  where lower(u.email) = lower(btrim(p_email))
+  limit 1;
+
+  if not found then
+    raise exception 'user with email % does not exist', btrim(p_email);
+  end if;
+
+  perform public.add_organization_user(p_organization_id, v_user_id);
+  return v_user_id;
+end;
+$ou$;
+
+revoke all on function public.add_organization_user_by_email(uuid, text) from public;
+grant execute on function public.add_organization_user_by_email(uuid, text) to authenticated;
+
+create or replace function public.remove_organization_user(
+  p_organization_id uuid,
+  p_user_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $ou$
+declare
+  v_membership_id uuid;
+  v_active_member_count integer;
+begin
+  if auth.uid() is null then
+    raise exception 'authentication required';
+  end if;
+
+  if not public.is_org_member(p_organization_id) then
+    raise exception 'organization membership required';
+  end if;
+
+  if p_user_id = auth.uid() then
+    raise exception 'you cannot remove yourself from the organization';
+  end if;
+
+  select ou.id into v_membership_id
+  from public.organization_users ou
+  where ou.organization_id = p_organization_id
+    and ou.user_id = p_user_id
+    and ou.is_active
+  for update;
+
+  if not found then
+    raise exception 'active organization membership not found';
+  end if;
+
+  select count(*) into v_active_member_count
+  from public.organization_users ou
+  where ou.organization_id = p_organization_id
+    and ou.is_active;
+
+  if v_active_member_count <= 1 then
+    raise exception 'organization must retain at least one active member';
+  end if;
+
+  update public.organization_users
+     set is_active = false, updated_at = now()
+   where id = v_membership_id;
+end;
+$ou$;
+
+revoke all on function public.remove_organization_user(uuid, uuid) from public;
+grant execute on function public.remove_organization_user(uuid, uuid) to authenticated;
+
+create or replace function public.remove_organization_user_by_email(
+  p_organization_id uuid,
+  p_email text
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $ou$
+declare
+  v_user_id uuid;
+begin
+  if p_email is null or length(btrim(p_email)) = 0 then
+    raise exception 'email is required';
+  end if;
+
+  select u.id into v_user_id
+  from auth.users u
+  where lower(u.email) = lower(btrim(p_email))
+  limit 1;
+
+  if not found then
+    raise exception 'user with email % does not exist', btrim(p_email);
+  end if;
+
+  perform public.remove_organization_user(p_organization_id, v_user_id);
+  return v_user_id;
+end;
+$ou$;
+
+revoke all on function public.remove_organization_user_by_email(uuid, text) from public;
+grant execute on function public.remove_organization_user_by_email(uuid, text) to authenticated;
+
 -- -----------------------------------------------------------------------------
 -- RLS
 -- -----------------------------------------------------------------------------
