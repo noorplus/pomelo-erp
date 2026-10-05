@@ -1032,22 +1032,22 @@ where r.organization_id=(select id from public.organizations where name='ERP Tra
 order by r.created_at desc limit 1;
 
 select throws_ok(
-  $$select public.confirm_purchase_return(
+  $q$select public.confirm_purchase_return(
       (select id from public.purchase_returns
        where organization_id=(select id from public.organizations where name='ERP Transaction Test')
        and status='DRAFT')
-  )$,
+  )$q$,
   'P0001',
   'purchase return quantity exceeds purchased quantity',
   'purchase return quantity cannot exceed remaining purchased quantity'
 );
 
 select throws_ok(
-  $$update public.account_transactions
+  $q$update public.account_transactions
      set debit=debit+1
    where id=(select id from public.account_transactions
              where organization_id=(select id from public.organizations where name='ERP Transaction Test')
-             limit 1)$,
+             limit 1)$q$,
   '42601',
   null,
   'ledger mutation is rejected'
