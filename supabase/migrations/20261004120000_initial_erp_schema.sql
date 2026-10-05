@@ -1471,7 +1471,7 @@ returns numeric(20,4)
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $q$
 declare
   p public.purchase%rowtype;
   i record;
@@ -1544,7 +1544,7 @@ begin
 
   raise exception 'purchase item not found';
 end;
-$;
+$q$;
 
 revoke all on function private.purchase_item_effective_unit_cost(uuid,uuid) from public,anon,authenticated;
 
@@ -1562,7 +1562,7 @@ returns numeric
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $q$
 declare
   v_qty numeric(20,4);
   v_value numeric(20,4);
@@ -1618,7 +1618,7 @@ begin
 
   return v_cost;
 end;
-$;
+$q$;
 
 revoke all on function private.inventory_out_at_cost(uuid,uuid,date,numeric,numeric,text,uuid,text) from public,anon,authenticated;
 
@@ -1627,7 +1627,7 @@ returns uuid
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $q$
 declare
   p public.purchase%rowtype;
   i record;
@@ -1719,7 +1719,7 @@ begin
 
   return v_journal;
 end;
-$;
+$q$;
 
 revoke all on function private.confirm_purchase(uuid) from public, anon, authenticated;
 
