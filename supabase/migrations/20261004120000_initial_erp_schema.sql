@@ -2776,7 +2776,7 @@ $oc$;
 revoke all on function public.is_organization_creator(uuid, uuid) from public, anon;
 grant execute on function public.is_organization_creator(uuid, uuid) to authenticated;
 
-create or replace function public.guard_organization_creator_membership()
+create or replace function private.guard_organization_creator_membership()
 returns trigger
 language plpgsql
 security definer
@@ -2805,12 +2805,12 @@ begin
 end;
 $ocg$;
 
-revoke all on function public.guard_organization_creator_membership() from public, anon, authenticated;
+revoke all on function private.guard_organization_creator_membership() from public, anon, authenticated;
 
 create trigger organization_users_creator_guard
 before update or delete on public.organization_users
 for each row
-execute function public.guard_organization_creator_membership();
+execute function private.guard_organization_creator_membership();
 create or replace function public.add_organization_user(
   p_organization_id uuid,
   p_user_id uuid
