@@ -1,9 +1,29 @@
--- Pomelo ERP — initial schema
--- 24 public tables
--- REVIEW / NOT APPLIED
--- Generated for local review only. Do not run against the target database until explicitly approved.
+-- Pomelo ERP — canonical initial schema
+-- 24 public tables + private transactional engine
+--
+-- Production-grade canonical definition:
+--   1. Preserve the existing schema and public RPC contracts.
+--   2. Keep all privileged transactional writes behind controlled RPCs.
+--   3. Keep the private schema outside the exposed Data API surface.
+--   4. Keep RLS, grants, numbering, accounting-period, inventory and ledger
+--      invariants explicit and regression-tested.
+--
+-- IMPORTANT: This is the single canonical schema definition. Do not create
+-- additional migration files for the frozen ERP database.
 
 begin;
+
+-- =============================================================================
+-- SCHEMA MAP
+-- =============================================================================
+-- 01-24  Core tables and transactional data model
+-- INDEXES  Query/RLS/foreign-key hot paths
+-- TRIGGERS Updated-at and master-number assignment
+-- PUBLIC  Authenticated application RPCs
+-- PRIVATE Privileged transactional engine (not Data API exposed)
+-- RLS     Tenant isolation and draft-only direct-write boundaries
+-- GRANTS  Final role privileges
+-- =============================================================================
 
 -- -----------------------------------------------------------------------------
 -- Extensions
@@ -816,14 +836,11 @@ create index contacts_org_active_idx on public.contacts(organization_id, is_acti
 create index number_sequences_org_active_idx on public.number_sequences(organization_id, is_active);
 create index journal_entries_org_date_idx on public.journal_entries(organization_id, entry_date);
 create index journal_entries_org_status_idx on public.journal_entries(organization_id, status);
-create index account_transactions_journal_idx on public.account_transactions(journal_entry_id, line_number);
 create index account_transactions_account_idx on public.account_transactions(organization_id, account_id);
 create index purchase_org_date_idx on public.purchase(organization_id, invoice_date desc);
 create index purchase_org_status_idx on public.purchase(organization_id, status);
-create index purchase_items_purchase_idx on public.purchase_items(purchase_id, line_number);
 create index sales_org_date_idx on public.sales(organization_id, invoice_date desc);
 create index sales_org_status_idx on public.sales(organization_id, status);
-create index sales_items_sales_idx on public.sales_items(sales_id, line_number);
 create index inventory_transactions_product_date_idx on public.inventory_transactions(organization_id, product_id, transaction_date, created_at);
 create index expense_categories_org_active_idx on public.expense_categories(organization_id, is_active);
 create index expenses_org_date_idx on public.expenses(organization_id, expense_date desc);
@@ -832,9 +849,21 @@ create index payments_org_date_idx on public.payments(organization_id, payment_d
 create index payments_org_status_idx on public.payments(organization_id, status);
 create index payment_allocations_payment_idx on public.payment_allocations(payment_id);
 create index payment_allocations_document_idx on public.payment_allocations(organization_id, document_type, document_id);
+create index inventory_transactions_reference_idx on public.inventory_transactions(organization_id, reference_type, reference_id, created_at);
 create index purchase_returns_org_date_idx on public.purchase_returns(organization_id, return_date desc);
+create index purchase_returns_purchase_idx on public.purchase_returns(organization_id, purchase_id, status);
+create index purchase_return_items_purchase_item_idx on public.purchase_return_items(organization_id, purchase_item_id);
 create index sales_returns_org_date_idx on public.sales_returns(organization_id, return_date desc);
+create index sales_returns_sales_idx on public.sales_returns(organization_id, sales_id, status);
+create index sales_return_items_sales_item_idx on public.sales_return_items(organization_id, sales_item_id);
 
+-- -----------------------------------------------------------------------------
+-- Indexes above are intentionally workload-driven:
+--   * org/status/date indexes support tenant-scoped ERP lists and dashboards.
+--   * reference indexes support cancellation/reversal validation.
+--   * return/source-item indexes support cumulative return validation.
+--   * exact duplicates of UNIQUE-constraint indexes are omitted to avoid
+--     unnecessary write/storage overhead.
 -- -----------------------------------------------------------------------------
 -- updated_at triggers — mutable/master/document tables only
 -- -----------------------------------------------------------------------------
@@ -856,61 +885,6 @@ begin
     );
   end loop;
 end $$;
-
--- -----------------------------------------------------------------------------
--- Sequence allocator
--- Drafts never call this. Confirmation RPCs will call it transactionally.
--- -----------------------------------------------------------------------------
-create or replace function public.allocate_number(p_organization_id uuid, p_document_type text)
-returns text
-language plpgsql
-security definer
-set search_path = public, extensions
-as $$
-declare
-  v_prefix text;
-  v_next bigint;
-  v_padding smallint;
-  v_result text;
-begin
-  if auth.uid() is null then
-    raise exception 'authentication required';
-  end if;
-
-  if not exists (
-    select 1
-    from public.organization_users ou
-    where ou.organization_id = p_organization_id
-      and ou.user_id = auth.uid()
-      and ou.is_active
-  ) then
-    raise exception 'not an active organization member';
-  end if;
-
-  select ns.prefix, ns.next_number, ns.padding
-    into v_prefix, v_next, v_padding
-  from public.number_sequences ns
-  where ns.organization_id = p_organization_id
-    and ns.document_type = p_document_type
-    and ns.is_active
-  for update;
-
-  if not found then
-    raise exception 'active number sequence not found for %', p_document_type;
-  end if;
-
-  update public.number_sequences
-  set next_number = v_next + 1,
-      updated_at = now()
-  where organization_id = p_organization_id
-    and document_type = p_document_type;
-
-  v_result := v_prefix || lpad(v_next::text, v_padding, '0');
-  return v_result;
-end;
-$$;
-
-drop function public.allocate_number(uuid, text);
 
 -- -----------------------------------------------------------------------------
 -- Journal validation helper
@@ -1724,7 +1698,10 @@ $q$;
 revoke all on function private.confirm_purchase(uuid) from public, anon, authenticated;
 
 create or replace function public.confirm_purchase(p_id uuid)
-returns uuid language sql security definer set search_path=''
+returns uuid
+language sql
+security definer
+set search_path=''
 as $$ select private.confirm_purchase(p_id); $$;
 revoke execute on function public.confirm_purchase(uuid) from public, anon;
 grant execute on function public.confirm_purchase(uuid) to authenticated;
@@ -1743,6 +1720,11 @@ declare
   v_count integer;
   v_subtotal numeric;
   v_revenue_account uuid;
+  v_inventory_account uuid;
+  v_cogs_account uuid;
+  v_sales_account_count integer;
+  v_cogs_account_count integer;
+  v_inventory_account_count integer;
   v_cogs numeric(20,4) := 0;
   v_cost numeric(20,4);
   v_tx text;
@@ -1765,22 +1747,38 @@ begin
   end if;
 
   perform private.assert_account_type(s.organization_id,s.receivable_account_id,'ASSET',true);
-  if (select count(distinct pr.sales_account_id)
-      from public.sales_items si
-      join public.products pr on pr.organization_id=si.organization_id and pr.id=si.product_id
-      where si.organization_id=s.organization_id and si.sales_id=s.id) <> 1
-     or
-     (select count(distinct pr.cogs_account_id)
-      from public.sales_items si
-      join public.products pr on pr.organization_id=si.organization_id and pr.id=si.product_id
-      where si.organization_id=s.organization_id and si.sales_id=s.id) <> 1
-     or
-     (select count(distinct pr.inventory_account_id)
-      from public.sales_items si
-      join public.products pr on pr.organization_id=si.organization_id and pr.id=si.product_id
-      where si.organization_id=s.organization_id and si.sales_id=s.id) <> 1 then
+
+  select
+    count(distinct pr.sales_account_id),
+    (array_agg(distinct pr.sales_account_id))[1],
+    count(distinct pr.cogs_account_id),
+    (array_agg(distinct pr.cogs_account_id))[1],
+    count(distinct pr.inventory_account_id),
+    (array_agg(distinct pr.inventory_account_id))[1]
+    into
+      v_sales_account_count,
+      v_revenue_account,
+      v_cogs_account_count,
+      v_cogs_account,
+      v_inventory_account_count,
+      v_inventory_account
+  from public.sales_items si
+  join public.products pr
+    on pr.organization_id=si.organization_id
+   and pr.id=si.product_id
+  where si.organization_id=s.organization_id
+    and si.sales_id=s.id;
+
+  if v_sales_account_count <> 1
+     or v_cogs_account_count <> 1
+     or v_inventory_account_count <> 1 then
     raise exception 'sales must use one revenue, COGS, and inventory account';
   end if;
+
+  perform private.assert_account_type(s.organization_id,v_revenue_account,'REVENUE',true);
+  perform private.assert_account_type(s.organization_id,v_cogs_account,'EXPENSE',true);
+  perform private.assert_account_type(s.organization_id,v_inventory_account,'ASSET',true);
+
   v_invoice := private.allocate_number(s.organization_id,'SALES');
 
   for i in
@@ -1798,31 +1796,7 @@ begin
      where id=i.id;
   end loop;
 
-  perform private.assert_account_type(s.organization_id,
-    (select pr.sales_account_id from public.sales_items si
-     join public.products pr on pr.organization_id=si.organization_id and pr.id=si.product_id
-     where si.sales_id=s.id limit 1),'REVENUE',true);
-  perform private.assert_account_type(s.organization_id,
-    (select pr.cogs_account_id from public.sales_items si
-     join public.products pr on pr.organization_id=si.organization_id and pr.id=si.product_id
-     where si.sales_id=s.id limit 1),'EXPENSE',true);
-  perform private.assert_account_type(s.organization_id,
-    (select pr.inventory_account_id from public.sales_items si
-     join public.products pr on pr.organization_id=si.organization_id and pr.id=si.product_id
-     where si.sales_id=s.id limit 1),'ASSET',true);
-
-  v_revenue_account := (select pr.sales_account_id
-                        from public.sales_items si
-                        join public.products pr on pr.organization_id=si.organization_id and pr.id=si.product_id
-                        where si.sales_id=s.id limit 1);
-
-  if exists (
-    select 1 from public.sales_items si
-    join public.products pr on pr.organization_id=si.organization_id and pr.id=si.product_id
-    where si.sales_id=s.id and pr.sales_account_id <> v_revenue_account
-  ) then
-    raise exception 'sales document contains multiple sales accounts; split the document or use one revenue account';
-  end if;
+  -- Account consistency was validated once above; reuse the resolved accounts.
 
   v_journal := private.post_journal(
     s.organization_id,s.invoice_date,'SALES','SALES',s.id,
@@ -1830,11 +1804,9 @@ begin
     jsonb_build_array(
       jsonb_build_object('account_id',s.receivable_account_id,'debit',s.total_amount,'credit',0,'contact_id',s.customer_id,'description','Accounts receivable'),
       jsonb_build_object('account_id',v_revenue_account,'debit',0,'credit',s.total_amount,'contact_id',s.customer_id,'description','Sales revenue'),
-      jsonb_build_object('account_id',
-        (select pr.cogs_account_id from public.sales_items si join public.products pr on pr.organization_id=si.organization_id and pr.id=si.product_id where si.sales_id=s.id limit 1),
+      jsonb_build_object('account_id',v_cogs_account,
         'debit',v_cogs,'credit',0,'contact_id',s.customer_id,'description','Cost of goods sold'),
-      jsonb_build_object('account_id',
-        (select pr.inventory_account_id from public.sales_items si join public.products pr on pr.organization_id=si.organization_id and pr.id=si.product_id where si.sales_id=s.id limit 1),
+      jsonb_build_object('account_id',v_inventory_account,
         'debit',0,'credit',v_cogs,'contact_id',s.customer_id,'description','Inventory reduction')
     )
   );
