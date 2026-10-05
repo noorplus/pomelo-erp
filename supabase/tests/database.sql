@@ -860,13 +860,25 @@ where r.organization_id=(select id from public.organizations where name='ERP Tra
 order by r.created_at desc limit 1;
 
 select public.confirm_purchase_return(
-  (select id from public.purchase_returns where organization_id=(select id from public.organizations where name='ERP Transaction Test')
-   and status='DRAFT' order by created_at desc limit 1)
+  (select r.id
+   from public.purchase_returns r
+   join public.purchase_return_items ri
+     on ri.organization_id=r.organization_id and ri.purchase_return_id=r.id
+   join public.products pr
+     on pr.organization_id=ri.organization_id and pr.id=ri.product_id and pr.name='Cancellation Product B'
+   where r.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and r.status='DRAFT')
 );
 
 select public.cancel_purchase_return(
-  (select id from public.purchase_returns where organization_id=(select id from public.organizations where name='ERP Transaction Test')
-   and status='CONFIRMED' order by created_at desc limit 1)
+  (select r.id
+   from public.purchase_returns r
+   join public.purchase_return_items ri
+     on ri.organization_id=r.organization_id and ri.purchase_return_id=r.id
+   join public.products pr
+     on pr.organization_id=ri.organization_id and pr.id=ri.product_id and pr.name='Cancellation Product B'
+   where r.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and r.status='CONFIRMED')
 );
 
 select ok(
