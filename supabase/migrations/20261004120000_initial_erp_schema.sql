@@ -1272,14 +1272,14 @@ begin
   insert into public.inventory_transactions(
     organization_id, transaction_number, product_id, transaction_date,
     transaction_type, direction, quantity, unit_cost, total_value,
-    reference_type, reference_id, unit_cost_before, average_cost_after,
+    reference_type, reference_id, unit_cost_before, average_cost_after, created_at,
     created_by
   )
   values (
     p_organization_id, p_transaction_number, p_product_id, p_date,
     p_reference_type, 'IN', p_quantity, p_unit_cost,
     round(p_quantity * p_unit_cost,4),
-    p_reference_type, p_reference_id, v_avg, v_new_avg, auth.uid()
+    p_reference_type, p_reference_id, v_avg, v_new_avg, clock_timestamp(), auth.uid()
   );
 
   return round(p_quantity * p_unit_cost,4);
@@ -1341,7 +1341,7 @@ begin
   insert into public.inventory_transactions(
     organization_id, transaction_number, product_id, transaction_date,
     transaction_type, direction, quantity, unit_cost, total_value,
-    reference_type, reference_id, unit_cost_before, average_cost_after,
+    reference_type, reference_id, unit_cost_before, average_cost_after, created_at,
     created_by
   )
   values (
@@ -1349,7 +1349,7 @@ begin
     p_reference_type, 'OUT', p_quantity, v_avg, v_cost,
     p_reference_type, p_reference_id, v_avg,
     case when v_new_qty = 0 then 0 else v_avg end,
-    auth.uid()
+    clock_timestamp(), auth.uid()
   );
 
   return v_cost;
@@ -1606,14 +1606,14 @@ begin
   insert into public.inventory_transactions(
     organization_id,transaction_number,product_id,transaction_date,
     transaction_type,direction,quantity,unit_cost,total_value,
-    reference_type,reference_id,unit_cost_before,average_cost_after,created_by
+    reference_type,reference_id,unit_cost_before,average_cost_after,created_at,created_by
   )
   values(
     p_organization_id,p_transaction_number,p_product_id,p_date,
     p_reference_type,'OUT',p_quantity,p_unit_cost,v_cost,
     p_reference_type,p_reference_id,v_avg,
     case when v_new_qty=0 then 0 else round(v_new_value/v_new_qty,4) end,
-    auth.uid()
+    clock_timestamp(),auth.uid()
   );
 
   return v_cost;
@@ -2363,12 +2363,12 @@ begin
     v_new_tx:='REV-'||v_tx.transaction_number;
     insert into public.inventory_transactions(
       organization_id,transaction_number,product_id,transaction_date,transaction_type,direction,
-      quantity,unit_cost,total_value,reference_type,reference_id,unit_cost_before,average_cost_after,created_by
+      quantity,unit_cost,total_value,reference_type,reference_id,unit_cost_before,average_cost_after,created_at,created_by
     )
     values(v_org,v_new_tx,v_tx.product_id,p_cancel_date,'CANCELLATION',
       case when v_tx.direction='IN' then 'OUT' else 'IN' end,
       v_tx.quantity,v_tx.unit_cost,v_tx.total_value,'CANCELLATION',p_id,v_avg,
-      case when v_new_qty=0 then 0 else round(v_new_value/v_new_qty,4) end,auth.uid());
+      case when v_new_qty=0 then 0 else round(v_new_value/v_new_qty,4) end,clock_timestamp(),auth.uid());
   end loop;
 
   if p_kind='PURCHASE' then update public.purchase set status='CANCELLED',updated_at=now() where id=p_id;
