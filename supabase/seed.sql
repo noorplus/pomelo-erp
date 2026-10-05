@@ -1,0 +1,5 @@
+-- Pomelo ERP — local development seed
+-- IMPORTANT: LOCAL/TEST DATA ONLY. Never use this as production seed data.
+--
+-- Transactional fixtures will be added after the production posting/RPC
+-- layer is finalized. supabase db reset applies migrations first, then seed.
