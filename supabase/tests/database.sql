@@ -1621,7 +1621,7 @@ join public.accounts cash on cash.organization_id=o.id and cash.account_code='10
 where o.name='ERP Real Life Flow';
 
 insert into public.payment_allocations(organization_id,payment_id,document_type,document_id,allocated_amount)
-select p.organization_id,p.id,'PURCHASE_RETURN',r.id,2000
+select p.organization_id,p.id,'PURCHASE',r.purchase_id,2000
 from public.payments p
 join public.purchase_returns r on r.organization_id=p.organization_id and r.status='CONFIRMED' and r.total_amount=2000
 where p.organization_id=(select id from public.organizations where name='ERP Real Life Flow')
@@ -1702,7 +1702,7 @@ join public.accounts cash on cash.organization_id=o.id and cash.account_code='10
 where o.name='ERP Real Life Flow';
 
 insert into public.payment_allocations(organization_id,payment_id,document_type,document_id,allocated_amount)
-select p.organization_id,p.id,'SALES_RETURN',r.id,2000
+select p.organization_id,p.id,'SALES',r.sales_id,2000
 from public.payments p
 join public.sales_returns r on r.organization_id=p.organization_id and r.status='CONFIRMED' and r.total_amount=2000
 where p.organization_id=(select id from public.organizations where name='ERP Real Life Flow')
