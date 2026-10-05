@@ -707,7 +707,7 @@ select public.confirm_sales(
 select public.cancel_sales(
   (select id from public.sales where organization_id=(select id from public.organizations where name='ERP Transaction Test')
    and status='CONFIRMED'
-   and customer_id=(select id from public.contacts where organization_id=(select id from public.organizations where name='ERP Transaction Test') and name='Cancellation Customer')
+   and customer_id=(select id from public.contacts where organization_id=(select id from public.organizations where name='ERP Transaction Test') and name='Cancellation Customer' order by created_at desc limit 1)
    limit 1)
 );
 
