@@ -1335,9 +1335,76 @@ execute function public.guard_journal_entry_period();
 -- -----------------------------------------------------------------------------
 -- Organization membership management
 -- -----------------------------------------------------------------------------
--- The existing schema has no role/owner column, so membership management is
--- intentionally scoped to authenticated active organization members. Removing
--- a user deactivates the existing membership row rather than deleting it.
+-- The existing schema has no role/owner column. The first membership row
+-- (ordered by created_at, then id) is therefore the immutable organization creator.
+-- Membership management remains scoped to authenticated active organization members.
+-- Removing a user deactivates the existing membership row rather than deleting it.
+
+create or replace function public.is_organization_creator(
+  p_organization_id uuid,
+  p_user_id uuid
+)
+returns boolean
+language sql
+security definer
+set search_path = public, pg_temp
+as $oc$
+  select exists (
+    select 1
+    from public.organization_users creator
+    where creator.organization_id = p_organization_id
+      and creator.user_id = p_user_id
+      and not exists (
+        select 1
+        from public.organization_users earlier
+        where earlier.organization_id = creator.organization_id
+          and (
+            earlier.created_at < creator.created_at
+            or (
+              earlier.created_at = creator.created_at
+              and earlier.id < creator.id
+            )
+          )
+      )
+  );
+$oc$;
+
+revoke all on function public.is_organization_creator(uuid, uuid) from public;
+grant execute on function public.is_organization_creator(uuid, uuid) to authenticated;
+
+create or replace function public.guard_organization_creator_membership()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $ocg$
+begin
+  if public.is_organization_creator(old.organization_id, old.user_id) then
+    if tg_op = 'DELETE' then
+      raise exception 'organization creator membership cannot be deleted';
+    end if;
+
+    if new.organization_id is distinct from old.organization_id
+       or new.user_id is distinct from old.user_id then
+      raise exception 'organization creator membership identity cannot be changed';
+    end if;
+
+    if old.is_active and not new.is_active then
+      raise exception 'organization creator cannot be removed';
+    end if;
+  end if;
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+  return new;
+end;
+$ocg$;
+
+create trigger organization_users_creator_guard
+before update or delete on public.organization_users
+for each row
+execute function public.guard_organization_creator_membership();
 create or replace function public.add_organization_user(
   p_organization_id uuid,
   p_user_id uuid
@@ -1454,6 +1521,10 @@ begin
     raise exception 'you cannot remove yourself from the organization';
   end if;
 
+  if public.is_organization_creator(p_organization_id, p_user_id) then
+    raise exception 'organization creator cannot be removed';
+  end if;
+
   select ou.id into v_membership_id
   from public.organization_users ou
   where ou.organization_id = p_organization_id
@@ -1549,6 +1620,7 @@ create policy organizations_update on public.organizations
   with check (public.is_org_member(id));
 
 -- Membership: active members can read their memberships; no generic insert/delete/update.
+-- The first membership (organization creator) is immutable and cannot be removed.
 create policy organization_users_select on public.organization_users
   for select to authenticated
   using (user_id = auth.uid() or public.is_org_member(organization_id));
