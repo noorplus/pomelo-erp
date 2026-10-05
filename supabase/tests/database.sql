@@ -1195,43 +1195,37 @@ select public.confirm_purchase(
 );
 
 select is(
-  (select private.purchase_item_effective_unit_cost(
-      p.id,pi.id
-   )
-   from public.purchase p
-   join public.purchase_items pi on pi.organization_id=p.organization_id and pi.purchase_id=p.id
-   join public.products pr on pr.organization_id=pi.organization_id and pr.id=pi.product_id
-   where p.organization_id=(select id from public.organizations where name='ERP Transaction Test')
-     and p.subtotal=6000 and pr.name='Discount Product A'
-   limit 1),
+  (select it.unit_cost
+   from public.inventory_transactions it
+   join public.products pr on pr.organization_id=it.organization_id and pr.id=it.product_id
+   where it.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and it.reference_type='PURCHASE'
+     and pr.name='Discount Product A'
+   order by it.created_at desc limit 1),
   96.6667::numeric,
   'quantity-based discount gives Product A the effective unit cost'
 );
 
 select is(
-  (select private.purchase_item_effective_unit_cost(
-      p.id,pi.id
-   )
-   from public.purchase p
-   join public.purchase_items pi on pi.organization_id=p.organization_id and pi.purchase_id=p.id
-   join public.products pr on pr.organization_id=pi.organization_id and pr.id=pi.product_id
-   where p.organization_id=(select id from public.organizations where name='ERP Transaction Test')
-     and p.subtotal=6000 and pr.name='Discount Product B'
-   limit 1),
+  (select it.unit_cost
+   from public.inventory_transactions it
+   join public.products pr on pr.organization_id=it.organization_id and pr.id=it.product_id
+   where it.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and it.reference_type='PURCHASE'
+     and pr.name='Discount Product B'
+   order by it.created_at desc limit 1),
   196.6667::numeric,
   'quantity-based discount gives Product B the effective unit cost'
 );
 
 select is(
-  (select private.purchase_item_effective_unit_cost(
-      p.id,pi.id
-   )
-   from public.purchase p
-   join public.purchase_items pi on pi.organization_id=p.organization_id and pi.purchase_id=p.id
-   join public.products pr on pr.organization_id=pi.organization_id and pr.id=pi.product_id
-   where p.organization_id=(select id from public.organizations where name='ERP Transaction Test')
-     and p.subtotal=6000 and pr.name='Discount Product C'
-   limit 1),
+  (select it.unit_cost
+   from public.inventory_transactions it
+   join public.products pr on pr.organization_id=it.organization_id and pr.id=it.product_id
+   where it.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and it.reference_type='PURCHASE'
+     and pr.name='Discount Product C'
+   order by it.created_at desc limit 1),
   296.6666::numeric,
   'rounding remainder is absorbed by the final purchase line'
 );
