@@ -1463,12 +1463,171 @@ $$;
 revoke execute on function public.onboard_organization(text,char(3),text) from public, anon;
 grant execute on function public.onboard_organization(text,char(3),text) to authenticated;
 
+create or replace function private.purchase_item_effective_unit_cost(
+  p_purchase_id uuid,
+  p_purchase_item_id uuid
+)
+returns numeric(20,4)
+language plpgsql
+security definer
+set search_path = ''
+as $
+declare
+  p public.purchase%rowtype;
+  i record;
+  v_total_qty numeric(20,4);
+  v_unit_discount numeric(20,4);
+  v_running_discount numeric(20,4) := 0;
+  v_line_discount numeric(20,4);
+  v_net_line numeric(20,4);
+begin
+  select * into p
+  from public.purchase
+  where id=p_purchase_id
+    and status in ('CONFIRMED','CANCELLED');
+
+  if not found then
+    raise exception 'purchase document not found';
+  end if;
+
+  select coalesce(sum(pi.quantity),0)
+    into v_total_qty
+  from public.purchase_items pi
+  where pi.organization_id=p.organization_id
+    and pi.purchase_id=p.id;
+
+  if v_total_qty <= 0 then
+    raise exception 'purchase quantity must be positive';
+  end if;
+
+  if p.discount_amount = 0 then
+    select round(pi.unit_cost,4)
+      into v_net_line
+    from public.purchase_items pi
+    where pi.organization_id=p.organization_id
+      and pi.purchase_id=p.id
+      and pi.id=p_purchase_item_id;
+    if v_net_line is null then raise exception 'purchase item not found'; end if;
+    return v_net_line;
+  end if;
+
+  v_unit_discount := round(p.discount_amount / v_total_qty,4);
+
+  for i in
+    select pi.id,pi.quantity,pi.line_total,
+           row_number() over(order by pi.line_number) rn,
+           count(*) over() cnt
+    from public.purchase_items pi
+    where pi.organization_id=p.organization_id
+      and pi.purchase_id=p.id
+    order by pi.line_number
+  loop
+    if i.rn=i.cnt then
+      v_line_discount := round(p.discount_amount-v_running_discount,4);
+    else
+      v_line_discount := round(i.quantity*v_unit_discount,4);
+      v_running_discount := v_running_discount+v_line_discount;
+    end if;
+
+    if i.id=p_purchase_item_id then
+      v_net_line := round(i.line_total-v_line_discount,4);
+      if v_net_line < 0 then
+        raise exception 'purchase discount allocation became negative';
+      end if;
+      return round(v_net_line/i.quantity,4);
+    end if;
+
+    if i.rn=i.cnt then
+      raise exception 'purchase item not found';
+    end if;
+  end loop;
+
+  raise exception 'purchase item not found';
+end;
+$;
+
+revoke all on function private.purchase_item_effective_unit_cost(uuid,uuid) from public,anon,authenticated;
+
+create or replace function private.inventory_out_at_cost(
+  p_organization_id uuid,
+  p_product_id uuid,
+  p_date date,
+  p_quantity numeric,
+  p_unit_cost numeric,
+  p_reference_type text,
+  p_reference_id uuid,
+  p_transaction_number text
+)
+returns numeric
+language plpgsql
+security definer
+set search_path = ''
+as $
+declare
+  v_qty numeric(20,4);
+  v_value numeric(20,4);
+  v_avg numeric(20,4);
+  v_cost numeric(20,4);
+  v_new_qty numeric(20,4);
+  v_new_value numeric(20,4);
+begin
+  if p_quantity <= 0 or p_unit_cost < 0 then
+    raise exception 'invalid inventory issue quantity/cost';
+  end if;
+
+  select ib.quantity,ib.inventory_value,ib.average_cost
+    into v_qty,v_value,v_avg
+  from public.inventory_balances ib
+  where ib.organization_id=p_organization_id
+    and ib.product_id=p_product_id
+  for update;
+
+  if not found or v_qty < p_quantity then
+    raise exception 'insufficient inventory for product %: available %, requested %',
+      p_product_id,coalesce(v_qty,0),p_quantity;
+  end if;
+
+  v_cost := round(p_quantity*p_unit_cost,4);
+  v_new_qty := v_qty-p_quantity;
+  v_new_value := case when v_new_qty=0 then 0 else round(v_value-v_cost,4) end;
+
+  if v_new_value < 0 then
+    raise exception 'cannot reverse inventory at original cost; current inventory value is insufficient';
+  end if;
+
+  update public.inventory_balances
+     set quantity=v_new_qty,
+         inventory_value=v_new_value,
+         average_cost=case when v_new_qty=0 then 0 else round(v_new_value/v_new_qty,4) end,
+         updated_at=now()
+   where organization_id=p_organization_id
+     and product_id=p_product_id;
+
+  insert into public.inventory_transactions(
+    organization_id,transaction_number,product_id,transaction_date,
+    transaction_type,direction,quantity,unit_cost,total_value,
+    reference_type,reference_id,unit_cost_before,average_cost_after,created_by
+  )
+  values(
+    p_organization_id,p_transaction_number,p_product_id,p_date,
+    p_reference_type,'OUT',p_quantity,p_unit_cost,v_cost,
+    p_reference_type,p_reference_id,v_avg,
+    case when v_new_qty=0 then 0 else round(v_new_value/v_new_qty,4) end,
+    auth.uid()
+  );
+
+  return v_cost;
+end;
+$;
+
+revoke all on function private.inventory_out_at_cost(uuid,uuid,date,numeric,numeric,text,uuid,text) from public,anon,authenticated;
+
 create or replace function private.confirm_purchase(p_id uuid)
 returns uuid
 language plpgsql
 security definer
 set search_path = ''
-as $$
+as $
 declare
   p public.purchase%rowtype;
   i record;
@@ -1477,34 +1636,35 @@ declare
   v_total numeric(20,4);
   v_alloc numeric(20,4);
   v_running numeric(20,4) := 0;
-  v_n integer;
+  v_total_qty numeric(20,4);
+  v_unit_discount numeric(20,4);
   v_count integer;
   v_inventory_account uuid;
-  v_payable text;
   v_tx text;
-  v_unit_cost numeric;
 begin
   select * into p from public.purchase where id=p_id for update;
   if not found then raise exception 'purchase not found'; end if;
   perform private.assert_member(p.organization_id);
   if p.status <> 'DRAFT' then raise exception 'only draft purchases can be confirmed'; end if;
 
-  select count(*), coalesce(sum(pi.line_total),0)
-    into v_count, v_total
+  select count(*),coalesce(sum(pi.line_total),0),coalesce(sum(pi.quantity),0)
+    into v_count,v_total,v_total_qty
   from public.purchase_items pi
   where pi.purchase_id=p.id and pi.organization_id=p.organization_id;
 
   if v_count=0 or v_total <> p.subtotal then
     raise exception 'purchase subtotal does not match purchase items';
   end if;
-  if p.total_amount <> p.subtotal - p.discount_amount then
+  if v_total_qty <= 0 then
+    raise exception 'purchase quantity must be positive';
+  end if;
+  if p.total_amount <> p.subtotal-p.discount_amount then
     raise exception 'purchase total is inconsistent';
   end if;
 
   perform private.assert_account_type(p.organization_id,p.payable_account_id,'LIABILITY',true);
 
-  v_invoice := private.allocate_number(p.organization_id,'PURCHASE');
-  v_payable := p.supplier_id::text;
+  v_invoice:=private.allocate_number(p.organization_id,'PURCHASE');
 
   if (select count(distinct pr.inventory_account_id)
       from public.purchase_items pi
@@ -1513,8 +1673,10 @@ begin
     raise exception 'purchase must use one inventory account';
   end if;
 
+  v_unit_discount:=case when p.discount_amount=0 then 0 else round(p.discount_amount/v_total_qty,4) end;
+
   for i in
-    select pi.*, pr.inventory_account_id,
+    select pi.*,pr.inventory_account_id,
            row_number() over(order by pi.line_number) rn,
            count(*) over() cnt
     from public.purchase_items pi
@@ -1524,30 +1686,30 @@ begin
     order by pi.line_number
   loop
     if i.rn=i.cnt then
-      v_alloc := round(p.total_amount-v_running,4);
+      v_alloc:=round(p.total_amount-v_running,4);
     else
-      v_alloc := round(i.line_total - (case when p.subtotal=0 then 0 else i.line_total/p.subtotal*p.discount_amount end),4);
-      v_running := v_running + v_alloc;
+      v_alloc:=round(i.line_total-(i.quantity*v_unit_discount),4);
+      v_running:=v_running+v_alloc;
     end if;
+
     if v_alloc < 0 then raise exception 'purchase discount allocation became negative'; end if;
     perform private.assert_account_type(p.organization_id,i.inventory_account_id,'ASSET',true);
-    v_inventory_account := i.inventory_account_id;
-    v_tx := v_invoice || '-' || i.line_number::text;
-    perform private.inventory_in(p.organization_id,i.product_id,p.invoice_date,i.quantity,
-      case when i.quantity=0 then 0 else v_alloc/i.quantity end,'PURCHASE',p.id,v_tx);
-    -- Preserve the source line total. The document discount is allocated
-    -- only to the inventory valuation and posting amount.
+    v_inventory_account:=i.inventory_account_id;
+    v_tx:=v_invoice||'-'||i.line_number::text;
+
+    perform private.inventory_in(
+      p.organization_id,i.product_id,p.invoice_date,i.quantity,
+      case when i.quantity=0 then 0 else round(v_alloc/i.quantity,4) end,
+      'PURCHASE',p.id,v_tx
+    );
   end loop;
 
-  v_journal := private.post_journal(
+  v_journal:=private.post_journal(
     p.organization_id,p.invoice_date,'PURCHASE','PURCHASE',p.id,
     'Purchase '||v_invoice,
     jsonb_build_array(
-      jsonb_build_object('account_id',
-        v_inventory_account,
-        'debit',p.total_amount,'credit',0,'contact_id',p.supplier_id,'description','Inventory purchase'),
-      jsonb_build_object('account_id',p.payable_account_id,
-        'debit',0,'credit',p.total_amount,'contact_id',p.supplier_id,'description','Accounts payable')
+      jsonb_build_object('account_id',v_inventory_account,'debit',p.total_amount,'credit',0,'contact_id',p.supplier_id,'description','Inventory purchase'),
+      jsonb_build_object('account_id',p.payable_account_id,'debit',0,'credit',p.total_amount,'contact_id',p.supplier_id,'description','Accounts payable')
     )
   );
 
@@ -1557,7 +1719,7 @@ begin
 
   return v_journal;
 end;
-$$;
+$;
 
 revoke all on function private.confirm_purchase(uuid) from public, anon, authenticated;
 
@@ -1963,8 +2125,9 @@ begin
       v_running := v_running+i.line_total;
     end if;
     if i.line_total < 0 then raise exception 'purchase return discount allocation became negative'; end if;
-    perform private.inventory_out(
+    perform private.inventory_out_at_cost(
       r.organization_id,i.product_id,r.return_date,i.quantity,
+      private.purchase_item_effective_unit_cost(r.purchase_id,i.purchase_item_id),
       'PURCHASE_RETURN',r.id,v_num||'-'||i.line_number::text
     );
     v_inventory_account:=i.inventory_account_id;
