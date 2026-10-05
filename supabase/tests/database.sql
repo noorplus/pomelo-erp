@@ -433,7 +433,7 @@ insert into public.purchase_return_items(
 )
 select r.organization_id,r.id,1,pi.id,pi.product_id,2,10,20
 from public.purchase_returns r
-join public.purchase_items pi on pi.organization_id=r.organization_id
+join public.purchase_items pi on pi.organization_id=r.organization_id and pi.purchase_id=r.purchase_id
 join public.purchase p on p.organization_id=r.organization_id and p.id=r.purchase_id
 where r.organization_id=(select id from public.organizations where name='ERP Transaction Test')
   and r.status='DRAFT'
@@ -1131,18 +1131,20 @@ select ok(
 );
 
 -- ---------------------------------------------------------------------------
--- Settled document cancellation guard
+-- Settled document cancellation with later inventory movement guard
 -- ---------------------------------------------------------------------------
-select throws_ok(
-  $$select public.cancel_purchase(
+-- Confirmed allocations no longer block document cancellation by themselves.
+-- Inventory chronology still prevents cancelling a purchase whose product has
+-- later inventory movements, preserving stock-cost integrity.
+select throws_like(
+  $select public.cancel_purchase(
       (select id from public.purchase
        where organization_id=(select id from public.organizations where name='ERP Transaction Test')
        and status='CONFIRMED'
        order by created_at limit 1)
-  )$$,
-  'P0001',
-  'cannot cancel PURCHASE with confirmed payment allocations',
-  'settled purchase cannot be cancelled'
+  )$,
+  'cannot cancel PURCHASE because later inventory movement exists for product',
+  'settled purchase with later inventory movement cannot be cancelled'
 );
 
 -- ---------------------------------------------------------------------------
