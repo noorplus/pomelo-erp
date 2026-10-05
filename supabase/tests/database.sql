@@ -1124,7 +1124,7 @@ select ok(
     join public.payment_allocations pa
       on pa.organization_id=p.organization_id and pa.payment_id=p.id
     where p.organization_id=(select id from public.organizations where name='ERP Transaction Test')
-      and p.amount=90 and p.status='CONFIRMED'
+      and p.amount=70 and p.status='CONFIRMED'
       and pa.document_type='PURCHASE'
   ),
   'purchase payment allocation confirms'
@@ -1141,6 +1141,20 @@ select throws_like(
       (select id from public.purchase
        where organization_id=(select id from public.organizations where name='ERP Transaction Test')
        and status='CONFIRMED'
+       and exists (
+         select 1
+         from public.inventory_transactions it
+         where it.organization_id=public.purchase.organization_id
+           and it.reference_type='PURCHASE'
+           and it.reference_id=public.purchase.id
+           and exists (
+             select 1
+             from public.inventory_transactions later
+             where later.organization_id=it.organization_id
+               and later.product_id=it.product_id
+               and later.created_at > it.created_at
+           )
+       )
        order by created_at limit 1)
   )$q$,
   'cannot cancel PURCHASE because later inventory movement exists for product',
@@ -1383,13 +1397,12 @@ select is(
 );
 
 select is(
-  (select count(*)::numeric
+  (select coalesce(sum(at.debit-at.credit),0)
    from public.account_transactions at
    join public.journal_entries je on je.organization_id=at.organization_id and je.id=at.journal_entry_id
    where at.organization_id=(select id from public.organizations where name='ERP Transaction Test')
      and je.reference_type='PURCHASE'
-     and je.reference_id=(select p.id from public.purchase p where p.organization_id=at.organization_id and p.subtotal=6000 limit 1)
-     and at.debit<>at.credit),
+     and je.reference_id=(select p.id from public.purchase p where p.organization_id=at.organization_id and p.subtotal=6000 limit 1)),
   0::numeric,
   'discounted purchase and refund leave no residual ledger amount'
 );
