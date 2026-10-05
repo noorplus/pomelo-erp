@@ -252,7 +252,7 @@ insert into public.sales(  organization_id,customer_id,invoice_date,subtotal,dis
 )
 select o.id,c.id,current_date,60,0,60,a.id,auth.uid()
 from public.organizations o
-join public.contacts c on c.organization_id=o.id and c.name='Cancellation Customer'
+join public.contacts c on c.organization_id=o.id and c.name='Customer A'
 join public.accounts a on a.organization_id=o.id and a.account_code='1100'
 where o.name='ERP Transaction Test';
 
@@ -685,7 +685,7 @@ insert into public.sales(
 )
 select o.id,c.id,current_date,15,0,15,a.id,auth.uid()
 from public.organizations o
-join public.contacts c on c.organization_id=o.id and c.name='Customer A'
+join public.contacts c on c.organization_id=o.id and c.name='Cancellation Customer'
 join public.accounts a on a.organization_id=o.id and a.account_code='1100'
 where o.name='ERP Transaction Test';
 
