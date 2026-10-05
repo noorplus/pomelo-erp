@@ -741,12 +741,12 @@ where o.name='ERP Transaction Test';
 
 select public.confirm_expense(
   (select id from public.expenses where organization_id=(select id from public.organizations where name='ERP Transaction Test')
-   and status='DRAFT' order by created_at desc limit 1)
+   and status='DRAFT' and amount=13)
 );
 
 select public.cancel_expense(
   (select id from public.expenses where organization_id=(select id from public.organizations where name='ERP Transaction Test')
-   and status='CONFIRMED' order by created_at desc limit 1)
+   and status='CONFIRMED' and amount=13)
 );
 
 select ok(  exists(select 1 from public.expenses where organization_id=(select id from public.organizations where name='ERP Transaction Test')
