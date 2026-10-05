@@ -1246,6 +1246,16 @@ select is(
   'Product A inventory value uses discounted cost'
 );
 
+select is(
+  (select coalesce(sum(ib.inventory_value),0)
+   from public.inventory_balances ib
+   join public.products pr on pr.organization_id=ib.organization_id and pr.id=ib.product_id
+   where ib.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and pr.name like 'Discount Product %'),
+  5900.0000::numeric,
+  'multi-line purchase inventory value exactly equals net invoice total'
+);
+
 insert into public.payments(
   organization_id,payment_type,contact_id,payment_date,amount,
   account_id,settlement_account_id,created_by
@@ -1272,18 +1282,6 @@ select public.confirm_payment(
    where organization_id=(select id from public.organizations where name='ERP Transaction Test')
      and status='DRAFT' and amount=5900
    order by created_at desc limit 1)
-);
-
-select is(
-  (select it.unit_cost
-   from public.inventory_transactions it
-   join public.products pr on pr.organization_id=it.organization_id and pr.id=it.product_id
-   where it.organization_id=(select id from public.organizations where name='ERP Transaction Test')
-     and it.reference_type='PURCHASE_RETURN'
-     and pr.name='Discount Product B'
-   order by it.created_at desc limit 1),
-  196.6667::numeric,
-  'purchase return uses original discounted unit cost'
 );
 
 insert into public.purchase_returns(
@@ -1313,6 +1311,18 @@ select public.confirm_purchase_return(
    where organization_id=(select id from public.organizations where name='ERP Transaction Test')
      and status='DRAFT' and total_amount=393.3334
    order by created_at desc limit 1)
+);
+
+select is(
+  (select it.unit_cost
+   from public.inventory_transactions it
+   join public.products pr on pr.organization_id=it.organization_id and pr.id=it.product_id
+   where it.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and it.reference_type='PURCHASE_RETURN'
+     and pr.name='Discount Product B'
+   order by it.created_at desc limit 1),
+  196.6667::numeric,
+  'purchase return uses original discounted unit cost'
 );
 
 select is(
@@ -1350,6 +1360,32 @@ select public.confirm_payment(
    where organization_id=(select id from public.organizations where name='ERP Transaction Test')
      and status='DRAFT' and payment_type='RECEIPT' and amount=393.3334
    order by created_at desc limit 1)
+);
+
+select is(
+  (select coalesce(sum(at.debit-at.credit),0)
+   from public.account_transactions at
+   join public.journal_entries je
+     on je.organization_id=at.organization_id and je.id=at.journal_entry_id
+   join public.accounts a
+     on a.organization_id=at.organization_id and a.id=at.account_id
+   join public.contacts c
+     on c.organization_id=at.organization_id and c.id=at.contact_id
+   where at.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and a.account_code='2000'
+     and c.name='Supplier A'
+     and (
+       je.reference_id=(select p.id from public.purchase p where p.organization_id=at.organization_id and p.subtotal=6000 limit 1)
+       or je.reference_id=(select r.id from public.purchase_returns r where r.organization_id=at.organization_id and r.total_amount=393.3334 limit 1)
+       or je.reference_id in (
+         select p.id from public.payments p
+         where p.organization_id=at.organization_id
+           and p.amount in (5900,393.3334)
+           and p.status='CONFIRMED'
+       )
+     )),
+  0::numeric,
+  'supplier payable is exactly settled with no rounding residual'
 );
 
 select is(
