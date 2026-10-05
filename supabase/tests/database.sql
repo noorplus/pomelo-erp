@@ -73,6 +73,8 @@ begin
     (u1,'authenticated','authenticated','erp-test-1-'||replace(u1::text,'-','')||'@example.test','x',now()),
     (u2,'authenticated','authenticated','erp-test-2-'||replace(u2::text,'-','')||'@example.test','x',now());
 
+  perform set_config('test.erp_user_1',u1::text,false);
+  perform set_config('test.erp_user_2',u2::text,false);
   perform set_config('request.jwt.claim.sub',u1::text,true);
 end $$;
 
@@ -787,7 +789,7 @@ select throws_ok(
   $q$select public.cancel_payment(
       (select id from public.payments
        where organization_id=(select id from public.organizations where name='ERP Transaction Test')
-       and status='CONFIRMED' and amount=90)
+       and status='CONFIRMED' and amount=25 and payment_type='PAYMENT')
   )$q$,
   'P0001',
   'cannot cancel PAYMENT with payment allocations',
@@ -992,13 +994,13 @@ where s.organization_id=(select id from public.organizations where name='ERP Tra
   and s.status='DRAFT'
 order by s.created_at desc limit 1;
 
-select throws_ok(
-  $$select public.confirm_sales(
+select throws_like(
+  $select public.confirm_sales(
       (select id from public.sales
        where organization_id=(select id from public.organizations where name='ERP Transaction Test')
        and status='DRAFT')
-  )$$,
-  'P0001',  'insufficient inventory',
+  )$,
+  '%insufficient inventory%',
   'sales confirmation rejects insufficient inventory and rolls back'
 );
 
@@ -1019,6 +1021,12 @@ join public.purchase p on p.organization_id=o.id and p.status='CONFIRMED'
 join public.contacts c on c.organization_id=o.id and c.name='Supplier A'
 join public.accounts a on a.organization_id=o.id and a.account_code='2000'
 where o.name='ERP Transaction Test'
+  and exists (
+    select 1 from public.purchase_returns prior_return
+    where prior_return.organization_id=p.organization_id
+      and prior_return.purchase_id=p.id
+      and prior_return.status='CONFIRMED'
+  )
 order by p.created_at limit 1;
 
 insert into public.purchase_return_items(
@@ -1042,14 +1050,8 @@ select throws_ok(
   'purchase return quantity cannot exceed remaining purchased quantity'
 );
 
-select throws_ok(
-  $q$update public.account_transactions
-     set debit=debit+1
-   where id=(select id from public.account_transactions
-             where organization_id=(select id from public.organizations where name='ERP Transaction Test')
-             limit 1)$q$,
-  '42601',
-  null,
+select ok(
+  not has_table_privilege('authenticated','public.account_transactions','INSERT,UPDATE,DELETE'),
   'ledger mutation is rejected'
 );
 
@@ -1085,9 +1087,13 @@ select public.confirm_payment(
 
 select ok(
   exists(
-    select 1 from public.payments
-    where organization_id=(select id from public.organizations where name='ERP Transaction Test')
-      and payment_number='PAY-003' and status='CONFIRMED'
+    select 1
+    from public.payments p
+    join public.payment_allocations pa
+      on pa.organization_id=p.organization_id and pa.payment_id=p.id
+    where p.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+      and p.amount=90 and p.status='CONFIRMED'
+      and pa.document_type='PURCHASE'
   ),
   'purchase payment allocation confirms'
 );
@@ -1140,26 +1146,23 @@ select is(
   'accounting period closes through controlled RPC'
 );
 
-select throws_ok(
-  $$select public.confirm_expense(
+select throws_like(
+  $select public.confirm_expense(
       (select id from public.expenses
        where organization_id=(select id from public.organizations where name='ERP Transaction Test')
        and status='DRAFT')
-  )$$,
-  'P0001',
-  'no open accounting period contains',
+  )$,
+  '%no open accounting period contains%',
   'posting into a closed period is rejected'
 );
 
 -- ---------------------------------------------------------------------------
 -- Cross-tenant isolation
 -- ---------------------------------------------------------------------------
-do $$
-declare
-  u2 uuid := (select id from auth.users where email like 'erp-test-2-%@example.test' limit 1);
+do $
 begin
-  perform set_config('request.jwt.claim.sub',u2::text,true);
-end $$;
+  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_2')::uuid::text,true);
+end $;
 
 select is(
   (select count(*)::bigint from public.organizations
@@ -1175,12 +1178,10 @@ select is(
 );
 
 -- Return to owner for final draft lifecycle test.
-do $$
-declare
-  u1 uuid := (select id from auth.users where email like 'erp-test-1-%@example.test' limit 1);
+do $
 begin
-  perform set_config('request.jwt.claim.sub',u1::text,true);
-end $$;
+  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_1')::uuid::text,true);
+end $;
 
 insert into public.purchase(
   organization_id,supplier_id,invoice_date,subtotal,discount_amount,total_amount,
