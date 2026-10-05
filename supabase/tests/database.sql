@@ -1137,12 +1137,12 @@ select ok(
 -- Inventory chronology still prevents cancelling a purchase whose product has
 -- later inventory movements, preserving stock-cost integrity.
 select throws_like(
-  $select public.cancel_purchase(
+  $q$select public.cancel_purchase(
       (select id from public.purchase
        where organization_id=(select id from public.organizations where name='ERP Transaction Test')
        and status='CONFIRMED'
        order by created_at limit 1)
-  )$,
+  )$q$,
   'cannot cancel PURCHASE because later inventory movement exists for product',
   'settled purchase with later inventory movement cannot be cancelled'
 );
