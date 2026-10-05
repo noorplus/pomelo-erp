@@ -815,6 +815,7 @@ create index products_org_active_idx on public.products(organization_id, is_acti
 create index contacts_org_active_idx on public.contacts(organization_id, is_active);
 create index number_sequences_org_active_idx on public.number_sequences(organization_id, is_active);
 create index journal_entries_org_date_idx on public.journal_entries(organization_id, entry_date);
+create index journal_entries_period_idx on public.journal_entries(organization_id, accounting_period_id, entry_date);
 create index journal_entries_org_status_idx on public.journal_entries(organization_id, status);
 create index account_transactions_journal_idx on public.account_transactions(journal_entry_id, line_number);
 create index account_transactions_account_idx on public.account_transactions(organization_id, account_id);
@@ -865,8 +866,8 @@ create or replace function public.allocate_number(p_organization_id uuid, p_docu
 returns text
 language plpgsql
 security definer
-set search_path = public, extensions
-as $$
+set search_path = public, extensions, pg_temp
+as $orig$
 declare
   v_prefix text;
   v_next bigint;
@@ -921,8 +922,8 @@ create or replace function public.validate_journal_balance(p_journal_entry_id uu
 returns void
 language plpgsql
 security definer
-set search_path = public
-as $$
+set search_path = public, pg_temp
+as $orig$
 declare
   v_org uuid;
   v_lines integer;
@@ -970,8 +971,8 @@ returns boolean
 language sql
 stable
 security definer
-set search_path = public
-as $$
+set search_path = public, pg_temp
+as $orig$
   select exists (
     select 1
     from public.organization_users ou
@@ -983,6 +984,352 @@ $$;
 
 revoke all on function public.is_org_member(uuid) from public;
 grant execute on function public.is_org_member(uuid) to authenticated;
+
+-- -----------------------------------------------------------------------------
+-- Accounting period lifecycle
+--
+-- Period writes are intentionally exposed only through these atomic functions.
+-- There is deliberately no reopen function: CLOSED is a terminal application
+-- state and the period guard below also rejects CLOSED -> OPEN updates.
+-- -----------------------------------------------------------------------------
+create or replace function public.create_accounting_period(
+  p_organization_id uuid,
+  p_name text,
+  p_start_date date,
+  p_end_date date
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $ap$
+declare
+  v_id uuid;
+begin
+  if auth.uid() is null then
+    raise exception 'authentication required';
+  end if;
+
+  if not public.is_org_member(p_organization_id) then
+    raise exception 'not an active organization member';
+  end if;
+
+  if not exists (
+    select 1
+    from public.organizations o
+    where o.id = p_organization_id
+      and o.is_active
+  ) then
+    raise exception 'organization is inactive';
+  end if;
+
+  if p_name is null or length(btrim(p_name)) = 0 then
+    raise exception 'accounting period name is required';
+  end if;
+
+  if p_start_date is null or p_end_date is null or p_start_date > p_end_date then
+    raise exception 'accounting period start_date must be on or before end_date';
+  end if;
+
+  insert into public.accounting_periods (
+    organization_id, name, start_date, end_date, status
+  )
+  values (
+    p_organization_id, btrim(p_name), p_start_date, p_end_date,
+    'OPEN'::public.accounting_period_status
+  )
+  returning id into v_id;
+
+  return v_id;
+exception
+  when unique_violation then
+    raise exception 'accounting period name already exists for this organization';
+  when exclusion_violation then
+    raise exception 'accounting period overlaps an existing period for this organization';
+end;
+$ap$;
+
+revoke all on function public.create_accounting_period(uuid, text, date, date) from public;
+grant execute on function public.create_accounting_period(uuid, text, date, date) to authenticated;
+
+create or replace function public.update_accounting_period(
+  p_period_id uuid,
+  p_name text,
+  p_start_date date,
+  p_end_date date
+)
+returns void
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $ap$
+declare
+  v_period public.accounting_periods%rowtype;
+  v_has_journals boolean;
+begin
+  if auth.uid() is null then
+    raise exception 'authentication required';
+  end if;
+
+  select * into v_period
+  from public.accounting_periods
+  where id = p_period_id
+  for update;
+
+  if not found then
+    raise exception 'accounting period not found';
+  end if;
+
+  if not public.is_org_member(v_period.organization_id) then
+    raise exception 'not an active organization member';
+  end if;
+
+  if v_period.status <> 'OPEN'::public.accounting_period_status then
+    raise exception 'closed accounting periods are read-only and cannot be edited';
+  end if;
+
+  if p_name is null or length(btrim(p_name)) = 0 then
+    raise exception 'accounting period name is required';
+  end if;
+
+  if p_start_date is null or p_end_date is null or p_start_date > p_end_date then
+    raise exception 'accounting period start_date must be on or before end_date';
+  end if;
+
+  select exists (
+    select 1
+    from public.journal_entries je
+    where je.organization_id = v_period.organization_id
+      and je.accounting_period_id = v_period.id
+  ) into v_has_journals;
+
+  if v_has_journals
+     and (p_start_date <> v_period.start_date or p_end_date <> v_period.end_date) then
+    raise exception 'accounting period dates cannot change after journal entries exist';
+  end if;
+
+  update public.accounting_periods
+  set name = btrim(p_name),
+      start_date = p_start_date,
+      end_date = p_end_date
+  where id = v_period.id;
+exception
+  when unique_violation then
+    raise exception 'accounting period name already exists for this organization';
+  when exclusion_violation then
+    raise exception 'accounting period overlaps an existing period for this organization';
+end;
+$ap$;
+
+revoke all on function public.update_accounting_period(uuid, text, date, date) from public;
+grant execute on function public.update_accounting_period(uuid, text, date, date) to authenticated;
+
+create or replace function public.validate_accounting_period_close(p_period_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $ap$
+declare
+  v_period public.accounting_periods%rowtype;
+  v_total bigint;
+  v_draft bigint;
+  v_out_of_range bigint;
+  v_unbalanced bigint;
+  v_ready boolean;
+begin
+  if auth.uid() is null then
+    raise exception 'authentication required';
+  end if;
+
+  select * into v_period
+  from public.accounting_periods
+  where id = p_period_id;
+
+  if not found then
+    raise exception 'accounting period not found';
+  end if;
+
+  if not public.is_org_member(v_period.organization_id) then
+    raise exception 'not an active organization member';
+  end if;
+
+  select
+    count(*),
+    count(*) filter (where je.status = 'DRAFT'::public.document_status),
+    count(*) filter (where je.entry_date < v_period.start_date or je.entry_date > v_period.end_date),
+    count(*) filter (
+      where je.status = 'CONFIRMED'::public.document_status
+        and (
+          (select count(*) from public.account_transactions at where at.journal_entry_id = je.id) < 2
+          or
+          (select coalesce(sum(at.debit), 0) from public.account_transactions at where at.journal_entry_id = je.id)
+            <> (select coalesce(sum(at.credit), 0) from public.account_transactions at where at.journal_entry_id = je.id)
+        )
+    )
+  into v_total, v_draft, v_out_of_range, v_unbalanced
+  from public.journal_entries je
+  where je.organization_id = v_period.organization_id
+    and je.accounting_period_id = v_period.id;
+
+  v_ready := v_period.status = 'OPEN'::public.accounting_period_status
+    and v_draft = 0
+    and v_out_of_range = 0
+    and v_unbalanced = 0;
+
+  return jsonb_build_object(
+    'period_id', v_period.id,
+    'status', v_period.status,
+    'total_journals', v_total,
+    'draft_journals', v_draft,
+    'out_of_range_journals', v_out_of_range,
+    'unbalanced_confirmed_journals', v_unbalanced,
+    'ready_to_close', v_ready
+  );
+end;
+$ap$;
+
+revoke all on function public.validate_accounting_period_close(uuid) from public;
+grant execute on function public.validate_accounting_period_close(uuid) to authenticated;
+
+create or replace function public.close_accounting_period(p_period_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $ap$
+declare
+  v_period public.accounting_periods%rowtype;
+  v_check jsonb;
+begin
+  if auth.uid() is null then
+    raise exception 'authentication required';
+  end if;
+
+  select * into v_period
+  from public.accounting_periods
+  where id = p_period_id
+  for update;
+
+  if not found then
+    raise exception 'accounting period not found';
+  end if;
+
+  if not public.is_org_member(v_period.organization_id) then
+    raise exception 'not an active organization member';
+  end if;
+
+  if v_period.status <> 'OPEN'::public.accounting_period_status then
+    raise exception 'accounting period is already CLOSED';
+  end if;
+
+  v_check := public.validate_accounting_period_close(p_period_id);
+
+  if not coalesce((v_check ->> 'ready_to_close')::boolean, false) then
+    raise exception 'accounting period failed close validation: %', v_check;
+  end if;
+
+  update public.accounting_periods
+  set status = 'CLOSED'::public.accounting_period_status,
+      closed_at = now(),
+      closed_by = auth.uid()
+  where id = v_period.id
+    and status = 'OPEN'::public.accounting_period_status;
+
+  if not found then
+    raise exception 'accounting period could not be closed';
+  end if;
+end;
+$ap$;
+
+revoke all on function public.close_accounting_period(uuid) from public;
+grant execute on function public.close_accounting_period(uuid) to authenticated;
+
+-- A CLOSED period is terminal. Direct SQL/RPC updates cannot reopen or mutate it.
+create or replace function public.guard_accounting_period_update()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $ap$
+begin
+  if old.status = 'CLOSED'::public.accounting_period_status then
+    raise exception 'closed accounting periods are immutable and cannot be reopened or edited';
+  end if;
+
+  return new;
+end;
+$ap$;
+
+revoke all on function public.guard_accounting_period_update() from public;
+
+create trigger accounting_periods_terminal_guard
+before update on public.accounting_periods
+for each row
+execute function public.guard_accounting_period_update();
+
+-- Journal entries must always belong to an OPEN period and their date must be
+-- inside that period. The row lock serializes journal writes with period close.
+create or replace function public.guard_journal_entry_period()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $ap$
+declare
+  v_status public.accounting_period_status;
+  v_start_date date;
+  v_end_date date;
+begin
+  if tg_op = 'DELETE' then
+    select ap.status, ap.start_date, ap.end_date
+      into v_status, v_start_date, v_end_date
+    from public.accounting_periods ap
+    where ap.organization_id = old.organization_id
+      and ap.id = old.accounting_period_id
+    for update;
+
+    if not found then
+      raise exception 'accounting period not found for journal entry';
+    end if;
+
+    if v_status <> 'OPEN'::public.accounting_period_status then
+      raise exception 'journal entries cannot be deleted from a CLOSED accounting period';
+    end if;
+
+    return old;
+  end if;
+
+  select ap.status, ap.start_date, ap.end_date
+    into v_status, v_start_date, v_end_date
+  from public.accounting_periods ap
+  where ap.organization_id = new.organization_id
+    and ap.id = new.accounting_period_id
+  for update;
+
+  if not found then
+    raise exception 'accounting period not found for journal entry';
+  end if;
+
+  if v_status <> 'OPEN'::public.accounting_period_status then
+    raise exception 'journal entries cannot be created or changed in a CLOSED accounting period';
+  end if;
+
+  if new.entry_date < v_start_date or new.entry_date > v_end_date then
+    raise exception 'journal entry date % is outside accounting period % through %',
+      new.entry_date, v_start_date, v_end_date;
+  end if;
+
+  return new;
+end;
+$ap$;
+
+revoke all on function public.guard_journal_entry_period() from public;
+
+create trigger journal_entries_period_guard
+before insert or update or delete on public.journal_entries
+for each row
+execute function public.guard_journal_entry_period();
 
 -- -----------------------------------------------------------------------------
 -- RLS
