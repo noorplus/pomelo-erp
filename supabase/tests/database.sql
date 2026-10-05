@@ -842,6 +842,8 @@ insert into public.purchase_returns(
 select o.id,p.id,c.id,current_date,10,0,10,a.id,auth.uid()
 from public.organizations o
 join public.purchase p on p.organization_id=o.id and p.status='CONFIRMED'
+join public.purchase_items pi on pi.organization_id=p.organization_id and pi.purchase_id=p.id
+join public.products pr on pr.organization_id=pi.organization_id and pr.id=pi.product_id and pr.name='Cancellation Product B'
 join public.contacts c on c.organization_id=o.id and c.name='Supplier A'
 join public.accounts a on a.organization_id=o.id and a.account_code='2000'
 where o.name='ERP Transaction Test'
@@ -942,6 +944,8 @@ insert into public.sales_returns(
 select o.id,s.id,c.id,current_date,15,0,15,a.id,auth.uid()
 from public.organizations o
 join public.sales s on s.organization_id=o.id and s.status='CONFIRMED'
+join public.sales_items si on si.organization_id=s.organization_id and si.sales_id=s.id
+join public.products pr on pr.organization_id=si.organization_id and pr.id=si.product_id and pr.name='Cancellation Product C'
 join public.contacts c on c.organization_id=o.id and c.name='Customer A'
 join public.accounts a on a.organization_id=o.id and a.account_code='1100'
 where o.name='ERP Transaction Test'
