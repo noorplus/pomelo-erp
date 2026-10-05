@@ -718,8 +718,12 @@ select ok(
 );
 
 select is(
-  (select quantity from public.inventory_balances where organization_id=(select id from public.organizations where name='ERP Transaction Test')),
-  16::numeric,
+  (select ib.quantity
+   from public.inventory_balances ib
+   join public.products pr on pr.organization_id=ib.organization_id and pr.id=ib.product_id
+   where ib.organization_id=(select id from public.organizations where name='ERP Transaction Test')
+     and pr.name='Cancellation Product D'),
+  1::numeric,
   'sales cancellation restores inventory'
 );
 
