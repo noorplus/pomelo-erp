@@ -756,7 +756,7 @@ select ok(
 
 -- Allocated payment cancellation must be blocked.
 select throws_ok(
-  $select public.cancel_payment(
+  $$select public.cancel_payment(
       (select id from public.payments
        where organization_id=(select id from public.organizations where name='ERP Transaction Test')
        and status='CONFIRMED' and amount=90)
@@ -1005,7 +1005,7 @@ where r.organization_id=(select id from public.organizations where name='ERP Tra
 order by r.created_at desc limit 1;
 
 select throws_ok(
-  $select public.confirm_purchase_return(
+  $$select public.confirm_purchase_return(
       (select id from public.purchase_returns
        where organization_id=(select id from public.organizations where name='ERP Transaction Test')
        and status='DRAFT')
@@ -1016,7 +1016,7 @@ select throws_ok(
 );
 
 select throws_ok(
-  $update public.account_transactions
+  $$update public.account_transactions
      set debit=debit+1
    where id=(select id from public.account_transactions
              where organization_id=(select id from public.organizations where name='ERP Transaction Test')
