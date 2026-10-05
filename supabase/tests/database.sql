@@ -995,11 +995,11 @@ where s.organization_id=(select id from public.organizations where name='ERP Tra
 order by s.created_at desc limit 1;
 
 select throws_like(
-  $select public.confirm_sales(
+  $q$select public.confirm_sales(
       (select id from public.sales
        where organization_id=(select id from public.organizations where name='ERP Transaction Test')
        and status='DRAFT')
-  )$,
+  )$q$,
   '%insufficient inventory%',
   'sales confirmation rejects insufficient inventory and rolls back'
 );
