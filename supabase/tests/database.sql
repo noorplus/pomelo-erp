@@ -247,13 +247,12 @@ select is(
 -- ---------------------------------------------------------------------------
 -- Sales + COGS + receipt allocation
 -- ---------------------------------------------------------------------------
-insert into public.sales(
-  organization_id,customer_id,invoice_date,subtotal,discount_amount,total_amount,
+insert into public.sales(  organization_id,customer_id,invoice_date,subtotal,discount_amount,total_amount,
   receivable_account_id,created_by
 )
 select o.id,c.id,current_date,60,0,60,a.id,auth.uid()
 from public.organizations o
-join public.contacts c on c.organization_id=o.id and c.name='Customer A'
+join public.contacts c on c.organization_id=o.id and c.name='Cancellation Customer'
 join public.accounts a on a.organization_id=o.id and a.account_code='1100'
 where o.name='ERP Transaction Test';
 
@@ -497,8 +496,7 @@ select is(
   (select quantity from public.inventory_balances
    where organization_id=(select id from public.organizations where name='ERP Transaction Test')),
   16::numeric,
-  'sales return restores inventory'
-);
+  'sales return restores inventory');
 
 -- ---------------------------------------------------------------------------
 -- Manual journal + reversal
@@ -747,8 +745,7 @@ select public.cancel_expense(
    and status='CONFIRMED' order by created_at desc limit 1)
 );
 
-select ok(
-  exists(select 1 from public.expenses where organization_id=(select id from public.organizations where name='ERP Transaction Test')
+select ok(  exists(select 1 from public.expenses where organization_id=(select id from public.organizations where name='ERP Transaction Test')
          and status='CANCELLED' and amount=13),
   'expense cancellation creates a reversal'
 );
@@ -997,8 +994,7 @@ select throws_ok(
        where organization_id=(select id from public.organizations where name='ERP Transaction Test')
        and status='DRAFT')
   )$$,
-  'P0001',
-  'insufficient inventory',
+  'P0001',  'insufficient inventory',
   'sales confirmation rejects insufficient inventory and rolls back'
 );
 
