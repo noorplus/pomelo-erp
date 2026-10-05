@@ -3,7 +3,7 @@
 
 begin;
 
-select plan(65);
+select plan(75);
 
 -- ---------------------------------------------------------------------------
 -- Schema/security baseline
@@ -1522,6 +1522,301 @@ select is(
   0::bigint,
   'draft purchase can be deleted before confirmation'
 );
+
+
+-- ---------------------------------------------------------------------------
+-- Real-life end-to-end operator transaction flow
+-- ---------------------------------------------------------------------------
+do $q$
+declare u3 uuid := extensions.gen_random_uuid();
+begin
+  insert into auth.users(id,aud,role,email,encrypted_password,email_confirmed_at)
+  values (u3,'authenticated','authenticated','erp-real-life-'||replace(u3::text,'-','')||'@example.test','x',now());
+  perform set_config('test.erp_user_3',u3::text,false);
+  perform set_config('request.jwt.claim.sub',u3::text,true);
+end $q$;
+
+select ok(public.onboard_organization('ERP Real Life Flow') is not null,
+  'real-life flow: operator can onboard a new organization');
+
+insert into public.contacts(organization_id,name)
+select id,'Real Supplier' from public.organizations where name='ERP Real Life Flow';
+insert into public.contacts(organization_id,name)
+select id,'Real Customer' from public.organizations where name='ERP Real Life Flow';
+
+insert into public.products(organization_id,name,unit_id,inventory_account_id,sales_account_id,cogs_account_id)
+select o.id,'Real Life Product',u.id,inv.id,rev.id,cogs.id
+from public.organizations o
+join public.units_of_measure u on u.organization_id=o.id and u.name='pcs'
+join public.accounts inv on inv.organization_id=o.id and inv.account_code='1200'
+join public.accounts rev on rev.organization_id=o.id and rev.account_code='4000'
+join public.accounts cogs on cogs.organization_id=o.id and cogs.account_code='5000'
+where o.name='ERP Real Life Flow';
+
+-- Buy 50 @ 200, pay supplier in full, return 10, refund the return.
+insert into public.purchase(organization_id,supplier_id,invoice_date,subtotal,discount_amount,total_amount,payable_account_id,created_by)
+select o.id,c.id,current_date,10000,0,10000,a.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Real Supplier'
+join public.accounts a on a.organization_id=o.id and a.account_code='2000'
+where o.name='ERP Real Life Flow';
+
+insert into public.purchase_items(organization_id,purchase_id,line_number,product_id,quantity,unit_cost,line_total)
+select p.organization_id,p.id,1,pr.id,50,200,10000
+from public.purchase p
+join public.products pr on pr.organization_id=p.organization_id and pr.name='Real Life Product'
+where p.organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+  and p.status='DRAFT';
+
+select public.confirm_purchase((select id from public.purchase
+ where organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+ and status='DRAFT' order by created_at desc limit 1));
+
+select ok(exists(select 1 from public.purchase
+ where organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+ and status='CONFIRMED' and total_amount=10000),
+ 'real-life flow: supplier purchase confirms');
+
+insert into public.payments(organization_id,payment_type,contact_id,payment_date,amount,account_id,settlement_account_id,created_by)
+select o.id,'PAYMENT',c.id,current_date,10000,ap.id,cash.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Real Supplier'
+join public.accounts ap on ap.organization_id=o.id and ap.account_code='2000'
+join public.accounts cash on cash.organization_id=o.id and cash.account_code='1000'
+where o.name='ERP Real Life Flow';
+
+insert into public.payment_allocations(organization_id,payment_id,document_type,document_id,allocated_amount)
+select p.organization_id,p.id,'PURCHASE',pu.id,10000
+from public.payments p
+join public.purchase pu on pu.organization_id=p.organization_id and pu.status='CONFIRMED'
+where p.organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+  and p.status='DRAFT' and p.payment_type='PAYMENT' and p.amount=10000;
+
+select public.confirm_payment((select id from public.payments
+ where organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+ and status='DRAFT' and payment_type='PAYMENT' and amount=10000 order by created_at desc limit 1));
+
+insert into public.purchase_returns(organization_id,purchase_id,supplier_id,return_date,subtotal,discount_amount,total_amount,payable_account_id,created_by)
+select o.id,p.id,c.id,current_date,2000,0,2000,a.id,auth.uid()
+from public.organizations o
+join public.purchase p on p.organization_id=o.id and p.status='CONFIRMED' and p.total_amount=10000
+join public.contacts c on c.organization_id=o.id and c.name='Real Supplier'
+join public.accounts a on a.organization_id=o.id and a.account_code='2000'
+where o.name='ERP Real Life Flow';
+
+insert into public.purchase_return_items(organization_id,purchase_return_id,line_number,purchase_item_id,product_id,quantity,unit_cost,line_total)
+select r.organization_id,r.id,1,pi.id,pi.product_id,10,200,2000
+from public.purchase_returns r
+join public.purchase_items pi on pi.organization_id=r.organization_id and pi.purchase_id=r.purchase_id
+where r.organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+  and r.status='DRAFT' order by r.created_at desc limit 1;
+
+select public.confirm_purchase_return((select id from public.purchase_returns
+ where organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+ and status='DRAFT' order by created_at desc limit 1));
+
+insert into public.payments(organization_id,payment_type,contact_id,payment_date,amount,account_id,settlement_account_id,created_by)
+select o.id,'RECEIPT',c.id,current_date,2000,ap.id,cash.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Real Supplier'
+join public.accounts ap on ap.organization_id=o.id and ap.account_code='2000'
+join public.accounts cash on cash.organization_id=o.id and cash.account_code='1000'
+where o.name='ERP Real Life Flow';
+
+insert into public.payment_allocations(organization_id,payment_id,document_type,document_id,allocated_amount)
+select p.organization_id,p.id,'PURCHASE_RETURN',r.id,2000
+from public.payments p
+join public.purchase_returns r on r.organization_id=p.organization_id and r.status='CONFIRMED' and r.total_amount=2000
+where p.organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+  and p.status='DRAFT' and p.payment_type='RECEIPT' and p.amount=2000;
+
+select public.confirm_payment((select id from public.payments
+ where organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+ and status='DRAFT' and payment_type='RECEIPT' and amount=2000 order by created_at desc limit 1));
+
+select ok(exists(select 1 from public.payments
+ where organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+ and payment_type='RECEIPT' and amount=2000 and status='CONFIRMED'),
+ 'real-life flow: supplier refund after purchase return confirms');
+
+-- Sell 20 @ 500, receive 10,000, return 4, refund 2,000.
+insert into public.sales(organization_id,customer_id,invoice_date,subtotal,discount_amount,total_amount,receivable_account_id,created_by)
+select o.id,c.id,current_date,10000,0,10000,a.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Real Customer'
+join public.accounts a on a.organization_id=o.id and a.account_code='1100'
+where o.name='ERP Real Life Flow';
+
+insert into public.sales_items(organization_id,sales_id,line_number,product_id,quantity,unit_price,line_total)
+select s.organization_id,s.id,1,pr.id,20,500,10000
+from public.sales s
+join public.products pr on pr.organization_id=s.organization_id and pr.name='Real Life Product'
+where s.organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+  and s.status='DRAFT';
+
+select public.confirm_sales((select id from public.sales
+ where organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+ and status='DRAFT' order by created_at desc limit 1));
+
+insert into public.payments(organization_id,payment_type,contact_id,payment_date,amount,account_id,settlement_account_id,created_by)
+select o.id,'RECEIPT',c.id,current_date,10000,ar.id,cash.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Real Customer'
+join public.accounts ar on ar.organization_id=o.id and ar.account_code='1100'
+join public.accounts cash on cash.organization_id=o.id and cash.account_code='1000'
+where o.name='ERP Real Life Flow';
+
+insert into public.payment_allocations(organization_id,payment_id,document_type,document_id,allocated_amount)
+select p.organization_id,p.id,'SALES',s.id,10000
+from public.payments p
+join public.sales s on s.organization_id=p.organization_id and s.status='CONFIRMED'
+where p.organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+  and p.status='DRAFT' and p.payment_type='RECEIPT' and p.amount=10000;
+
+select public.confirm_payment((select id from public.payments
+ where organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+ and status='DRAFT' and payment_type='RECEIPT' and amount=10000 order by created_at desc limit 1));
+
+insert into public.sales_returns(organization_id,sales_id,customer_id,return_date,subtotal,discount_amount,total_amount,receivable_account_id,created_by)
+select o.id,s.id,c.id,current_date,2000,0,2000,a.id,auth.uid()
+from public.organizations o
+join public.sales s on s.organization_id=o.id and s.status='CONFIRMED' and s.total_amount=10000
+join public.contacts c on c.organization_id=o.id and c.name='Real Customer'
+join public.accounts a on a.organization_id=o.id and a.account_code='1100'
+where o.name='ERP Real Life Flow';
+
+insert into public.sales_return_items(organization_id,sales_return_id,line_number,sales_item_id,product_id,quantity,unit_price,line_total)
+select r.organization_id,r.id,1,si.id,si.product_id,4,500,2000
+from public.sales_returns r
+join public.sales_items si on si.organization_id=r.organization_id and si.sales_id=r.sales_id
+where r.organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+  and r.status='DRAFT' order by r.created_at desc limit 1;
+
+select public.confirm_sales_return((select id from public.sales_returns
+ where organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+ and status='DRAFT' order by created_at desc limit 1));
+
+insert into public.payments(organization_id,payment_type,contact_id,payment_date,amount,account_id,settlement_account_id,created_by)
+select o.id,'PAYMENT',c.id,current_date,2000,ar.id,cash.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Real Customer'
+join public.accounts ar on ar.organization_id=o.id and ar.account_code='1100'
+join public.accounts cash on cash.organization_id=o.id and cash.account_code='1000'
+where o.name='ERP Real Life Flow';
+
+insert into public.payment_allocations(organization_id,payment_id,document_type,document_id,allocated_amount)
+select p.organization_id,p.id,'SALES_RETURN',r.id,2000
+from public.payments p
+join public.sales_returns r on r.organization_id=p.organization_id and r.status='CONFIRMED' and r.total_amount=2000
+where p.organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+  and p.status='DRAFT' and p.payment_type='PAYMENT' and p.amount=2000;
+
+select public.confirm_payment((select id from public.payments
+ where organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+ and status='DRAFT' and payment_type='PAYMENT' and amount=2000 order by created_at desc limit 1));
+
+select ok(exists(select 1 from public.payments
+ where organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+ and payment_type='PAYMENT' and amount=2000 and status='CONFIRMED'),
+ 'real-life flow: customer refund after sales return confirms');
+
+-- Sell 10 @ 500, receive only 3,000, cancel the sale, refund the partial payment.
+insert into public.sales(organization_id,customer_id,invoice_date,subtotal,discount_amount,total_amount,receivable_account_id,created_by)
+select o.id,c.id,current_date,5000,0,5000,a.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Real Customer'
+join public.accounts a on a.organization_id=o.id and a.account_code='1100'
+where o.name='ERP Real Life Flow';
+
+insert into public.sales_items(organization_id,sales_id,line_number,product_id,quantity,unit_price,line_total)
+select s.organization_id,s.id,1,pr.id,10,500,5000
+from public.sales s
+join public.products pr on pr.organization_id=s.organization_id and pr.name='Real Life Product'
+where s.organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+  and s.status='DRAFT';
+
+select public.confirm_sales((select id from public.sales
+ where organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+ and status='DRAFT' order by created_at desc limit 1));
+
+insert into public.payments(organization_id,payment_type,contact_id,payment_date,amount,account_id,settlement_account_id,created_by)
+select o.id,'RECEIPT',c.id,current_date,3000,ar.id,cash.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Real Customer'
+join public.accounts ar on ar.organization_id=o.id and ar.account_code='1100'
+join public.accounts cash on cash.organization_id=o.id and cash.account_code='1000'
+where o.name='ERP Real Life Flow';
+
+insert into public.payment_allocations(organization_id,payment_id,document_type,document_id,allocated_amount)
+select p.organization_id,p.id,'SALES',s.id,3000
+from public.payments p
+join public.sales s on s.organization_id=p.organization_id and s.status='CONFIRMED' and s.total_amount=5000
+where p.organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+  and p.status='DRAFT' and p.payment_type='RECEIPT' and p.amount=3000;
+
+select public.confirm_payment((select id from public.payments
+ where organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+ and status='DRAFT' and payment_type='RECEIPT' and amount=3000 order by created_at desc limit 1));
+
+select public.cancel_sales(
+  (select id from public.sales
+   where organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+   and status='CONFIRMED' and total_amount=5000 order by created_at desc limit 1),
+  current_date);
+
+insert into public.payments(organization_id,payment_type,contact_id,payment_date,amount,account_id,settlement_account_id,created_by)
+select o.id,'PAYMENT',c.id,current_date,3000,ar.id,cash.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Real Customer'
+join public.accounts ar on ar.organization_id=o.id and ar.account_code='1100'
+join public.accounts cash on cash.organization_id=o.id and cash.account_code='1000'
+where o.name='ERP Real Life Flow';
+
+insert into public.payment_allocations(organization_id,payment_id,document_type,document_id,allocated_amount)
+select p.organization_id,p.id,'SALES',s.id,3000
+from public.payments p
+join public.sales s on s.organization_id=p.organization_id and s.status='CANCELLED' and s.total_amount=5000
+where p.organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+  and p.status='DRAFT' and p.payment_type='PAYMENT' and p.amount=3000;
+
+select public.confirm_payment((select id from public.payments
+ where organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+ and status='DRAFT' and payment_type='PAYMENT' and amount=3000 order by created_at desc limit 1));
+
+select is((select quantity from public.inventory_balances ib
+ join public.products pr on pr.organization_id=ib.organization_id and pr.id=ib.product_id
+ where ib.organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+ and pr.name='Real Life Product'),24::numeric,
+ 'real-life flow: final inventory is 24 units');
+
+select is((select coalesce(sum(at.debit-at.credit),0)
+ from public.account_transactions at join public.accounts a on a.organization_id=at.organization_id and a.id=at.account_id
+ where at.organization_id=(select id from public.organizations where name='ERP Real Life Flow') and a.account_code='2000'),
+ 0::numeric,'real-life flow: supplier payable is fully settled');
+
+select is((select coalesce(sum(at.debit-at.credit),0)
+ from public.account_transactions at join public.accounts a on a.organization_id=at.organization_id and a.id=at.account_id
+ where at.organization_id=(select id from public.organizations where name='ERP Real Life Flow') and a.account_code='1100'),
+ 0::numeric,'real-life flow: customer receivable is fully settled');
+
+select is((select coalesce(sum(at.debit-at.credit),0)
+ from public.account_transactions at join public.accounts a on a.organization_id=at.organization_id and a.id=at.account_id
+ where at.organization_id=(select id from public.organizations where name='ERP Real Life Flow') and a.account_code='1000'),
+ 0::numeric,'real-life flow: cash account nets to zero');
+
+select ok(not exists(
+ select 1 from public.journal_entries je
+ where je.organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+ and exists(select 1 from public.account_transactions at
+   where at.organization_id=je.organization_id and at.journal_entry_id=je.id
+   group by at.journal_entry_id having sum(at.debit) <> sum(at.credit))),
+ 'real-life flow: every generated journal remains balanced');
+
+select ok(exists(
+ select 1 from public.sales
+ where organization_id=(select id from public.organizations where name='ERP Real Life Flow')
+ and status='CANCELLED' and total_amount=5000),
+ 'real-life flow: partially paid sale can be cancelled');
 
 select * from finish();
 
