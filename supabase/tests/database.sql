@@ -3,7 +3,7 @@
 
 begin;
 
-select plan(123);
+select plan(116);
 
 -- ---------------------------------------------------------------------------
 -- Schema/security baseline
