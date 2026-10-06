@@ -1,40 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useOrganizationContext } from "@/components/app/organization-provider";
+import { OrganizationOnboarding } from "@/components/app/organization-onboarding";
+import { PageHeader, PageSection } from "@/components/ui";
 
 export default function DashboardPage() {
   const { activeOrganization, organizationState } = useOrganizationContext();
-
-  return (
-    <section className="page">
-      <div className="page-header">
-        <div>
-          <p className="eyebrow">Overview</p>
-          <h1>Dashboard</h1>
-        </div>
-      </div>
-      <div className="content-card">
-        {organizationState === "ready" && activeOrganization ? (
-          <>
-            <p className="eyebrow">Organization</p>
-            <h2>{activeOrganization.name}</h2>
-            <p className="lede">
-              Your organization workspace is connected to the frozen database
-              through the typed application context.
-            </p>
-          </>
-        ) : (
-          <>
-            <p className="eyebrow">Organization</p>
-            <h2>No organization available</h2>
-            <p className="lede">
-              Your account is authenticated, but it is not an active member of
-              an organization yet. Organization setup will be available in the
-              next application phase.
-            </p>
-          </>
-        )}
-      </div>
-    </section>
-  );
+  if (organizationState === "no-organization") return <OrganizationOnboarding />;
+  return <section className="page"><PageHeader eyebrow="Overview" title="Dashboard" description={activeOrganization ? `Workspace: ${activeOrganization.name}` : undefined} actions={<Link className="button" href="/organization-settings">Organization settings</Link>} /><PageSection title="Workspace"><div className="content-card"><p className="eyebrow">Organization</p><h2>{activeOrganization?.name}</h2><p className="lede">Your organization workspace is connected to the frozen database through the typed application context.</p></div></PageSection></section>;
 }
