@@ -1,18 +1,21 @@
-import Link from "next/link";
+import { AppShell } from "@/components/app/app-shell";
 
 export default function HomePage() {
   return (
-    <main className="shell">
-      <section className="hero">
-        <p className="eyebrow">Pomelo ERP</p>
-        <h1>Business operations, built on a solid foundation.</h1>
-        <p className="lede">
-          The application foundation is ready for authentication, organization context, and reusable ERP modules.
-        </p>
-        <div className="actions">
-          <Link className="button primary" href="/login">Sign in</Link>
+    <AppShell>
+      <section className="page">
+        <div className="page-header">
+          <div>
+            <p className="eyebrow">Overview</p>
+            <h1>Dashboard</h1>
+          </div>
+        </div>
+        <div className="content-card">
+          <p className="lede">
+            Your organization workspace is ready. ERP modules will be added here using reusable, database-backed features.
+          </p>
         </div>
       </section>
-    </main>
+    </AppShell>
   );
 }
