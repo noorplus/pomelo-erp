@@ -188,17 +188,6 @@ select throws_ok(
   'authenticated cannot create an OPENING journal directly'
 );
 
-insert into public.products(
-  organization_id,name,unit_id,inventory_account_id,sales_account_id,cogs_account_id
-)
-select o.id,'Opening Product B',u.id,inv.id,rev.id,cogs.id
-from public.organizations o
-join public.units_of_measure u on u.organization_id=o.id and u.name='pcs'
-join public.accounts inv on inv.organization_id=o.id and inv.account_code='1200'
-join public.accounts rev on rev.organization_id=o.id and rev.account_code='4000'
-join public.accounts cogs on cogs.organization_id=o.id and cogs.account_code='5000'
-where o.name='ERP Transaction Test';
-
 -- Use a dedicated third test user so the second user remains available for the
 -- later cross-tenant and real-life operator tests.
 do $q$
