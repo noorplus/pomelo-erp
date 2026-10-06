@@ -2626,6 +2626,8 @@ set search_path=''
 as $function$
 declare
   v_journal uuid;
+  v_journal_number text;
+  v_line_no integer := 0;
   v_line jsonb;
   v_stock jsonb;
   v_account uuid;
@@ -2829,7 +2831,14 @@ begin
     p_journal_lines
   );
 
+  select entry_number
+    into v_journal_number
+  from public.journal_entries
+  where organization_id=p_organization_id
+    and id=v_journal;
+
   for v_stock in select value from jsonb_array_elements(p_stock_lines) loop
+    v_line_no := v_line_no + 1;
     v_product := (v_stock->>'product_id')::uuid;
     v_quantity := (v_stock->>'quantity')::numeric;
     v_unit_cost := (v_stock->>'unit_cost')::numeric;
@@ -2842,7 +2851,7 @@ begin
       v_unit_cost,
       'OPENING',
       v_journal,
-      private.allocate_number(p_organization_id,'INVENTORY')
+      v_journal_number||'-'||v_line_no::text
     );
   end loop;
 
