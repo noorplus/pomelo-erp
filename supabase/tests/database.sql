@@ -34,8 +34,9 @@ select ok(
 );
 
 select ok(
-  not has_schema_privilege('authenticated','private','USAGE'),
-  'private schema is not exposed to authenticated'
+  has_schema_privilege('authenticated','private','USAGE')
+  and not has_schema_privilege('authenticated','private','CREATE'),
+  'private schema is reachable only for approved helper execution, not writable'
 );
 
 select ok(
