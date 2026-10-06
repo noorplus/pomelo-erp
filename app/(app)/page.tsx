@@ -3,7 +3,7 @@
 import { useOrganizationContext } from "@/components/app/organization-provider";
 
 export default function DashboardPage() {
-  const { activeOrganization } = useOrganizationContext();
+  const { activeOrganization, organizationState } = useOrganizationContext();
 
   return (
     <section className="page">
@@ -14,7 +14,7 @@ export default function DashboardPage() {
         </div>
       </div>
       <div className="content-card">
-        {activeOrganization ? (
+        {organizationState === "ready" && activeOrganization ? (
           <>
             <p className="eyebrow">Organization</p>
             <h2>{activeOrganization.name}</h2>
@@ -29,7 +29,8 @@ export default function DashboardPage() {
             <h2>No organization available</h2>
             <p className="lede">
               Your account is authenticated, but it is not an active member of
-              an organization yet.
+              an organization yet. Organization setup will be available in the
+              next application phase.
             </p>
           </>
         )}
