@@ -71,18 +71,21 @@ declare
   u2 uuid := extensions.gen_random_uuid();
   u3 uuid := extensions.gen_random_uuid();
   u4 uuid := extensions.gen_random_uuid();
+  u5 uuid := extensions.gen_random_uuid();
 begin
   insert into auth.users(id,aud,role,email,encrypted_password,email_confirmed_at)
   values
     (u1,'authenticated','authenticated','erp-test-1-'||replace(u1::text,'-','')||'@example.test','x',now()),
     (u2,'authenticated','authenticated','erp-test-2-'||replace(u2::text,'-','')||'@example.test','x',now()),
     (u3,'authenticated','authenticated','erp-test-3-'||replace(u3::text,'-','')||'@example.test','x',now()),
-    (u4,'authenticated','authenticated','erp-test-4-'||replace(u4::text,'-','')||'@example.test','x',now());
+    (u4,'authenticated','authenticated','erp-test-4-'||replace(u4::text,'-','')||'@example.test','x',now()),
+    (u5,'authenticated','authenticated','erp-test-5-'||replace(u5::text,'-','')||'@example.test','x',now());
 
   perform set_config('test.erp_user_1',u1::text,false);
   perform set_config('test.erp_user_2',u2::text,false);
   perform set_config('test.erp_user_3',u3::text,false);
   perform set_config('test.erp_user_4',u4::text,false);
+  perform set_config('test.erp_user_5',u5::text,false);
   perform set_config('request.jwt.claim.sub',u1::text,true);
 end $$;
 
@@ -2149,7 +2152,7 @@ select ok(exists(
 -- ---------------------------------------------------------------------------
 do $q$
 begin
-  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_2')::uuid::text,true);
+  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_5')::uuid::text,true);
 end $q$;
 
 select ok(
@@ -2239,7 +2242,7 @@ select ok(
 
 do $q$
 begin
-  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_2')::uuid::text,true);
+  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_5')::uuid::text,true);
 end $q$;
 
 update public.organizations
@@ -2565,7 +2568,7 @@ select is(
 
 do $q$
 begin
-  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_2')::uuid::text,true);
+  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_5')::uuid::text,true);
 end $q$;
 
 select public.remove_organization_user(
@@ -2597,7 +2600,7 @@ select is(
 
 do $q$
 begin
-  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_2')::uuid::text,true);
+  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_5')::uuid::text,true);
 end $q$;
 
 
