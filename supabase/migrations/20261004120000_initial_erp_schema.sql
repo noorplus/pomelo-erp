@@ -3341,7 +3341,7 @@ create policy account_transactions_update_draft on public.account_transactions
       where je.organization_id=account_transactions.organization_id
         and je.id=journal_entry_id
         and je.status='DRAFT'
-        and je.entry_type in ('OPENING','ADJUSTMENT','OTHER')
+        and je.entry_type in ('ADJUSTMENT','OTHER')
     )
   )
   with check (
