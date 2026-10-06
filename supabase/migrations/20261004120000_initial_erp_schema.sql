@@ -3753,6 +3753,7 @@ revoke insert, delete on public.organizations from authenticated;
 commit;
 
 -- Public RPC wrappers execute these privileged implementations through the private schema.
+grant usage on schema private to authenticated;
 revoke all on function private.cancel_document(text, uuid, date) from public, anon, authenticated;
 grant execute on function private.cancel_document(text, uuid, date) to authenticated;
 revoke all on function private.cancel_journal_entry(uuid, date) from public, anon, authenticated;
