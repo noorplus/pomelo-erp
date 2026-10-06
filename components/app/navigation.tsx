@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, LayoutDashboard, X } from "lucide-react";
+import { BookOpen, Building2, CalendarDays, LayoutDashboard, X } from "lucide-react";
 
 const navigation = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/accounting/accounts", label: "Chart of accounts", icon: BookOpen },
+  { href: "/accounting/periods", label: "Accounting periods", icon: CalendarDays },
   { href: "/organization-settings", label: "Organization", icon: Building2 },
 ];
 
