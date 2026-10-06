@@ -2226,6 +2226,13 @@ select is(
   'real-user flow: creator can maintain organization configuration'
 );
 
+do $q$
+begin
+  -- Opening initialization is intentionally creator-only; switch back from
+  -- staff operator to the organization creator for this boundary.
+  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_5')::uuid::text,true);
+end $q$;
+
 select ok(
   public.post_opening_setup(
     (select id from public.organizations where name='ERP Operator Journey'),
