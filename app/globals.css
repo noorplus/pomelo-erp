@@ -1,4 +1,4 @@
-:root {
+ :root {
   color-scheme: light;
   --background: #f5f7fa;
   --foreground: #101828;
@@ -26,21 +26,22 @@ button { color: inherit; }
 a { color: inherit; text-decoration: none; }
 button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
- .app-shell { width: 100%; min-width: 0; min-height: 100dvh; overflow-x: clip; }
+.app-shell { width: 100%; min-width: 0; min-height: 100dvh; overflow-x: clip; }
 .app-header { position: sticky; top: 0; z-index: 40; height: var(--header-height); background: var(--surface); border-bottom: 1px solid var(--border); }
 .header-inner { height: 100%; display: flex; align-items: center; gap: 8px; padding: 0 10px; }
 .brand { display: inline-flex; align-items: center; min-height: 36px; padding: 0 4px; font-size: 0.95rem; font-weight: 750; letter-spacing: -0.015em; }
 .menu-button, .navigation-close { display: none; width: 38px; height: 38px; align-items: center; justify-content: center; padding: 0; border: 1px solid transparent; border-radius: 7px; background: transparent; cursor: pointer; }
 .menu-button:hover, .navigation-close:hover { background: var(--surface-subtle); }
 .menu-button:active, .navigation-close:active { background: var(--border); }
- .app-body { display: flex; width: 100%; min-width: 0; min-height: calc(100dvh - var(--header-height)); overflow-x: clip; }
+.app-body { display: flex; width: 100%; min-width: 0; min-height: calc(100dvh - var(--header-height)); overflow-x: clip; }
 .navigation { position: sticky; top: var(--header-height); width: var(--navigation-width); height: calc(100dvh - var(--header-height)); flex: 0 0 var(--navigation-width); padding: 7px; overflow-y: auto; background: var(--surface); border-right: 1px solid var(--border); }
 .navigation-header { min-height: 30px; display: flex; align-items: center; justify-content: space-between; padding: 0 7px; color: var(--muted); font-size: 0.68rem; font-weight: 750; text-transform: uppercase; letter-spacing: 0.07em; }
 .navigation-link { display: flex; align-items: center; gap: 9px; min-height: 36px; margin: 1px 0; padding: 0 9px; border: 1px solid transparent; border-radius: 7px; color: var(--muted); font-size: 0.875rem; font-weight: 650; transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease; }
 .navigation-link:hover { background: var(--surface-subtle); color: var(--foreground); }
 .navigation-link-active { background: var(--primary-soft); border-color: #c7d7fe; color: #0849b8; }
- .main-container { width: 100%; min-width: 0; max-width: 1400px; margin: 0 auto; padding: 12px 14px 20px; overflow-x: clip; }
- .page { width: 100%; min-width: 0; max-width: 100%; }
+.main-container { width: 100%; min-width: 0; max-width: 1400px; margin: 0 auto; padding: 12px 14px 20px; overflow-x: clip; }
+.page { width: 100%; min-width: 0; max-width: 100%; }
+.page-state { width: 100%; min-width: 0; max-width: 720px; margin: 0 auto; padding: clamp(18px, 5vw, 32px); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
 .page-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 h1 { margin: 0; font-size: clamp(1.4rem, 3vw, 1.9rem); line-height: 1.15; letter-spacing: -0.025em; }
 .eyebrow { margin: 0 0 2px; color: #0849b8; font-size: 0.68rem; font-weight: 750; letter-spacing: 0.07em; text-transform: uppercase; }
