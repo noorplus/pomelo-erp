@@ -3,7 +3,8 @@
 
 begin;
 
-select plan(75);
+-- Verified full-suite execution count: 116 assertions.
+select plan(116);
 
 -- ---------------------------------------------------------------------------
 -- Schema/security baseline
@@ -69,14 +70,24 @@ do $$
 declare
   u1 uuid := extensions.gen_random_uuid();
   u2 uuid := extensions.gen_random_uuid();
+  u3 uuid := extensions.gen_random_uuid();
+  u4 uuid := extensions.gen_random_uuid();
+  u5 uuid := extensions.gen_random_uuid();
 begin
   insert into auth.users(id,aud,role,email,encrypted_password,email_confirmed_at)
   values
     (u1,'authenticated','authenticated','erp-test-1-'||replace(u1::text,'-','')||'@example.test','x',now()),
-    (u2,'authenticated','authenticated','erp-test-2-'||replace(u2::text,'-','')||'@example.test','x',now());
+    (u2,'authenticated','authenticated','erp-test-2-'||replace(u2::text,'-','')||'@example.test','x',now()),
+    (u3,'authenticated','authenticated','erp-test-3-'||replace(u3::text,'-','')||'@example.test','x',now()),
+    (u4,'authenticated','authenticated','erp-test-4-'||replace(u4::text,'-','')||'@example.test','x',now()),
+    (u5,'authenticated','authenticated','erp-test-5-'||replace(u5::text,'-','')||'@example.test','x',now());
 
   perform set_config('test.erp_user_1',u1::text,false);
   perform set_config('test.erp_user_2',u2::text,false);
+  perform set_config('test.erp_user_3',u3::text,false);
+  perform set_config('test.erp_user_4',u4::text,false);
+  perform set_config('test.erp_user_5',u5::text,false);
+  perform set_config('test.erp_user_3_email','erp-test-3-'||replace(u3::text,'-','')||'@example.test',false);
   perform set_config('request.jwt.claim.sub',u1::text,true);
 end $$;
 
@@ -142,6 +153,327 @@ select is(
   'CON-000001',
   'contact master receives automatic number'
 );
+
+
+-- ---------------------------------------------------------------------------
+-- Opening initialization: accounting + inventory must be one atomic setup.
+-- ---------------------------------------------------------------------------
+select ok(
+  exists (
+    select 1
+    from pg_indexes
+    where schemaname='public'
+      and indexname='journal_entries_one_opening_idx'
+  ),
+  'database enforces one original opening journal per organization'
+);
+
+select ok(
+  has_function_privilege(
+    'authenticated',
+    'public.post_opening_setup(uuid,date,text,jsonb,jsonb)',
+    'EXECUTE'
+  ),
+  'authenticated can execute the opening setup RPC'
+);
+
+select throws_ok(
+  $q$
+  insert into public.journal_entries(
+    organization_id,accounting_period_id,entry_date,entry_type,status,created_by
+  )
+  select o.id,ap.id,current_date,'OPENING','DRAFT',auth.uid()
+  from public.organizations o
+  join public.accounting_periods ap
+    on ap.organization_id=o.id and ap.status='OPEN'
+  where o.name='ERP Transaction Test'
+  $q$,
+  '42501',
+  'new row violates row-level security policy for table "journal_entries"',
+  'authenticated cannot create an OPENING journal directly'
+);
+
+-- Use a dedicated third test user so the second user remains available for the
+-- later cross-tenant and real-life operator tests.
+do $q$
+begin
+  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_3'),true);
+end $q$;
+
+-- Use a fresh organization for the valid opening setup because the transaction
+-- test organization already contains operational journals by this point.
+select ok(
+  public.onboard_organization('ERP Opening Flow') is not null,
+  'opening flow organization is onboarded'
+);
+
+insert into public.products(
+  organization_id,name,unit_id,inventory_account_id,sales_account_id,cogs_account_id
+)
+select o.id,'Opening Product A',u.id,inv.id,rev.id,cogs.id
+from public.organizations o
+join public.units_of_measure u on u.organization_id=o.id and u.name='pcs'
+join public.accounts inv on inv.organization_id=o.id and inv.account_code='1200'
+join public.accounts rev on rev.organization_id=o.id and rev.account_code='4000'
+join public.accounts cogs on cogs.organization_id=o.id and cogs.account_code='5000'
+where o.name='ERP Opening Flow';
+
+insert into public.products(
+  organization_id,name,unit_id,inventory_account_id,sales_account_id,cogs_account_id
+)
+select o.id,'Opening Product B',u.id,inv.id,rev.id,cogs.id
+from public.organizations o
+join public.units_of_measure u on u.organization_id=o.id and u.name='pcs'
+join public.accounts inv on inv.organization_id=o.id and inv.account_code='1200'
+join public.accounts rev on rev.organization_id=o.id and rev.account_code='4000'
+join public.accounts cogs on cogs.organization_id=o.id and cogs.account_code='5000'
+where o.name='ERP Opening Flow';
+
+select ok(
+  public.post_opening_setup(
+    (select id from public.organizations where name='ERP Opening Flow'),
+    current_date,
+    'Initial opening balances',
+    jsonb_build_array(
+      jsonb_build_object(
+        'account_id',(select id from public.accounts where organization_id=(select id from public.organizations where name='ERP Opening Flow') and account_code='1000'),
+        'debit',10000,'credit',0,'description','Opening cash'
+      ),
+      jsonb_build_object(
+        'account_id',(select id from public.accounts where organization_id=(select id from public.organizations where name='ERP Opening Flow') and account_code='1200'),
+        'debit',3500,'credit',0,'description','Opening inventory'
+      ),
+      jsonb_build_object(
+        'account_id',(select id from public.accounts where organization_id=(select id from public.organizations where name='ERP Opening Flow') and account_code='3000'),
+        'debit',0,'credit',13500,'description','Opening equity'
+      )
+    ),
+    jsonb_build_array(
+      jsonb_build_object(
+        'product_id',(select id from public.products where organization_id=(select id from public.organizations where name='ERP Opening Flow') and name='Opening Product A'),
+        'quantity',10,'unit_cost',200
+      ),
+      jsonb_build_object(
+        'product_id',(select id from public.products where organization_id=(select id from public.organizations where name='ERP Opening Flow') and name='Opening Product B'),
+        'quantity',5,'unit_cost',300
+      )
+    )
+  ) is not null,
+  'valid opening accounting and stock setup succeeds atomically'
+);
+
+select is(
+  (select count(*)::bigint
+   from public.journal_entries
+   where organization_id=(select id from public.organizations where name='ERP Opening Flow')
+     and entry_type='OPENING' and reversal_of_id is null and status='CONFIRMED'),
+  1::bigint,
+  'opening creates exactly one confirmed original journal'
+);
+
+select is(
+  (select coalesce(sum(debit),0)-coalesce(sum(credit),0)
+   from public.account_transactions
+   where organization_id=(select id from public.organizations where name='ERP Opening Flow')
+     and journal_entry_id=(select id from public.journal_entries where organization_id=(select id from public.organizations where name='ERP Opening Flow') and entry_type='OPENING' and reversal_of_id is null)),
+  0::numeric,
+  'opening journal is balanced'
+);
+
+select is(
+  (select quantity from public.inventory_balances
+   where organization_id=(select id from public.organizations where name='ERP Opening Flow')
+     and product_id=(select id from public.products where organization_id=(select id from public.organizations where name='ERP Opening Flow') and name='Opening Product A')),
+  10::numeric,
+  'opening stock initializes product A quantity'
+);
+
+select is(
+  (select average_cost from public.inventory_balances
+   where organization_id=(select id from public.organizations where name='ERP Opening Flow')
+     and product_id=(select id from public.products where organization_id=(select id from public.organizations where name='ERP Opening Flow') and name='Opening Product A')),
+  200::numeric,
+  'opening stock initializes product A weighted-average cost'
+);
+
+select is(
+  (select quantity from public.inventory_balances
+   where organization_id=(select id from public.organizations where name='ERP Opening Flow')
+     and product_id=(select id from public.products where organization_id=(select id from public.organizations where name='ERP Opening Flow') and name='Opening Product B')),
+  5::numeric,
+  'opening stock initializes product B quantity'
+);
+
+select is(
+  (select average_cost from public.inventory_balances
+   where organization_id=(select id from public.organizations where name='ERP Opening Flow')
+     and product_id=(select id from public.products where organization_id=(select id from public.organizations where name='ERP Opening Flow') and name='Opening Product B')),
+  300::numeric,
+  'opening stock initializes product B weighted-average cost'
+);
+
+select is(
+  (select count(*)::bigint
+   from public.inventory_transactions
+   where organization_id=(select id from public.organizations where name='ERP Opening Flow')
+     and transaction_type='OPENING'
+     and direction='IN'),
+  2::bigint,
+  'opening creates one inventory receipt per product'
+);
+
+select is(
+  (select coalesce(sum(at.debit-at.credit),0)
+   from public.account_transactions at
+   join public.accounts a
+     on a.organization_id=at.organization_id and a.id=at.account_id
+   where at.organization_id=(select id from public.organizations where name='ERP Opening Flow')
+     and a.account_code='1200'
+     and at.journal_entry_id=(select id from public.journal_entries where organization_id=(select id from public.organizations where name='ERP Opening Flow') and entry_type='OPENING' and reversal_of_id is null)),
+  3500::numeric,
+  'opening inventory GL equals total opening stock value'
+);
+
+select ok(
+  not exists (
+    select 1
+    from public.inventory_transactions it
+    where it.organization_id=(select id from public.organizations where name='ERP Opening Flow')
+      and (it.reference_type <> 'OPENING'
+        or it.reference_id <> (select id from public.journal_entries where organization_id=(select id from public.organizations where name='ERP Opening Flow') and entry_type='OPENING' and reversal_of_id is null))
+  ),
+  'opening inventory transactions reference the opening journal'
+);
+
+select throws_ok(
+  $q$select public.post_opening_setup(
+    (select id from public.organizations where name='ERP Opening Flow'),
+    current_date,
+    'Duplicate opening',
+    jsonb_build_array(
+      jsonb_build_object(
+        'account_id',(select id from public.accounts where organization_id=(select id from public.organizations where name='ERP Opening Flow') and account_code='1000'),
+        'debit',1,'credit',0
+      ),
+      jsonb_build_object(
+        'account_id',(select id from public.accounts where organization_id=(select id from public.organizations where name='ERP Opening Flow') and account_code='3000'),
+        'debit',0,'credit',1
+      )
+    ),
+    '[]'::jsonb
+  )$q$,
+  'P0001',
+  'opening setup has already been initialized',
+  'second opening initialization is rejected'
+);
+
+select throws_ok(
+  $q$select public.cancel_journal_entry(
+    (select id from public.journal_entries
+     where organization_id=(select id from public.organizations where name='ERP Opening Flow')
+       and entry_type='OPENING' and reversal_of_id is null)
+  )$q$,
+  'P0001',
+  'opening journals cannot be cancelled; use an adjustment workflow',
+  'opening journal cancellation is blocked'
+);
+
+do $q$
+begin
+  -- Switch to the original owner to verify creator-only authorization.
+  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_1'),true);
+end $q$;
+
+select throws_ok(
+  $q$select public.post_opening_setup(
+    (select id from public.organizations where name='ERP Opening Flow'),
+    current_date,
+    'Unauthorized opening',
+    jsonb_build_array(
+      jsonb_build_object(
+        'account_id',(select id from public.accounts where organization_id=(select id from public.organizations where name='ERP Opening Flow') and account_code='1000'),
+        'debit',1,'credit',0
+      ),
+      jsonb_build_object(
+        'account_id',(select id from public.accounts where organization_id=(select id from public.organizations where name='ERP Opening Flow') and account_code='3000'),
+        'debit',0,'credit',1
+      )
+    ),
+    '[]'::jsonb
+  )$q$,
+  'P0001',
+  'only the organization creator can initialize opening balances',
+  'non-creator cannot initialize opening balances'
+);
+
+do $q$
+begin
+  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_4'),true);
+end $q$;
+
+select ok(
+  public.onboard_organization('ERP Opening Atomicity') is not null,
+  'opening atomicity organization is onboarded'
+);
+
+insert into public.products(
+  organization_id,name,unit_id,inventory_account_id,sales_account_id,cogs_account_id
+)
+select o.id,'Atomicity Product',u.id,inv.id,rev.id,cogs.id
+from public.organizations o
+join public.units_of_measure u on u.organization_id=o.id and u.name='pcs'
+join public.accounts inv on inv.organization_id=o.id and inv.account_code='1200'
+join public.accounts rev on rev.organization_id=o.id and rev.account_code='4000'
+join public.accounts cogs on cogs.organization_id=o.id and cogs.account_code='5000'
+where o.name='ERP Opening Atomicity';
+
+select throws_ok(
+  $q$select public.post_opening_setup(
+    (select id from public.organizations where name='ERP Opening Atomicity'),
+    current_date,
+    'Invalid opening',
+    jsonb_build_array(
+      jsonb_build_object(
+        'account_id',(select id from public.accounts where organization_id=(select id from public.organizations where name='ERP Opening Atomicity') and account_code='1200'),
+        'debit',100,'credit',0
+      ),
+      jsonb_build_object(
+        'account_id',(select id from public.accounts where organization_id=(select id from public.organizations where name='ERP Opening Atomicity') and account_code='3000'),
+        'debit',0,'credit',100
+      )
+    ),
+    jsonb_build_array(
+      jsonb_build_object(
+        'product_id',(select id from public.products where organization_id=(select id from public.organizations where name='ERP Opening Atomicity')),
+        'quantity',10,'unit_cost',20
+      )
+    )
+  )$q$,
+  'P0001',
+  'opening stock value must reconcile exactly to inventory-account debits in the opening journal',
+  'stock/GL mismatch rejects the entire opening transaction'
+);
+
+select is(
+  (select count(*)::bigint from public.journal_entries
+   where organization_id=(select id from public.organizations where name='ERP Opening Atomicity')),
+  0::bigint,
+  'failed opening validation leaves no journal'
+);
+
+select is(
+  (select count(*)::bigint from public.inventory_transactions
+   where organization_id=(select id from public.organizations where name='ERP Opening Atomicity')),
+  0::bigint,
+  'failed opening validation leaves no inventory transaction'
+);
+
+-- Return to the original transaction-test owner for the remaining
+-- operational transaction coverage.
+do $q$
+begin
+  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_1'),true);
+end $q$;
 
 -- ---------------------------------------------------------------------------
 -- Purchase + invoice discount + weighted-average inventory
@@ -1814,6 +2146,498 @@ select ok(exists(
  where organization_id=(select id from public.organizations where name='ERP Real Life Flow')
  and status='CANCELLED' and total_amount=5000),
  'real-life flow: partially paid sale can be cancelled');
+
+
+-- ---------------------------------------------------------------------------
+-- Real organization user lifecycle: creator + staff operator, from onboarding
+-- through opening setup, daily operations, reconciliation and period close.
+-- ---------------------------------------------------------------------------
+do $q$
+begin
+  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_5')::uuid::text,true);
+end $q$;
+
+select ok(
+  public.onboard_organization('ERP Operator Journey') is not null,
+  'real-user flow: organization creator can onboard a business'
+);
+
+select is(
+  (select count(*)::bigint
+   from public.organization_users ou
+   join public.organizations o on o.id=ou.organization_id
+   where o.name='ERP Operator Journey' and ou.is_active),
+  1::bigint,
+  'real-user flow: creator starts as the only active member'
+);
+
+insert into public.units_of_measure(organization_id,name)
+select id,'box'
+from public.organizations
+where name='ERP Operator Journey';
+
+insert into public.contacts(organization_id,name,phone,email,created_by)
+select id,'Journey Supplier','+8801700000000','supplier@journey.test',auth.uid()
+from public.organizations
+where name='ERP Operator Journey';
+
+insert into public.contacts(organization_id,name,phone,email,created_by)
+select id,'Journey Customer','+8801800000000','customer@journey.test',auth.uid()
+from public.organizations
+where name='ERP Operator Journey';
+
+insert into public.products(
+  organization_id,name,unit_id,inventory_account_id,sales_account_id,cogs_account_id,created_by
+)
+select o.id,'Journey Product',u.id,inv.id,rev.id,cogs.id,auth.uid()
+from public.organizations o
+join public.units_of_measure u
+  on u.organization_id=o.id and u.name='box'
+join public.accounts inv
+  on inv.organization_id=o.id and inv.account_code='1200'
+join public.accounts rev
+  on rev.organization_id=o.id and rev.account_code='4000'
+join public.accounts cogs
+  on cogs.organization_id=o.id and cogs.account_code='5000'
+where o.name='ERP Operator Journey';
+
+select ok(
+  exists(
+    select 1
+    from public.products p
+    join public.organizations o on o.id=p.organization_id
+    where o.name='ERP Operator Journey' and p.name='Journey Product'
+  ),
+  'real-user flow: creator configures inventory master data'
+);
+
+update public.organizations
+set phone='+8801900000000',
+    email='owner@journey.test',
+    address='Dhaka',
+    city='Dhaka',
+    country='Bangladesh',
+    tin='TIN-JOURNEY',
+    bin='BIN-JOURNEY'
+where name='ERP Operator Journey';
+
+select is(
+  (select city from public.organizations where name='ERP Operator Journey'),
+  'Dhaka',
+  'real-user flow: creator can maintain organization configuration'
+);
+
+do $q$
+begin
+  -- Opening initialization is intentionally creator-only; switch back from
+  -- staff operator to the organization creator for this boundary.
+  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_5')::uuid::text,true);
+end $q$;
+
+select ok(
+  public.post_opening_setup(
+    (select id from public.organizations where name='ERP Operator Journey'),
+    current_date,
+    'Real organization opening balances',
+    jsonb_build_array(
+      jsonb_build_object(
+        'account_id',(select id from public.accounts where organization_id=(select id from public.organizations where name='ERP Operator Journey') and account_code='1000'),
+        'debit',5000,'credit',0,'description','Opening cash'
+      ),
+      jsonb_build_object(
+        'account_id',(select id from public.accounts where organization_id=(select id from public.organizations where name='ERP Operator Journey') and account_code='1200'),
+        'debit',500,'credit',0,'description','Opening inventory'
+      ),
+      jsonb_build_object(
+        'account_id',(select id from public.accounts where organization_id=(select id from public.organizations where name='ERP Operator Journey') and account_code='3000'),
+        'debit',0,'credit',5500,'description','Opening equity'
+      )
+    ),
+    jsonb_build_array(
+      jsonb_build_object(
+        'product_id',(select id from public.products where organization_id=(select id from public.organizations where name='ERP Operator Journey') and name='Journey Product'),
+        'quantity',10,'unit_cost',50
+      )
+    )
+  ) is not null,
+  'real-user flow: creator initializes opening GL and stock'
+);
+
+select is(
+  (select quantity
+   from public.inventory_balances ib
+   join public.products p on p.organization_id=ib.organization_id and p.id=ib.product_id
+   where ib.organization_id=(select id from public.organizations where name='ERP Operator Journey')
+     and p.name='Journey Product'),
+  10::numeric,
+  'real-user flow: opening stock is available before daily operations'
+);
+
+select is(
+  public.add_organization_user_by_email(
+    (select id from public.organizations where name='ERP Operator Journey'),
+    current_setting('test.erp_user_3_email')
+  ),
+  current_setting('test.erp_user_3')::uuid,
+  'real-user flow: creator can invite a staff user by email'
+);
+
+select is(
+  (select count(*)::bigint
+   from public.organization_users ou
+   join public.organizations o on o.id=ou.organization_id
+   where o.name='ERP Operator Journey' and ou.is_active),
+  2::bigint,
+  'real-user flow: organization has creator and staff members'
+);
+
+do $q$
+begin
+  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_3')::uuid::text,true);
+end $q$;
+
+select is(
+  (select count(*)::bigint
+   from public.organizations
+   where name='ERP Operator Journey'),
+  1::bigint,
+  'real-user flow: staff user can access the organization after invitation'
+);
+
+do $q$
+declare
+  v_org uuid;
+begin
+  select id into v_org from public.organizations where name='ERP Operator Journey';
+  perform set_config(
+    'test.erp_operator_user',
+    case
+      when public.is_organization_creator(v_org,current_setting('test.erp_user_3')::uuid)
+        then current_setting('test.erp_user_5')
+      else current_setting('test.erp_user_3')
+    end,
+    true
+  );
+  perform set_config(
+    'test.erp_creator_user',
+    case
+      when current_setting('test.erp_operator_user')=current_setting('test.erp_user_3')
+        then current_setting('test.erp_user_5')
+      else current_setting('test.erp_user_3')
+    end,
+    true
+  );
+  perform set_config(
+    'request.jwt.claim.sub',
+    current_setting('test.erp_operator_user'),
+    true
+  );
+end $q$;
+
+insert into public.purchase(
+  organization_id,supplier_id,invoice_date,subtotal,discount_amount,total_amount,
+  payable_account_id,created_by
+)
+select o.id,c.id,current_date,500,0,500,a.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Journey Supplier'
+join public.accounts a on a.organization_id=o.id and a.account_code='2000'
+where o.name='ERP Operator Journey';
+
+insert into public.purchase_items(
+  organization_id,purchase_id,line_number,product_id,quantity,unit_cost,line_total
+)
+select p.organization_id,p.id,1,pr.id,5,100,500
+from public.purchase p
+join public.products pr
+  on pr.organization_id=p.organization_id and pr.name='Journey Product'
+where p.organization_id=(select id from public.organizations where name='ERP Operator Journey')
+  and p.status='DRAFT';
+
+select public.confirm_purchase(
+  (select id from public.purchase
+   where organization_id=(select id from public.organizations where name='ERP Operator Journey')
+     and status='DRAFT')
+);
+
+select ok(
+  exists(
+    select 1 from public.purchase
+    where organization_id=(select id from public.organizations where name='ERP Operator Journey')
+      and status='CONFIRMED' and total_amount=500
+  ),
+  'real-user flow: purchase is confirmed into accounting and inventory'
+);
+
+insert into public.sales(
+  organization_id,customer_id,invoice_date,subtotal,discount_amount,total_amount,
+  receivable_account_id,created_by
+)
+select o.id,c.id,current_date,600,0,600,a.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Journey Customer'
+join public.accounts a on a.organization_id=o.id and a.account_code='1100'
+where o.name='ERP Operator Journey';
+
+insert into public.sales_items(
+  organization_id,sales_id,line_number,product_id,quantity,unit_price,line_total
+)
+select s.organization_id,s.id,1,pr.id,3,200,600
+from public.sales s
+join public.products pr
+  on pr.organization_id=s.organization_id and pr.name='Journey Product'
+where s.organization_id=(select id from public.organizations where name='ERP Operator Journey')
+  and s.status='DRAFT';
+
+select public.confirm_sales(
+  (select id from public.sales
+   where organization_id=(select id from public.organizations where name='ERP Operator Journey')
+     and status='DRAFT')
+);
+
+select ok(
+  exists(
+    select 1 from public.sales
+    where organization_id=(select id from public.organizations where name='ERP Operator Journey')
+      and status='CONFIRMED' and total_amount=600
+  ),
+  'real-user flow: sale is confirmed into accounting and inventory'
+);
+
+insert into public.expenses(
+  organization_id,expense_category_id,contact_id,payable_account_id,
+  expense_date,amount,description,created_by
+)
+select o.id,ec.id,c.id,a.id,current_date,100,'Journey operating expense',auth.uid()
+from public.organizations o
+join public.expense_categories ec on ec.organization_id=o.id
+join public.contacts c on c.organization_id=o.id and c.name='Journey Supplier'
+join public.accounts a on a.organization_id=o.id and a.account_code='2000'
+where o.name='ERP Operator Journey';
+
+select public.confirm_expense(
+  (select id from public.expenses
+   where organization_id=(select id from public.organizations where name='ERP Operator Journey')
+     and status='DRAFT')
+);
+
+select ok(
+  exists(
+    select 1 from public.expenses
+    where organization_id=(select id from public.organizations where name='ERP Operator Journey')
+      and status='CONFIRMED' and amount=100
+  ),
+  'real-user flow: operating expense is posted'
+);
+
+insert into public.payments(
+  organization_id,payment_type,contact_id,payment_date,amount,
+  account_id,settlement_account_id,created_by
+)
+select o.id,'PAYMENT',c.id,current_date,600,ap.id,cash.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Journey Supplier'
+join public.accounts ap on ap.organization_id=o.id and ap.account_code='2000'
+join public.accounts cash on cash.organization_id=o.id and cash.account_code='1000'
+where o.name='ERP Operator Journey';
+
+insert into public.payment_allocations(
+  organization_id,payment_id,document_type,document_id,allocated_amount
+)
+select p.organization_id,p.id,'PURCHASE',pu.id,500
+from public.payments p
+join public.purchase pu
+  on pu.organization_id=p.organization_id and pu.status='CONFIRMED'
+where p.organization_id=(select id from public.organizations where name='ERP Operator Journey')
+  and p.status='DRAFT' and p.payment_type='PAYMENT';
+
+insert into public.payment_allocations(
+  organization_id,payment_id,document_type,document_id,allocated_amount
+)
+select p.organization_id,p.id,'EXPENSE',e.id,100
+from public.payments p
+join public.expenses e
+  on e.organization_id=p.organization_id and e.status='CONFIRMED'
+where p.organization_id=(select id from public.organizations where name='ERP Operator Journey')
+  and p.status='DRAFT' and p.payment_type='PAYMENT';
+
+select public.confirm_payment(
+  (select id from public.payments
+   where organization_id=(select id from public.organizations where name='ERP Operator Journey')
+     and status='DRAFT' and payment_type='PAYMENT')
+);
+
+insert into public.payments(
+  organization_id,payment_type,contact_id,payment_date,amount,
+  account_id,settlement_account_id,created_by
+)
+select o.id,'RECEIPT',c.id,current_date,600,ar.id,cash.id,auth.uid()
+from public.organizations o
+join public.contacts c on c.organization_id=o.id and c.name='Journey Customer'
+join public.accounts ar on ar.organization_id=o.id and ar.account_code='1100'
+join public.accounts cash on cash.organization_id=o.id and cash.account_code='1000'
+where o.name='ERP Operator Journey';
+
+insert into public.payment_allocations(
+  organization_id,payment_id,document_type,document_id,allocated_amount
+)
+select p.organization_id,p.id,'SALES',s.id,600
+from public.payments p
+join public.sales s
+  on s.organization_id=p.organization_id and s.status='CONFIRMED'
+where p.organization_id=(select id from public.organizations where name='ERP Operator Journey')
+  and p.status='DRAFT' and p.payment_type='RECEIPT';
+
+select public.confirm_payment(
+  (select id from public.payments
+   where organization_id=(select id from public.organizations where name='ERP Operator Journey')
+     and status='DRAFT' and payment_type='RECEIPT')
+);
+
+select is(
+  (select quantity
+   from public.inventory_balances ib
+   join public.products p on p.organization_id=ib.organization_id and p.id=ib.product_id
+   where ib.organization_id=(select id from public.organizations where name='ERP Operator Journey')
+     and p.name='Journey Product'),
+  12::numeric,
+  'real-user flow: inventory reconciles to opening plus purchase less sale'
+);
+
+select is(
+  (select coalesce(sum(at.debit-at.credit),0)
+   from public.account_transactions at
+   join public.accounts a on a.organization_id=at.organization_id and a.id=at.account_id
+   where at.organization_id=(select id from public.organizations where name='ERP Operator Journey')
+     and a.account_code='2000'),
+  0::numeric,
+  'real-user flow: supplier liability is fully settled'
+);
+
+select is(
+  (select coalesce(sum(at.debit-at.credit),0)
+   from public.account_transactions at
+   join public.accounts a on a.organization_id=at.organization_id and a.id=at.account_id
+   where at.organization_id=(select id from public.organizations where name='ERP Operator Journey')
+     and a.account_code='1100'),
+  0::numeric,
+  'real-user flow: customer receivable is fully settled'
+);
+
+select ok(
+  not exists(
+    select 1
+    from public.journal_entries je
+    where je.organization_id=(select id from public.organizations where name='ERP Operator Journey')
+      and exists(
+        select 1
+        from public.account_transactions at
+        where at.organization_id=je.organization_id
+          and at.journal_entry_id=je.id
+        group by at.journal_entry_id
+        having sum(at.debit) <> sum(at.credit)
+      )
+  ),
+  'real-user flow: every generated journal remains balanced'
+);
+
+insert into public.journal_entries(
+  organization_id,accounting_period_id,entry_date,entry_type,status,description,created_by
+)
+select o.id,ap.id,current_date,'ADJUSTMENT','DRAFT','Journey month-end adjustment',auth.uid()
+from public.organizations o
+join public.accounting_periods ap
+  on ap.organization_id=o.id and ap.status='OPEN'
+where o.name='ERP Operator Journey';
+
+insert into public.account_transactions(
+  organization_id,journal_entry_id,account_id,line_number,debit,credit,description
+)
+select j.organization_id,j.id,cash.id,1,25,0,'Adjustment debit'
+from public.journal_entries j
+join public.accounts cash
+  on cash.organization_id=j.organization_id and cash.account_code='1000'
+where j.organization_id=(select id from public.organizations where name='ERP Operator Journey')
+  and j.entry_type='ADJUSTMENT' and j.status='DRAFT';
+
+insert into public.account_transactions(
+  organization_id,journal_entry_id,account_id,line_number,debit,credit,description
+)
+select j.organization_id,j.id,equity.id,2,0,25,'Adjustment credit'
+from public.journal_entries j
+join public.accounts equity
+  on equity.organization_id=j.organization_id and equity.account_code='3000'
+where j.organization_id=(select id from public.organizations where name='ERP Operator Journey')
+  and j.entry_type='ADJUSTMENT' and j.status='DRAFT';
+
+select public.confirm_journal_entry(
+  (select id from public.journal_entries
+   where organization_id=(select id from public.organizations where name='ERP Operator Journey')
+     and entry_type='ADJUSTMENT' and status='DRAFT')
+);
+
+select ok(
+  exists(
+    select 1 from public.journal_entries
+    where organization_id=(select id from public.organizations where name='ERP Operator Journey')
+      and entry_type='ADJUSTMENT' and status='CONFIRMED'
+  ),
+  'real-user flow: operator can post a balanced manual adjustment'
+);
+
+select public.close_accounting_period(
+  (select id from public.accounting_periods
+   where organization_id=(select id from public.organizations where name='ERP Operator Journey')
+     and status='OPEN')
+);
+
+select is(
+  (select count(*)::bigint
+   from public.accounting_periods
+   where organization_id=(select id from public.organizations where name='ERP Operator Journey')
+     and status='OPEN'),
+  0::bigint,
+  'real-user flow: operator can close the completed accounting period'
+);
+
+do $q$
+begin
+  perform set_config('request.jwt.claim.sub',current_setting('test.erp_creator_user')::uuid::text,true);
+end $q$;
+
+select public.remove_organization_user(
+  (select id from public.organizations where name='ERP Operator Journey'),
+  current_setting('test.erp_operator_user')::uuid
+);
+
+select is(
+  (select ou.is_active
+   from public.organization_users ou
+   join public.organizations o on o.id=ou.organization_id
+   where o.name='ERP Operator Journey'
+     and ou.user_id=current_setting('test.erp_operator_user')::uuid),
+  false,
+  'real-user flow: creator can deactivate the non-creator staff membership'
+);
+
+do $q$
+begin
+  perform set_config('request.jwt.claim.sub',current_setting('test.erp_operator_user')::uuid::text,true);
+end $q$;
+
+select is(
+  (select count(*)::bigint
+   from public.organizations
+   where name='ERP Operator Journey'),
+  0::bigint,
+  'real-user flow: deactivated staff loses tenant visibility'
+);
+
+do $q$
+begin
+  perform set_config('request.jwt.claim.sub',current_setting('test.erp_creator_user')::uuid::text,true);
+end $q$;
+
 
 select * from finish();
 
