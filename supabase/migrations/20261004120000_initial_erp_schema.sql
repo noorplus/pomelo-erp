@@ -835,6 +835,9 @@ create index products_org_active_idx on public.products(organization_id, is_acti
 create index contacts_org_active_idx on public.contacts(organization_id, is_active);
 create index number_sequences_org_active_idx on public.number_sequences(organization_id, is_active);
 create index journal_entries_org_date_idx on public.journal_entries(organization_id, entry_date);
+create unique index journal_entries_one_opening_idx
+  on public.journal_entries(organization_id)
+  where entry_type = 'OPENING' and reversal_of_id is null;
 create index journal_entries_org_status_idx on public.journal_entries(organization_id, status);
 create index account_transactions_account_idx on public.account_transactions(organization_id, account_id);
 create index purchase_org_date_idx on public.purchase(organization_id, invoice_date desc);
@@ -2603,6 +2606,253 @@ begin
 end;
 $$;
 
+
+-- -----------------------------------------------------------------------------
+-- Opening initialization
+-- One atomic transaction establishes the opening accounting balance and opening
+-- inventory. The opening journal and stock movements are committed together.
+-- -----------------------------------------------------------------------------
+create or replace function public.post_opening_setup(
+  p_organization_id uuid,
+  p_opening_date date,
+  p_description text,
+  p_journal_lines jsonb,
+  p_stock_lines jsonb
+)
+returns uuid
+language plpgsql
+security definer
+set search_path=''
+as $function$
+declare
+  v_journal uuid;
+  v_line jsonb;
+  v_stock jsonb;
+  v_account uuid;
+  v_product uuid;
+  v_inventory_account uuid;
+  v_debit numeric;
+  v_credit numeric;
+  v_quantity numeric;
+  v_unit_cost numeric;
+  v_stock_count integer;
+  v_unique_stock_count integer;
+begin
+  if auth.uid() is null then
+    raise exception 'authentication required';
+  end if;
+
+  if not public.is_organization_creator(p_organization_id,auth.uid()) then
+    raise exception 'only the organization creator can initialize opening balances';
+  end if;
+
+  if p_opening_date is null then
+    raise exception 'opening date is required';
+  end if;
+
+  if jsonb_typeof(p_journal_lines) <> 'array' or jsonb_array_length(p_journal_lines) < 2 then
+    raise exception 'opening journal requires at least two lines';
+  end if;
+
+  if jsonb_typeof(p_stock_lines) <> 'array' then
+    raise exception 'opening stock lines must be a JSON array';
+  end if;
+
+  -- Serialize opening initialization for this organization. This also makes the
+  -- one-time check deterministic for concurrent initialization attempts.
+  perform 1
+  from public.organizations
+  where id=p_organization_id
+  for update;
+
+  if not found then
+    raise exception 'organization not found';
+  end if;
+
+  if exists (
+    select 1
+    from public.journal_entries
+    where organization_id=p_organization_id
+      and entry_type='OPENING'
+      and reversal_of_id is null
+  ) then
+    raise exception 'opening setup has already been initialized';
+  end if;
+
+  if exists (
+    select 1
+    from public.journal_entries
+    where organization_id=p_organization_id
+  ) then
+    raise exception 'opening setup must be completed before any journal activity';
+  end if;
+
+  if exists (
+    select 1
+    from public.inventory_transactions
+    where organization_id=p_organization_id
+  ) then
+    raise exception 'opening setup must be completed before any inventory activity';
+  end if;
+
+  -- Validate the accounting period before any state-changing helper is called.
+  perform private.require_open_period(p_organization_id,p_opening_date);
+
+  -- Validate journal lines up front so a malformed opening never partially
+  -- initializes inventory.
+  for v_line in select value from jsonb_array_elements(p_journal_lines) loop
+    v_account := nullif(v_line->>'account_id','')::uuid;
+    v_debit := coalesce(nullif(v_line->>'debit','')::numeric,0);
+    v_credit := coalesce(nullif(v_line->>'credit','')::numeric,0);
+
+    if v_account is null then
+      raise exception 'opening journal line requires account_id';
+    end if;
+
+    if v_debit < 0 or v_credit < 0
+       or (v_debit = 0 and v_credit = 0)
+       or (v_debit > 0 and v_credit > 0) then
+      raise exception 'opening journal line must contain exactly one positive debit or credit';
+    end if;
+
+    if not exists (
+      select 1
+      from public.accounts a
+      where a.organization_id=p_organization_id
+        and a.id=v_account
+        and a.is_active
+        and a.is_postable
+    ) then
+      raise exception 'opening journal contains a missing, inactive, or non-postable account';
+    end if;
+  end loop;
+
+  -- Validate opening stock lines. A product can be initialized only once and
+  -- every product's inventory value must reconcile to its inventory GL account.
+  select count(*),
+         count(distinct (x->>'product_id')::uuid)
+    into v_stock_count,v_unique_stock_count
+  from jsonb_array_elements(p_stock_lines) x;
+
+  if v_stock_count <> v_unique_stock_count then
+    raise exception 'opening stock cannot contain duplicate products';
+  end if;
+
+  for v_stock in select value from jsonb_array_elements(p_stock_lines) loop
+    v_product := nullif(v_stock->>'product_id','')::uuid;
+    v_quantity := coalesce(nullif(v_stock->>'quantity','')::numeric,0);
+    v_unit_cost := coalesce(nullif(v_stock->>'unit_cost','')::numeric,-1);
+
+    if v_product is null then
+      raise exception 'opening stock line requires product_id';
+    end if;
+
+    if v_quantity <= 0 or v_unit_cost < 0 then
+      raise exception 'opening stock requires positive quantity and non-negative unit cost';
+    end if;
+
+    select p.inventory_account_id
+      into v_inventory_account
+    from public.products p
+    where p.organization_id=p_organization_id
+      and p.id=v_product
+      and p.is_active;
+
+    if not found then
+      raise exception 'opening stock product is missing or inactive';
+    end if;
+
+    if not exists (
+      select 1
+      from public.accounts a
+      where a.organization_id=p_organization_id
+        and a.id=v_inventory_account
+        and a.is_active
+        and a.is_postable
+        and a.account_type='ASSET'
+    ) then
+      raise exception 'opening stock product inventory account must be an active postable asset account';
+    end if;
+  end loop;
+
+  -- Reconcile inventory stock value to the opening journal by inventory
+  -- account. The comparison is bidirectional: an inventory debit cannot exist
+  -- without stock, and stock cannot exist without the matching inventory debit.
+  if exists (
+    with stock_by_account as (
+      select p.inventory_account_id as account_id,
+             round(sum(
+               (x->>'quantity')::numeric * (x->>'unit_cost')::numeric
+             ),4) as stock_value
+      from jsonb_array_elements(p_stock_lines) x
+      join public.products p
+        on p.organization_id=p_organization_id
+       and p.id=(x->>'product_id')::uuid
+      group by p.inventory_account_id
+    ),
+    journal_by_account as (
+      select (x->>'account_id')::uuid as account_id,
+             round(sum(coalesce(nullif(x->>'debit','')::numeric,0)),4) as debit_value,
+             round(sum(coalesce(nullif(x->>'credit','')::numeric,0)),4) as credit_value
+      from jsonb_array_elements(p_journal_lines) x
+      group by (x->>'account_id')::uuid
+    ),
+    inventory_accounts as (
+      select distinct p.inventory_account_id as account_id
+      from public.products p
+      where p.organization_id=p_organization_id
+    ),
+    comparison as (
+      select ia.account_id,
+             coalesce(s.stock_value,0) as stock_value,
+             coalesce(j.debit_value,0) as debit_value,
+             coalesce(j.credit_value,0) as credit_value
+      from inventory_accounts ia
+      left join stock_by_account s on s.account_id=ia.account_id
+      left join journal_by_account j on j.account_id=ia.account_id
+    )
+    select 1
+    from comparison
+    where stock_value <> debit_value
+       or credit_value <> 0
+  ) then
+    raise exception 'opening stock value must reconcile exactly to inventory-account debits in the opening journal';
+  end if;
+
+  v_journal := private.post_journal(
+    p_organization_id,
+    p_opening_date,
+    'OPENING',
+    'OPENING',
+    null,
+    p_description,
+    p_journal_lines
+  );
+
+  for v_stock in select value from jsonb_array_elements(p_stock_lines) loop
+    v_product := (v_stock->>'product_id')::uuid;
+    v_quantity := (v_stock->>'quantity')::numeric;
+    v_unit_cost := (v_stock->>'unit_cost')::numeric;
+
+    perform private.inventory_in(
+      p_organization_id,
+      v_product,
+      p_opening_date,
+      v_quantity,
+      v_unit_cost,
+      'OPENING',
+      v_journal,
+      private.allocate_number(p_organization_id,'INVENTORY')
+    );
+  end loop;
+
+  return v_journal;
+end;
+$function$;
+
+revoke execute on function public.post_opening_setup(uuid,date,text,jsonb,jsonb) from public,anon;
+grant execute on function public.post_opening_setup(uuid,date,text,jsonb,jsonb) to authenticated;
+
 revoke all on function private.confirm_journal_entry(uuid) from public,anon,authenticated;
 
 create or replace function public.confirm_journal_entry(p_journal_entry_id uuid)
@@ -2636,6 +2886,9 @@ begin
   if not found then raise exception 'journal entry not found'; end if;
   perform private.assert_member(j.organization_id);
   if j.status <> 'CONFIRMED' then raise exception 'only confirmed journals can be cancelled'; end if;
+  if j.entry_type='OPENING' and j.reversal_of_id is null then
+    raise exception 'opening journals cannot be cancelled; use an adjustment workflow';
+  end if;
 
   v_period:=private.require_open_period(j.organization_id,p_cancel_date);
   v_number:=private.allocate_number(j.organization_id,'JOURNAL_ENTRY');
@@ -3045,23 +3298,25 @@ create policy journal_entries_insert on public.journal_entries
   with check (
     public.is_org_member(organization_id)
     and status = 'DRAFT'
+    and entry_type <> 'OPENING'
     and entry_number is null
     and posted_at is null
   );
 
 create policy journal_entries_update on public.journal_entries
   for update to authenticated
-  using (public.is_org_member(organization_id) and status = 'DRAFT')
+  using (public.is_org_member(organization_id) and status = 'DRAFT' and entry_type <> 'OPENING')
   with check (
     public.is_org_member(organization_id)
     and status = 'DRAFT'
+    and entry_type <> 'OPENING'
     and entry_number is null
     and posted_at is null
   );
 
 create policy journal_entries_delete on public.journal_entries
   for delete to authenticated
-  using (public.is_org_member(organization_id) and status = 'DRAFT');
+  using (public.is_org_member(organization_id) and status = 'DRAFT' and entry_type <> 'OPENING');
 
 create policy account_transactions_select on public.account_transactions
   for select to authenticated using (public.is_org_member(organization_id));
@@ -3074,7 +3329,7 @@ create policy account_transactions_insert_draft on public.account_transactions
       where je.organization_id=account_transactions.organization_id
         and je.id=journal_entry_id
         and je.status='DRAFT'
-        and je.entry_type in ('OPENING','ADJUSTMENT','OTHER')
+        and je.entry_type in ('ADJUSTMENT','OTHER')
     )
   );
 create policy account_transactions_update_draft on public.account_transactions
