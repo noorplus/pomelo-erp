@@ -1033,6 +1033,32 @@ revoke all on function public.is_org_member(uuid) from public, anon;
 grant execute on function public.is_org_member(uuid) to authenticated;
 
 -- -----------------------------------------------------------------------------
+-- Public RPC wrappers execute these privileged implementations through the private schema.
+revoke all on function private.cancel_document(text, uuid, date) from public, anon, authenticated;
+grant execute on function private.cancel_document(text, uuid, date) to authenticated;
+revoke all on function private.cancel_journal_entry(uuid, date) from public, anon, authenticated;
+grant execute on function private.cancel_journal_entry(uuid, date) to authenticated;
+revoke all on function private.close_period(uuid) from public, anon, authenticated;
+grant execute on function private.close_period(uuid) to authenticated;
+revoke all on function private.confirm_expense(uuid) from public, anon, authenticated;
+grant execute on function private.confirm_expense(uuid) to authenticated;
+revoke all on function private.confirm_journal_entry(uuid) from public, anon, authenticated;
+grant execute on function private.confirm_journal_entry(uuid) to authenticated;
+revoke all on function private.confirm_payment(uuid) from public, anon, authenticated;
+grant execute on function private.confirm_payment(uuid) to authenticated;
+revoke all on function private.confirm_purchase(uuid) from public, anon, authenticated;
+grant execute on function private.confirm_purchase(uuid) to authenticated;
+revoke all on function private.confirm_purchase_return(uuid) from public, anon, authenticated;
+grant execute on function private.confirm_purchase_return(uuid) to authenticated;
+revoke all on function private.confirm_sales(uuid) from public, anon, authenticated;
+grant execute on function private.confirm_sales(uuid) to authenticated;
+revoke all on function private.confirm_sales_return(uuid) from public, anon, authenticated;
+grant execute on function private.confirm_sales_return(uuid) to authenticated;
+revoke all on function private.create_accounting_period(uuid, text, date, date) from public, anon, authenticated;
+grant execute on function private.create_accounting_period(uuid, text, date, date) to authenticated;
+revoke all on function private.onboard_organization(text, character, text) from public, anon, authenticated;
+grant execute on function private.onboard_organization(text, character, text) to authenticated;
+
 -- Private transactional engine
 -- Privileged writes happen only here. The schema is intentionally not exposed
 -- through the Supabase Data API.
@@ -3736,8 +3762,6 @@ create policy sales_return_items_delete on public.sales_return_items
   );
 
 -- -----------------------------------------------------------------------------
-grant usage on schema private to authenticated;
-
 -- Grants. RLS remains the row-level authorization boundary.
 -- -----------------------------------------------------------------------------
 grant usage on schema public to authenticated;
