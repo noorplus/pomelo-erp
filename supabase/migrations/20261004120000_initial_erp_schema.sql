@@ -1056,7 +1056,7 @@ revoke all on function private.confirm_sales_return(uuid) from public, anon, aut
 grant execute on function private.confirm_sales_return(uuid) to authenticated;
 revoke all on function private.create_accounting_period(uuid, text, date, date) from public, anon, authenticated;
 grant execute on function private.create_accounting_period(uuid, text, date, date) to authenticated;
-revoke all on function private.onboard_organization(text, character, text) from public, anon, authenticated;
+revoke all on function private.onboard_organization(text, character(3), text) from public, anon, authenticated;
 grant execute on function private.onboard_organization(text, character, text) to authenticated;
 
 -- Private transactional engine
