@@ -3,6 +3,7 @@
 
 begin;
 
+-- Verified full-suite execution count: 116 assertions.
 select plan(116);
 
 -- ---------------------------------------------------------------------------
