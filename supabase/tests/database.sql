@@ -3,7 +3,7 @@
 
 begin;
 
-select plan(75);
+select plan(95);
 
 -- ---------------------------------------------------------------------------
 -- Schema/security baseline
@@ -141,6 +141,323 @@ select is(
    order by created_at limit 1),
   'CON-000001',
   'contact master receives automatic number'
+);
+
+
+-- ---------------------------------------------------------------------------
+-- Opening initialization: accounting + inventory must be one atomic setup.
+-- ---------------------------------------------------------------------------
+select ok(
+  exists (
+    select 1
+    from pg_indexes
+    where schemaname='public'
+      and indexname='journal_entries_one_opening_idx'
+  ),
+  'database enforces one original opening journal per organization'
+);
+
+select ok(
+  has_function_privilege(
+    'authenticated',
+    'public.post_opening_setup(uuid,date,text,jsonb,jsonb)',
+    'EXECUTE'
+  ),
+  'authenticated can execute the opening setup RPC'
+);
+
+select throws_ok(
+  $q$
+  insert into public.journal_entries(
+    organization_id,accounting_period_id,entry_date,entry_type,status,created_by
+  )
+  select o.id,ap.id,current_date,'OPENING','DRAFT',auth.uid()
+  from public.organizations o
+  join public.accounting_periods ap
+    on ap.organization_id=o.id and ap.status='OPEN'
+  where o.name='ERP Transaction Test'
+  $q$,
+  '42501',
+  'new row violates row-level security policy',
+  'authenticated cannot create an OPENING journal directly'
+);
+
+insert into public.products(
+  organization_id,name,unit_id,inventory_account_id,sales_account_id,cogs_account_id
+)
+select o.id,'Opening Product B',u.id,inv.id,rev.id,cogs.id
+from public.organizations o
+join public.units_of_measure u on u.organization_id=o.id and u.name='pcs'
+join public.accounts inv on inv.organization_id=o.id and inv.account_code='1200'
+join public.accounts rev on rev.organization_id=o.id and rev.account_code='4000'
+join public.accounts cogs on cogs.organization_id=o.id and cogs.account_code='5000'
+where o.name='ERP Transaction Test';
+
+-- Use a fresh organization for the valid opening setup because the transaction
+-- test organization already contains operational journals by this point.
+select ok(
+  public.onboard_organization('ERP Opening Flow') is not null,
+  'opening flow organization is onboarded'
+);
+
+insert into public.products(
+  organization_id,name,unit_id,inventory_account_id,sales_account_id,cogs_account_id
+)
+select o.id,'Opening Product A',u.id,inv.id,rev.id,cogs.id
+from public.organizations o
+join public.units_of_measure u on u.organization_id=o.id and u.name='pcs'
+join public.accounts inv on inv.organization_id=o.id and inv.account_code='1200'
+join public.accounts rev on rev.organization_id=o.id and rev.account_code='4000'
+join public.accounts cogs on cogs.organization_id=o.id and cogs.account_code='5000'
+where o.name='ERP Opening Flow';
+
+insert into public.products(
+  organization_id,name,unit_id,inventory_account_id,sales_account_id,cogs_account_id
+)
+select o.id,'Opening Product B',u.id,inv.id,rev.id,cogs.id
+from public.organizations o
+join public.units_of_measure u on u.organization_id=o.id and u.name='pcs'
+join public.accounts inv on inv.organization_id=o.id and inv.account_code='1200'
+join public.accounts rev on rev.organization_id=o.id and rev.account_code='4000'
+join public.accounts cogs on cogs.organization_id=o.id and cogs.account_code='5000'
+where o.name='ERP Opening Flow';
+
+select ok(
+  public.post_opening_setup(
+    (select id from public.organizations where name='ERP Opening Flow'),
+    current_date,
+    'Initial opening balances',
+    jsonb_build_array(
+      jsonb_build_object(
+        'account_id',(select id from public.accounts where organization_id=(select id from public.organizations where name='ERP Opening Flow') and account_code='1000'),
+        'debit',10000,'credit',0,'description','Opening cash'
+      ),
+      jsonb_build_object(
+        'account_id',(select id from public.accounts where organization_id=(select id from public.organizations where name='ERP Opening Flow') and account_code='1200'),
+        'debit',3500,'credit',0,'description','Opening inventory'
+      ),
+      jsonb_build_object(
+        'account_id',(select id from public.accounts where organization_id=(select id from public.organizations where name='ERP Opening Flow') and account_code='3000'),
+        'debit',0,'credit',13500,'description','Opening equity'
+      )
+    ),
+    jsonb_build_array(
+      jsonb_build_object(
+        'product_id',(select id from public.products where organization_id=(select id from public.organizations where name='ERP Opening Flow') and name='Opening Product A'),
+        'quantity',10,'unit_cost',200
+      ),
+      jsonb_build_object(
+        'product_id',(select id from public.products where organization_id=(select id from public.organizations where name='ERP Opening Flow') and name='Opening Product B'),
+        'quantity',5,'unit_cost',300
+      )
+    )
+  ) is not null,
+  'valid opening accounting and stock setup succeeds atomically'
+);
+
+select is(
+  (select count(*)::bigint
+   from public.journal_entries
+   where organization_id=(select id from public.organizations where name='ERP Opening Flow')
+     and entry_type='OPENING' and reversal_of_id is null and status='CONFIRMED'),
+  1::bigint,
+  'opening creates exactly one confirmed original journal'
+);
+
+select is(
+  (select coalesce(sum(debit),0)-coalesce(sum(credit),0)
+   from public.account_transactions
+   where organization_id=(select id from public.organizations where name='ERP Opening Flow')
+     and journal_entry_id=(select id from public.journal_entries where organization_id=(select id from public.organizations where name='ERP Opening Flow') and entry_type='OPENING' and reversal_of_id is null)),
+  0::numeric,
+  'opening journal is balanced'
+);
+
+select is(
+  (select quantity from public.inventory_balances
+   where organization_id=(select id from public.organizations where name='ERP Opening Flow')
+     and product_id=(select id from public.products where organization_id=(select id from public.organizations where name='ERP Opening Flow') and name='Opening Product A')),
+  10::numeric,
+  'opening stock initializes product A quantity'
+);
+
+select is(
+  (select average_cost from public.inventory_balances
+   where organization_id=(select id from public.organizations where name='ERP Opening Flow')
+     and product_id=(select id from public.products where organization_id=(select id from public.organizations where name='ERP Opening Flow') and name='Opening Product A')),
+  200::numeric,
+  'opening stock initializes product A weighted-average cost'
+);
+
+select is(
+  (select quantity from public.inventory_balances
+   where organization_id=(select id from public.organizations where name='ERP Opening Flow')
+     and product_id=(select id from public.products where organization_id=(select id from public.organizations where name='ERP Opening Flow') and name='Opening Product B')),
+  5::numeric,
+  'opening stock initializes product B quantity'
+);
+
+select is(
+  (select average_cost from public.inventory_balances
+   where organization_id=(select id from public.organizations where name='ERP Opening Flow')
+     and product_id=(select id from public.products where organization_id=(select id from public.organizations where name='ERP Opening Flow') and name='Opening Product B')),
+  300::numeric,
+  'opening stock initializes product B weighted-average cost'
+);
+
+select is(
+  (select count(*)::bigint
+   from public.inventory_transactions
+   where organization_id=(select id from public.organizations where name='ERP Opening Flow')
+     and transaction_type='OPENING'
+     and direction='IN'),
+  2::bigint,
+  'opening creates one inventory receipt per product'
+);
+
+select is(
+  (select coalesce(sum(at.debit-at.credit),0)
+   from public.account_transactions at
+   join public.accounts a
+     on a.organization_id=at.organization_id and a.id=at.account_id
+   where at.organization_id=(select id from public.organizations where name='ERP Opening Flow')
+     and a.account_code='1200'
+     and at.journal_entry_id=(select id from public.journal_entries where organization_id=(select id from public.organizations where name='ERP Opening Flow') and entry_type='OPENING' and reversal_of_id is null)),
+  3500::numeric,
+  'opening inventory GL equals total opening stock value'
+);
+
+select ok(
+  not exists (
+    select 1
+    from public.inventory_transactions it
+    where it.organization_id=(select id from public.organizations where name='ERP Opening Flow')
+      and (it.reference_type <> 'OPENING'
+        or it.reference_id <> (select id from public.journal_entries where organization_id=(select id from public.organizations where name='ERP Opening Flow') and entry_type='OPENING' and reversal_of_id is null))
+  ),
+  'opening inventory transactions reference the opening journal'
+);
+
+select throws_ok(
+  $q$select public.post_opening_setup(
+    (select id from public.organizations where name='ERP Opening Flow'),
+    current_date,
+    'Duplicate opening',
+    jsonb_build_array(
+      jsonb_build_object(
+        'account_id',(select id from public.accounts where organization_id=(select id from public.organizations where name='ERP Opening Flow') and account_code='1000'),
+        'debit',1,'credit',0
+      ),
+      jsonb_build_object(
+        'account_id',(select id from public.accounts where organization_id=(select id from public.organizations where name='ERP Opening Flow') and account_code='3000'),
+        'debit',0,'credit',1
+      )
+    ),
+    '[]'::jsonb
+  )$q$,
+  'P0001',
+  'opening setup has already been initialized',
+  'second opening initialization is rejected'
+);
+
+select throws_ok(
+  $q$select public.cancel_journal_entry(
+    (select id from public.journal_entries
+     where organization_id=(select id from public.organizations where name='ERP Opening Flow')
+       and entry_type='OPENING' and reversal_of_id is null)
+  )$q$,
+  'P0001',
+  'opening journals cannot be cancelled; use an adjustment workflow',
+  'opening journal cancellation is blocked'
+);
+
+do $q$
+begin
+  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_2'),true);
+end $q$;
+
+select throws_ok(
+  $q$select public.post_opening_setup(
+    (select id from public.organizations where name='ERP Opening Flow'),
+    current_date,
+    'Unauthorized opening',
+    jsonb_build_array(
+      jsonb_build_object(
+        'account_id',(select id from public.accounts where organization_id=(select id from public.organizations where name='ERP Opening Flow') and account_code='1000'),
+        'debit',1,'credit',0
+      ),
+      jsonb_build_object(
+        'account_id',(select id from public.accounts where organization_id=(select id from public.organizations where name='ERP Opening Flow') and account_code='3000'),
+        'debit',0,'credit',1
+      )
+    ),
+    '[]'::jsonb
+  )$q$,
+  'P0001',
+  'only the organization creator can initialize opening balances',
+  'non-creator cannot initialize opening balances'
+);
+
+do $q$
+begin
+  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_1'),true);
+end $q$;
+
+select ok(
+  public.onboard_organization('ERP Opening Atomicity') is not null,
+  'opening atomicity organization is onboarded'
+);
+
+insert into public.products(
+  organization_id,name,unit_id,inventory_account_id,sales_account_id,cogs_account_id
+)
+select o.id,'Atomicity Product',u.id,inv.id,rev.id,cogs.id
+from public.organizations o
+join public.units_of_measure u on u.organization_id=o.id and u.name='pcs'
+join public.accounts inv on inv.organization_id=o.id and inv.account_code='1200'
+join public.accounts rev on rev.organization_id=o.id and rev.account_code='4000'
+join public.accounts cogs on cogs.organization_id=o.id and cogs.account_code='5000'
+where o.name='ERP Opening Atomicity';
+
+select throws_ok(
+  $q$select public.post_opening_setup(
+    (select id from public.organizations where name='ERP Opening Atomicity'),
+    current_date,
+    'Invalid opening',
+    jsonb_build_array(
+      jsonb_build_object(
+        'account_id',(select id from public.accounts where organization_id=(select id from public.organizations where name='ERP Opening Atomicity') and account_code='1200'),
+        'debit',100,'credit',0
+      ),
+      jsonb_build_object(
+        'account_id',(select id from public.accounts where organization_id=(select id from public.organizations where name='ERP Opening Atomicity') and account_code='3000'),
+        'debit',0,'credit',100
+      )
+    ),
+    jsonb_build_array(
+      jsonb_build_object(
+        'product_id',(select id from public.products where organization_id=(select id from public.organizations where name='ERP Opening Atomicity')),
+        'quantity',10,'unit_cost',20
+      )
+    )
+  )$q$,
+  'P0001',
+  'opening stock value must reconcile exactly to inventory-account debits in the opening journal',
+  'stock/GL mismatch rejects the entire opening transaction'
+);
+
+select is(
+  (select count(*)::bigint from public.journal_entries
+   where organization_id=(select id from public.organizations where name='ERP Opening Atomicity')),
+  0::bigint,
+  'failed opening validation leaves no journal'
+);
+
+select is(
+  (select count(*)::bigint from public.inventory_transactions
+   where organization_id=(select id from public.organizations where name='ERP Opening Atomicity')),
+  0::bigint,
+  'failed opening validation leaves no inventory transaction'
 );
 
 -- ---------------------------------------------------------------------------
