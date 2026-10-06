@@ -2,7 +2,7 @@
 -- Test-only: disposable/local Supabase, transaction rolled back at the end.
 
 begin;
-select plan(30);
+select plan(28);
 
 do $$
 declare c uuid := extensions.gen_random_uuid(); s uuid := extensions.gen_random_uuid();
