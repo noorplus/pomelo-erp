@@ -1,7 +1,9 @@
-import { getApplicationContext } from "@/lib/organizations/server";
+"use client";
 
-export default async function DashboardPage() {
-  const context = await getApplicationContext();
+import { useOrganizationContext } from "@/components/app/organization-provider";
+
+export default function DashboardPage() {
+  const { activeOrganization } = useOrganizationContext();
 
   return (
     <section className="page">
@@ -12,10 +14,10 @@ export default async function DashboardPage() {
         </div>
       </div>
       <div className="content-card">
-        {context.activeOrganization ? (
+        {activeOrganization ? (
           <>
             <p className="eyebrow">Organization</p>
-            <h2>{context.activeOrganization.name}</h2>
+            <h2>{activeOrganization.name}</h2>
             <p className="lede">
               Your organization workspace is connected to the frozen database
               through the typed application context.
