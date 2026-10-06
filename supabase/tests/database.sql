@@ -2170,37 +2170,6 @@ select is(
   'real-user flow: creator starts as the only active member'
 );
 
-select is(
-  public.add_organization_user_by_email(
-    (select id from public.organizations where name='ERP Operator Journey'),
-    current_setting('test.erp_user_3_email')
-  ),
-  current_setting('test.erp_user_3')::uuid,
-  'real-user flow: creator can invite a staff user by email'
-);
-
-select is(
-  (select count(*)::bigint
-   from public.organization_users ou
-   join public.organizations o on o.id=ou.organization_id
-   where o.name='ERP Operator Journey' and ou.is_active),
-  2::bigint,
-  'real-user flow: organization has creator and staff members'
-);
-
-do $q$
-begin
-  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_3')::uuid::text,true);
-end $q$;
-
-select is(
-  (select count(*)::bigint
-   from public.organizations
-   where name='ERP Operator Journey'),
-  1::bigint,
-  'real-user flow: staff user can access the organization after invitation'
-);
-
 insert into public.units_of_measure(organization_id,name)
 select id,'box'
 from public.organizations
@@ -2238,13 +2207,8 @@ select ok(
     join public.organizations o on o.id=p.organization_id
     where o.name='ERP Operator Journey' and p.name='Journey Product'
   ),
-  'real-user flow: staff operator can configure inventory master data'
+  'real-user flow: creator configures inventory master data'
 );
-
-do $q$
-begin
-  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_5')::uuid::text,true);
-end $q$;
 
 update public.organizations
 set phone='+8801900000000',
@@ -2288,7 +2252,7 @@ select ok(
       )
     )
   ) is not null,
-  'real-user flow: creator can initialize opening GL and stock'
+  'real-user flow: creator initializes opening GL and stock'
 );
 
 select is(
@@ -2299,6 +2263,37 @@ select is(
      and p.name='Journey Product'),
   10::numeric,
   'real-user flow: opening stock is available before daily operations'
+);
+
+select is(
+  public.add_organization_user_by_email(
+    (select id from public.organizations where name='ERP Operator Journey'),
+    current_setting('test.erp_user_3_email')
+  ),
+  current_setting('test.erp_user_3')::uuid,
+  'real-user flow: creator can invite a staff user by email'
+);
+
+select is(
+  (select count(*)::bigint
+   from public.organization_users ou
+   join public.organizations o on o.id=ou.organization_id
+   where o.name='ERP Operator Journey' and ou.is_active),
+  2::bigint,
+  'real-user flow: organization has creator and staff members'
+);
+
+do $q$
+begin
+  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_3')::uuid::text,true);
+end $q$;
+
+select is(
+  (select count(*)::bigint
+   from public.organizations
+   where name='ERP Operator Journey'),
+  1::bigint,
+  'real-user flow: staff user can access the organization after invitation'
 );
 
 insert into public.purchase(
