@@ -7,13 +7,10 @@ export default function HomePage() {
         <p className="eyebrow">Pomelo ERP</p>
         <h1>Business operations, built on a solid foundation.</h1>
         <p className="lede">
-          The application foundation is ready for authentication, organization
-          context, and the ERP modules that will consume the frozen database.
+          The application foundation is ready for authentication, organization context, and reusable ERP modules.
         </p>
         <div className="actions">
-          <Link className="button primary" href="/login">
-            Sign in
-          </Link>
+          <Link className="button primary" href="/login">Sign in</Link>
         </div>
       </section>
     </main>
