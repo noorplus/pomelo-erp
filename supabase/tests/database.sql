@@ -86,6 +86,7 @@ begin
   perform set_config('test.erp_user_3',u3::text,false);
   perform set_config('test.erp_user_4',u4::text,false);
   perform set_config('test.erp_user_5',u5::text,false);
+  perform set_config('test.erp_user_3_email','erp-test-3-'||replace(u3::text,'-','')||'@example.test',false);
   perform set_config('request.jwt.claim.sub',u1::text,true);
 end $$;
 
@@ -2172,7 +2173,7 @@ select is(
 select is(
   public.add_organization_user_by_email(
     (select id from public.organizations where name='ERP Operator Journey'),
-    (select email from auth.users where id=current_setting('test.erp_user_3')::uuid)
+    current_setting('test.erp_user_3_email')
   ),
   current_setting('test.erp_user_3')::uuid,
   'real-user flow: creator can invite a staff user by email'
