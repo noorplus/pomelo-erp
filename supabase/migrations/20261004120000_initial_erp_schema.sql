@@ -8,6 +8,12 @@
 --   4. Keep RLS, grants, numbering, accounting-period, inventory and ledger
 --      invariants explicit and regression-tested.
 --
+-- FINALIZED DATABASE BASELINE:
+-- This canonical schema is FINAL and FROZEN for application development.
+-- Do not modify the database schema, add migrations, or change this file's
+-- database definition. Application development must use the existing schema
+-- and its public RPC contracts as-is.
+--
 -- IMPORTANT: This is the single canonical schema definition. Do not create
 -- additional migration files for the frozen ERP database.
 
