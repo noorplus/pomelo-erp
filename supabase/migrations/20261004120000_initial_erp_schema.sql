@@ -856,6 +856,57 @@ create index purchase_return_items_purchase_item_idx on public.purchase_return_i
 create index sales_returns_org_date_idx on public.sales_returns(organization_id, return_date desc);
 create index sales_returns_sales_idx on public.sales_returns(organization_id, sales_id, status);
 create index sales_return_items_sales_item_idx on public.sales_return_items(organization_id, sales_item_id);
+-- Foreign-key indexes recommended by Supabase Performance Advisor.
+-- Composite organization-scoped FKs keep tenant filtering and joins index-backed.
+create index account_transactions_contact_fk_idx on public.account_transactions(organization_id, contact_id);
+create index account_transactions_journal_fk_idx on public.account_transactions(organization_id, journal_entry_id);
+create index accounting_periods_closed_by_fk_idx on public.accounting_periods(closed_by);
+create index contacts_created_by_fk_idx on public.contacts(created_by);
+create index expense_categories_account_fk_idx on public.expense_categories(organization_id, expense_account_id);
+create index expenses_category_fk_idx on public.expenses(organization_id, expense_category_id);
+create index expenses_contact_fk_idx on public.expenses(organization_id, contact_id);
+create index expenses_created_by_fk_idx on public.expenses(created_by);
+create index expenses_journal_fk_idx on public.expenses(organization_id, posted_journal_entry_id);
+create index expenses_payable_account_fk_idx on public.expenses(organization_id, payable_account_id);
+create index inventory_transactions_created_by_fk_idx on public.inventory_transactions(created_by);
+create index journal_entries_created_by_fk_idx on public.journal_entries(created_by);
+create index journal_entries_period_fk_idx on public.journal_entries(organization_id, accounting_period_id);
+create index journal_entries_reversal_fk_idx on public.journal_entries(organization_id, reversal_of_id);
+create index payment_allocations_payment_fk_idx on public.payment_allocations(organization_id, payment_id);
+create index payments_account_fk_idx on public.payments(organization_id, account_id);
+create index payments_contact_fk_idx on public.payments(organization_id, contact_id);
+create index payments_created_by_fk_idx on public.payments(created_by);
+create index payments_journal_fk_idx on public.payments(organization_id, posted_journal_entry_id);
+create index payments_settlement_account_fk_idx on public.payments(organization_id, settlement_account_id);
+create index products_cogs_account_fk_idx on public.products(organization_id, cogs_account_id);
+create index products_created_by_fk_idx on public.products(created_by);
+create index products_inventory_account_fk_idx on public.products(organization_id, inventory_account_id);
+create index products_sales_account_fk_idx on public.products(organization_id, sales_account_id);
+create index products_unit_fk_idx on public.products(organization_id, unit_id);
+create index purchase_created_by_fk_idx on public.purchase(created_by);
+create index purchase_journal_fk_idx on public.purchase(organization_id, posted_journal_entry_id);
+create index purchase_payable_account_fk_idx on public.purchase(organization_id, payable_account_id);
+create index purchase_supplier_fk_idx on public.purchase(organization_id, supplier_id);
+create index purchase_items_product_fk_idx on public.purchase_items(organization_id, product_id);
+create index purchase_items_purchase_fk_idx on public.purchase_items(organization_id, purchase_id);
+create index purchase_return_items_product_fk_idx on public.purchase_return_items(organization_id, product_id);
+create index purchase_return_items_return_fk_idx on public.purchase_return_items(organization_id, purchase_return_id);
+create index purchase_returns_created_by_fk_idx on public.purchase_returns(created_by);
+create index purchase_returns_journal_fk_idx on public.purchase_returns(organization_id, posted_journal_entry_id);
+create index purchase_returns_payable_account_fk_idx on public.purchase_returns(organization_id, payable_account_id);
+create index purchase_returns_supplier_fk_idx on public.purchase_returns(organization_id, supplier_id);
+create index sales_created_by_fk_idx on public.sales(created_by);
+create index sales_customer_fk_idx on public.sales(organization_id, customer_id);
+create index sales_journal_fk_idx on public.sales(organization_id, posted_journal_entry_id);
+create index sales_receivable_account_fk_idx on public.sales(organization_id, receivable_account_id);
+create index sales_items_product_fk_idx on public.sales_items(organization_id, product_id);
+create index sales_items_sales_fk_idx on public.sales_items(organization_id, sales_id);
+create index sales_return_items_product_fk_idx on public.sales_return_items(organization_id, product_id);
+create index sales_return_items_return_fk_idx on public.sales_return_items(organization_id, sales_return_id);
+create index sales_returns_created_by_fk_idx on public.sales_returns(created_by);
+create index sales_returns_customer_fk_idx on public.sales_returns(organization_id, customer_id);
+create index sales_returns_journal_fk_idx on public.sales_returns(organization_id, posted_journal_entry_id);
+create index sales_returns_receivable_account_fk_idx on public.sales_returns(organization_id, receivable_account_id);
 
 -- -----------------------------------------------------------------------------
 -- Indexes above are intentionally workload-driven:
@@ -2700,7 +2751,7 @@ create or replace function public.is_organization_creator(
 returns boolean
 language sql
 security definer
-set search_path = public, pg_temp
+set search_path = ''
 as $oc$
   select exists (
     select 1
@@ -2722,14 +2773,14 @@ as $oc$
   );
 $oc$;
 
-revoke all on function public.is_organization_creator(uuid, uuid) from public;
+revoke all on function public.is_organization_creator(uuid, uuid) from public, anon;
 grant execute on function public.is_organization_creator(uuid, uuid) to authenticated;
 
-create or replace function public.guard_organization_creator_membership()
+create or replace function private.guard_organization_creator_membership()
 returns trigger
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = ''
 as $ocg$
 begin
   if public.is_organization_creator(old.organization_id, old.user_id) then
@@ -2754,10 +2805,12 @@ begin
 end;
 $ocg$;
 
+revoke all on function private.guard_organization_creator_membership() from public, anon, authenticated;
+
 create trigger organization_users_creator_guard
 before update or delete on public.organization_users
 for each row
-execute function public.guard_organization_creator_membership();
+execute function private.guard_organization_creator_membership();
 create or replace function public.add_organization_user(
   p_organization_id uuid,
   p_user_id uuid
@@ -2765,7 +2818,7 @@ create or replace function public.add_organization_user(
 returns void
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = ''
 as $ou$
 declare
   v_org_active boolean;
@@ -2813,7 +2866,7 @@ begin
 end;
 $ou$;
 
-revoke all on function public.add_organization_user(uuid, uuid) from public;
+revoke all on function public.add_organization_user(uuid, uuid) from public, anon;
 grant execute on function public.add_organization_user(uuid, uuid) to authenticated;
 
 create or replace function public.add_organization_user_by_email(
@@ -2823,7 +2876,7 @@ create or replace function public.add_organization_user_by_email(
 returns uuid
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = ''
 as $ou$
 declare
   v_user_id uuid;
@@ -2846,7 +2899,7 @@ begin
 end;
 $ou$;
 
-revoke all on function public.add_organization_user_by_email(uuid, text) from public;
+revoke all on function public.add_organization_user_by_email(uuid, text) from public, anon;
 grant execute on function public.add_organization_user_by_email(uuid, text) to authenticated;
 
 create or replace function public.remove_organization_user(
@@ -2856,7 +2909,7 @@ create or replace function public.remove_organization_user(
 returns void
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = ''
 as $ou$
 declare
   v_membership_id uuid;
@@ -2904,7 +2957,7 @@ begin
 end;
 $ou$;
 
-revoke all on function public.remove_organization_user(uuid, uuid) from public;
+revoke all on function public.remove_organization_user(uuid, uuid) from public, anon;
 grant execute on function public.remove_organization_user(uuid, uuid) to authenticated;
 
 create or replace function public.remove_organization_user_by_email(
@@ -2914,7 +2967,7 @@ create or replace function public.remove_organization_user_by_email(
 returns uuid
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = ''
 as $ou$
 declare
   v_user_id uuid;
@@ -2937,7 +2990,7 @@ begin
 end;
 $ou$;
 
-revoke all on function public.remove_organization_user_by_email(uuid, text) from public;
+revoke all on function public.remove_organization_user_by_email(uuid, text) from public, anon;
 grant execute on function public.remove_organization_user_by_email(uuid, text) to authenticated;
 
 
@@ -2976,7 +3029,7 @@ create policy organizations_update on public.organizations
 -- Membership: active members can read their memberships; no generic insert/delete/update.
 create policy organization_users_select on public.organization_users
   for select to authenticated
-  using (user_id = auth.uid() or public.is_org_member(organization_id));
+  using (user_id = (select auth.uid()) or (select public.is_org_member(organization_id)));
 
 -- -----------------------------------------------------------------------------
 -- Master/config tables: member-scoped CRUD.
