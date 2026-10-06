@@ -22,7 +22,7 @@ export function Navigation({
       {mobileOpen ? (
         <button aria-label="Close navigation" className="navigation-overlay" type="button" onClick={onMobileClose} />
       ) : null}
-      <aside className={mobileOpen ? "navigation navigation-open" : "navigation"}>
+      <aside aria-label="Application navigation" className={mobileOpen ? "navigation navigation-open" : "navigation"}>
         <div className="navigation-header">
           <span>Navigation</span>
           <button aria-label="Close navigation" className="navigation-close" type="button" onClick={onMobileClose}>
@@ -33,12 +33,7 @@ export function Navigation({
           {navigation.map(({ href, label, icon: Icon }) => {
             const active = pathname === href || (href !== "/" && pathname.startsWith(href + "/"));
             return (
-              <Link
-                key={href}
-                className={active ? "navigation-link navigation-link-active" : "navigation-link"}
-                href={href}
-                onClick={onMobileClose}
-              >
+              <Link key={href} aria-current={active ? "page" : undefined} className={active ? "navigation-link navigation-link-active" : "navigation-link"} href={href} onClick={onMobileClose}>
                 <Icon size={18} strokeWidth={2} />
                 <span>{label}</span>
               </Link>
