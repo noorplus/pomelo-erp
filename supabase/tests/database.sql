@@ -69,14 +69,17 @@ do $$
 declare
   u1 uuid := extensions.gen_random_uuid();
   u2 uuid := extensions.gen_random_uuid();
+  u3 uuid := extensions.gen_random_uuid();
 begin
   insert into auth.users(id,aud,role,email,encrypted_password,email_confirmed_at)
   values
     (u1,'authenticated','authenticated','erp-test-1-'||replace(u1::text,'-','')||'@example.test','x',now()),
-    (u2,'authenticated','authenticated','erp-test-2-'||replace(u2::text,'-','')||'@example.test','x',now());
+    (u2,'authenticated','authenticated','erp-test-2-'||replace(u2::text,'-','')||'@example.test','x',now()),
+    (u3,'authenticated','authenticated','erp-test-3-'||replace(u3::text,'-','')||'@example.test','x',now());
 
   perform set_config('test.erp_user_1',u1::text,false);
   perform set_config('test.erp_user_2',u2::text,false);
+  perform set_config('test.erp_user_3',u3::text,false);
   perform set_config('request.jwt.claim.sub',u1::text,true);
 end $$;
 
@@ -178,7 +181,7 @@ select throws_ok(
   where o.name='ERP Transaction Test'
   $q$,
   '42501',
-  'new row violates row-level security policy',
+  'new row violates row-level security policy for table "journal_entries"',
   'authenticated cannot create an OPENING journal directly'
 );
 
@@ -192,6 +195,13 @@ join public.accounts inv on inv.organization_id=o.id and inv.account_code='1200'
 join public.accounts rev on rev.organization_id=o.id and rev.account_code='4000'
 join public.accounts cogs on cogs.organization_id=o.id and cogs.account_code='5000'
 where o.name='ERP Transaction Test';
+
+-- Use a dedicated third test user so the second user remains available for the
+-- later cross-tenant and real-life operator tests.
+do $q$
+begin
+  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_3'),true);
+end $q$;
 
 -- Use a fresh organization for the valid opening setup because the transaction
 -- test organization already contains operational journals by this point.
@@ -373,7 +383,8 @@ select throws_ok(
 
 do $q$
 begin
-  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_2'),true);
+  -- Switch to the original owner to verify creator-only authorization.
+  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_1'),true);
 end $q$;
 
 select throws_ok(
