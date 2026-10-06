@@ -1436,8 +1436,8 @@ begin
   values (p_name, upper(p_base_currency), p_timezone)
   returning id into v_org;
 
-  insert into public.organization_users(organization_id, user_id)
-  values (v_org, auth.uid());
+  insert into public.organization_users(organization_id, user_id, created_at)
+  values (v_org, auth.uid(), clock_timestamp());
 
   insert into public.accounting_periods(
     organization_id, name, start_date, end_date
@@ -3154,8 +3154,8 @@ begin
     return;
   end if;
 
-  insert into public.organization_users (organization_id, user_id, is_active)
-  values (p_organization_id, p_user_id, true);
+  insert into public.organization_users (organization_id, user_id, is_active, created_at)
+  values (p_organization_id, p_user_id, true, clock_timestamp());
 end;
 $ou$;
 revoke all on function private.add_organization_user(p_organization_id uuid, p_user_id uuid) from public, anon;
