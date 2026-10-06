@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { LayoutDashboard, X } from "lucide-react";
 
 const navigation = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/", label: "Dashboard", icon: LayoutDashboard },
 ];
 
 export function Navigation({
@@ -31,7 +31,7 @@ export function Navigation({
         </div>
         <nav aria-label="Primary navigation">
           {navigation.map(({ href, label, icon: Icon }) => {
-            const active = pathname === href || pathname.startsWith(href + "/");
+            const active = pathname === href || (href !== "/" && pathname.startsWith(href + "/"));
             return (
               <Link
                 key={href}
