@@ -31,6 +31,9 @@ begin;
 create extension if not exists pgcrypto with schema extensions;
 create extension if not exists btree_gist with schema extensions;
 
+-- Private schema must exist before any private helper declarations.
+create schema if not exists private;
+
 -- -----------------------------------------------------------------------------
 -- Shared types
 -- -----------------------------------------------------------------------------
