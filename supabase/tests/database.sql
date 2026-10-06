@@ -411,7 +411,7 @@ select throws_ok(
 
 do $q$
 begin
-  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_1'),true);
+  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_3'),true);
 end $q$;
 
 select ok(
@@ -470,6 +470,13 @@ select is(
   0::bigint,
   'failed opening validation leaves no inventory transaction'
 );
+
+-- Return to the original transaction-test owner for the remaining
+-- operational transaction coverage.
+do $q$
+begin
+  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_1'),true);
+end $q$;
 
 -- ---------------------------------------------------------------------------
 -- Purchase + invoice discount + weighted-average inventory
