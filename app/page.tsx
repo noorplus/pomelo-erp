@@ -14,14 +14,6 @@ export default function HomePage() {
           <Link className="button primary" href="/login">
             Sign in
           </Link>
-          <a
-            className="button secondary"
-            href="https://nextjs.org/docs"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Next.js docs
-          </a>
         </div>
       </section>
     </main>
