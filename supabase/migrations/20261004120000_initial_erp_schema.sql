@@ -948,7 +948,7 @@ returns void
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $function$
 declare
   v_org uuid;
   v_lines integer;
@@ -1007,7 +1007,7 @@ language sql
 stable
 security definer
 set search_path = ''
-as $
+as $function$
   select exists (
     select 1
     from public.organization_users ou
@@ -1501,7 +1501,7 @@ returns uuid
 language sql
 security invoker
 set search_path = ''
-as $
+as $function$
   select private.onboard_organization(p_name,p_base_currency,p_timezone);
 $;
 
