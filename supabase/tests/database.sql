@@ -2592,6 +2592,11 @@ select is(
   'real-user flow: operator can close the completed accounting period'
 );
 
+do $q$
+begin
+  perform set_config('request.jwt.claim.sub',current_setting('test.erp_creator_user')::uuid::text,true);
+end $q$;
+
 select public.remove_organization_user(
   (select id from public.organizations where name='ERP Operator Journey'),
   current_setting('test.erp_operator_user')::uuid
