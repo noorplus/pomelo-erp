@@ -985,7 +985,7 @@ begin
     raise exception 'journal entry is not balanced: debit %, credit %', v_debit, v_credit;
   end if;
 end;
-$;
+$function$;
 revoke all on function private.validate_journal_balance(p_journal_entry_id uuid) from public, anon;
 grant execute on function private.validate_journal_balance(p_journal_entry_id uuid) to authenticated;
 create or replace function public.validate_journal_balance(p_journal_entry_id uuid)
@@ -993,7 +993,7 @@ returns void
 language sql
 security invoker
 set search_path=''
-as $ select private.validate_journal_balance(p_journal_entry_id); $;
+as $function$ select private.validate_journal_balance(p_journal_entry_id); $function$;
 
 revoke all on function public.validate_journal_balance(uuid) from public, anon;
 grant execute on function public.validate_journal_balance(uuid) to authenticated;
@@ -1015,7 +1015,7 @@ as $function$
       and ou.user_id = auth.uid()
       and ou.is_active
   );
-$;
+$function$;
 revoke all on function private.is_org_member(p_organization_id uuid) from public, anon;
 grant execute on function private.is_org_member(p_organization_id uuid) to authenticated;
 create or replace function public.is_org_member(p_organization_id uuid)
@@ -1024,7 +1024,7 @@ language sql
 stable
 security invoker
 set search_path=''
-as $ select private.is_org_member(p_organization_id); $;
+as $function$ select private.is_org_member(p_organization_id); $function$;
 
 revoke all on function public.is_org_member(uuid) from public, anon;
 grant execute on function public.is_org_member(uuid) to authenticated;
@@ -1503,7 +1503,7 @@ security invoker
 set search_path = ''
 as $function$
   select private.onboard_organization(p_name,p_base_currency,p_timezone);
-$;
+$function$;
 
 revoke execute on function public.onboard_organization(text,char(3),text) from public, anon;
 grant execute on function public.onboard_organization(text,char(3),text) to authenticated;
@@ -1773,7 +1773,7 @@ returns uuid
 language sql
 security invoker
 set search_path=''
-as $ select private.confirm_purchase(p_id); $;
+as $function$ select private.confirm_purchase(p_id); $function$;
 revoke execute on function public.confirm_purchase(uuid) from public, anon;
 grant execute on function public.confirm_purchase(uuid) to authenticated;
 
@@ -1894,7 +1894,7 @@ revoke all on function private.confirm_sales(uuid) from public, anon, authentica
 
 create or replace function public.confirm_sales(p_id uuid)
 returns uuid language sql security invoker set search_path=''
-as $ select private.confirm_sales(p_id); $;
+as $function$ select private.confirm_sales(p_id); $function$;
 revoke execute on function public.confirm_sales(uuid) from public, anon;
 grant execute on function public.confirm_sales(uuid) to authenticated;
 
@@ -1941,7 +1941,7 @@ revoke all on function private.confirm_expense(uuid) from public, anon, authenti
 
 create or replace function public.confirm_expense(p_id uuid)
 returns uuid language sql security invoker set search_path=''
-as $ select private.confirm_expense(p_id); $;
+as $function$ select private.confirm_expense(p_id); $function$;
 revoke execute on function public.confirm_expense(uuid) from public, anon;
 grant execute on function public.confirm_expense(uuid) to authenticated;
 
@@ -2086,7 +2086,7 @@ revoke all on function private.confirm_payment(uuid) from public,anon,authentica
 
 create or replace function public.confirm_payment(p_id uuid)
 returns uuid language sql security invoker set search_path=''
-as $ select private.confirm_payment(p_id); $;
+as $function$ select private.confirm_payment(p_id); $function$;
 revoke execute on function public.confirm_payment(uuid) from public, anon;
 grant execute on function public.confirm_payment(uuid) to authenticated;
 
@@ -2194,7 +2194,7 @@ revoke all on function private.confirm_purchase_return(uuid) from public, anon, 
 
 create or replace function public.confirm_purchase_return(p_id uuid)
 returns uuid language sql security invoker set search_path=''
-as $ select private.confirm_purchase_return(p_id); $;
+as $function$ select private.confirm_purchase_return(p_id); $function$;
 revoke execute on function public.confirm_purchase_return(uuid) from public, anon;
 grant execute on function public.confirm_purchase_return(uuid) to authenticated;
 
@@ -2282,7 +2282,7 @@ revoke all on function private.confirm_sales_return(uuid) from public, anon, aut
 
 create or replace function public.confirm_sales_return(p_id uuid)
 returns uuid language sql security invoker set search_path=''
-as $ select private.confirm_sales_return(p_id); $;
+as $function$ select private.confirm_sales_return(p_id); $function$;
 revoke execute on function public.confirm_sales_return(uuid) from public, anon;
 grant execute on function public.confirm_sales_return(uuid) to authenticated;
 
@@ -2430,22 +2430,22 @@ revoke all on function private.cancel_document(text,uuid,date) from public,anon,
 
 create or replace function public.cancel_purchase(p_id uuid,p_cancel_date date default current_date)
 returns uuid language sql security invoker set search_path=''
-as $ select private.cancel_document('PURCHASE',p_id,p_cancel_date); $;
+as $function$ select private.cancel_document('PURCHASE',p_id,p_cancel_date); $function$;
 create or replace function public.cancel_sales(p_id uuid,p_cancel_date date default current_date)
 returns uuid language sql security invoker set search_path=''
-as $ select private.cancel_document('SALES',p_id,p_cancel_date); $;
+as $function$ select private.cancel_document('SALES',p_id,p_cancel_date); $function$;
 create or replace function public.cancel_expense(p_id uuid,p_cancel_date date default current_date)
 returns uuid language sql security invoker set search_path=''
-as $ select private.cancel_document('EXPENSE',p_id,p_cancel_date); $;
+as $function$ select private.cancel_document('EXPENSE',p_id,p_cancel_date); $function$;
 create or replace function public.cancel_payment(p_id uuid,p_cancel_date date default current_date)
 returns uuid language sql security invoker set search_path=''
-as $ select private.cancel_document('PAYMENT',p_id,p_cancel_date); $;
+as $function$ select private.cancel_document('PAYMENT',p_id,p_cancel_date); $function$;
 create or replace function public.cancel_purchase_return(p_id uuid,p_cancel_date date default current_date)
 returns uuid language sql security invoker set search_path=''
-as $ select private.cancel_document('PURCHASE_RETURN',p_id,p_cancel_date); $;
+as $function$ select private.cancel_document('PURCHASE_RETURN',p_id,p_cancel_date); $function$;
 create or replace function public.cancel_sales_return(p_id uuid,p_cancel_date date default current_date)
 returns uuid language sql security invoker set search_path=''
-as $ select private.cancel_document('SALES_RETURN',p_id,p_cancel_date); $;
+as $function$ select private.cancel_document('SALES_RETURN',p_id,p_cancel_date); $function$;
 
 revoke execute on function public.cancel_purchase(uuid,date),
   public.cancel_sales(uuid,date),
@@ -2604,7 +2604,7 @@ returns void
 language sql
 security invoker
 set search_path=''
-as $ select private.close_period(p_period_id); $;
+as $function$ select private.close_period(p_period_id); $function$;
 
 revoke execute on function public.close_accounting_period(uuid) from public,anon;
 grant execute on function public.close_accounting_period(uuid) to authenticated;
@@ -2937,7 +2937,7 @@ returns uuid
 language sql
 security invoker
 set search_path=''
-as $ select private.confirm_journal_entry(p_journal_entry_id); $;
+as $function$ select private.confirm_journal_entry(p_journal_entry_id); $function$;
 
 revoke execute on function public.confirm_journal_entry(uuid) from public,anon;
 grant execute on function public.confirm_journal_entry(uuid) to authenticated;
@@ -3011,7 +3011,7 @@ returns uuid
 language sql
 security invoker
 set search_path=''
-as $ select private.cancel_journal_entry(p_journal_entry_id,p_cancel_date); $;
+as $function$ select private.cancel_journal_entry(p_journal_entry_id,p_cancel_date); $function$;
 
 revoke execute on function public.cancel_journal_entry(uuid,date) from public,anon;
 grant execute on function public.cancel_journal_entry(uuid,date) to authenticated;
@@ -3061,7 +3061,7 @@ returns boolean
 language sql
 security invoker
 set search_path=''
-as $ select private.is_organization_creator(p_organization_id,p_user_id); $;
+as $function$ select private.is_organization_creator(p_organization_id,p_user_id); $function$;
 
 revoke all on function public.is_organization_creator(uuid, uuid) from public, anon;
 grant execute on function public.is_organization_creator(uuid, uuid) to authenticated;
@@ -3165,7 +3165,7 @@ returns void
 language sql
 security invoker
 set search_path=''
-as $ select private.add_organization_user(p_organization_id,p_user_id); $;
+as $function$ select private.add_organization_user(p_organization_id,p_user_id); $function$;
 
 revoke all on function public.add_organization_user(uuid, uuid) from public, anon;
 grant execute on function public.add_organization_user(uuid, uuid) to authenticated;
@@ -3209,7 +3209,7 @@ returns uuid
 language sql
 security invoker
 set search_path=''
-as $ select private.add_organization_user_by_email(p_organization_id,p_email); $;
+as $function$ select private.add_organization_user_by_email(p_organization_id,p_email); $function$;
 
 revoke all on function public.add_organization_user_by_email(uuid, text) from public, anon;
 grant execute on function public.add_organization_user_by_email(uuid, text) to authenticated;
@@ -3278,7 +3278,7 @@ returns void
 language sql
 security invoker
 set search_path=''
-as $ select private.remove_organization_user(p_organization_id,p_user_id); $;
+as $function$ select private.remove_organization_user(p_organization_id,p_user_id); $function$;
 
 revoke all on function public.remove_organization_user(uuid, uuid) from public, anon;
 grant execute on function public.remove_organization_user(uuid, uuid) to authenticated;
@@ -3322,7 +3322,7 @@ returns uuid
 language sql
 security invoker
 set search_path=''
-as $ select private.remove_organization_user_by_email(p_organization_id,p_email); $;
+as $function$ select private.remove_organization_user_by_email(p_organization_id,p_email); $function$;
 
 revoke all on function public.remove_organization_user_by_email(uuid, text) from public, anon;
 grant execute on function public.remove_organization_user_by_email(uuid, text) to authenticated;
