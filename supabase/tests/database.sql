@@ -2578,7 +2578,7 @@ select public.remove_organization_user(
 );
 
 select is(
-  (select is_active
+  (select ou.is_active
    from public.organization_users ou
    join public.organizations o on o.id=ou.organization_id
    where o.name='ERP Operator Journey' and ou.user_id=current_setting('test.erp_user_3')::uuid),
