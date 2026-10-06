@@ -1,5 +1,5 @@
 import type { TypedSupabaseClient } from "@/lib/app/supabase";
-import { AppError } from "@/lib/app/types";
+import { throwSupabaseError } from "@/lib/app/errors";
 
 export async function createOrganization(
   supabase: TypedSupabaseClient,
@@ -12,7 +12,7 @@ export async function createOrganization(
   });
 
   if (error) {
-    throw new AppError("RPC_ERROR", "Unable to create the organization.", error);
+    throwSupabaseError(error, "RPC_ERROR", "Unable to create the organization.");
   }
 
   return data;
@@ -29,7 +29,7 @@ export async function addOrganizationUser(
   });
 
   if (error) {
-    throw new AppError("RPC_ERROR", "Unable to add the organization user.", error);
+    throwSupabaseError(error, "RPC_ERROR", "Unable to add the organization user.");
   }
 }
 
@@ -44,7 +44,7 @@ export async function addOrganizationUserByEmail(
   });
 
   if (error) {
-    throw new AppError("RPC_ERROR", "Unable to add the organization user by email.", error);
+    throwSupabaseError(error, "RPC_ERROR", "Unable to add the organization user by email.");
   }
 
   return data;
@@ -61,7 +61,7 @@ export async function removeOrganizationUser(
   });
 
   if (error) {
-    throw new AppError("RPC_ERROR", "Unable to remove the organization user.", error);
+    throwSupabaseError(error, "RPC_ERROR", "Unable to remove the organization user.");
   }
 }
 
@@ -76,7 +76,7 @@ export async function removeOrganizationUserByEmail(
   });
 
   if (error) {
-    throw new AppError("RPC_ERROR", "Unable to remove the organization user by email.", error);
+    throwSupabaseError(error, "RPC_ERROR", "Unable to remove the organization user by email.");
   }
 
   return data;

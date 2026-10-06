@@ -1,5 +1,5 @@
 import type { TypedSupabaseClient } from "@/lib/app/supabase";
-import { AppError } from "@/lib/app/types";
+import { throwSupabaseError } from "@/lib/app/errors";
 
 export async function listActiveOrganizations(
   supabase: TypedSupabaseClient,
@@ -13,7 +13,11 @@ export async function listActiveOrganizations(
     .order("created_at", { ascending: true });
 
   if (membershipError) {
-    throw new AppError("DATABASE_ERROR", "Unable to load organization memberships.", membershipError);
+    throwSupabaseError(
+      membershipError,
+      "DATABASE_ERROR",
+      "Unable to load organization memberships.",
+    );
   }
 
   if (memberships.length === 0) {
@@ -29,7 +33,11 @@ export async function listActiveOrganizations(
     .order("created_at", { ascending: true });
 
   if (organizationError) {
-    throw new AppError("DATABASE_ERROR", "Unable to load organizations.", organizationError);
+    throwSupabaseError(
+      organizationError,
+      "DATABASE_ERROR",
+      "Unable to load organizations.",
+    );
   }
 
   return {

@@ -13,6 +13,14 @@ export function toAppError(
   return new AppError(fallbackCode, "An unexpected application error occurred.", error);
 }
 
+export function throwSupabaseError(
+  error: unknown,
+  code: AppErrorCode,
+  message: string,
+): never {
+  throw new AppError(code, message, error);
+}
+
 export function getErrorMessage(error: unknown): string {
   return toAppError(error).message;
 }
