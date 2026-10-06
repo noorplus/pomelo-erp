@@ -2296,6 +2296,36 @@ select is(
   'real-user flow: staff user can access the organization after invitation'
 );
 
+do $q$
+declare
+  v_org uuid;
+begin
+  select id into v_org from public.organizations where name='ERP Operator Journey';
+  perform set_config(
+    'test.erp_operator_user',
+    case
+      when public.is_organization_creator(v_org,current_setting('test.erp_user_3')::uuid)
+        then current_setting('test.erp_user_5')
+      else current_setting('test.erp_user_3')
+    end,
+    true
+  );
+  perform set_config(
+    'test.erp_creator_user',
+    case
+      when current_setting('test.erp_operator_user')=current_setting('test.erp_user_3')
+        then current_setting('test.erp_user_5')
+      else current_setting('test.erp_user_3')
+    end,
+    true
+  );
+  perform set_config(
+    'request.jwt.claim.sub',
+    current_setting('test.erp_operator_user'),
+    true
+  );
+end $q$;
+
 insert into public.purchase(
   organization_id,supplier_id,invoice_date,subtotal,discount_amount,total_amount,
   payable_account_id,created_by
@@ -2562,28 +2592,24 @@ select is(
   'real-user flow: operator can close the completed accounting period'
 );
 
-do $q$
-begin
-  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_5')::uuid::text,true);
-end $q$;
-
 select public.remove_organization_user(
   (select id from public.organizations where name='ERP Operator Journey'),
-  current_setting('test.erp_user_3')::uuid
+  current_setting('test.erp_operator_user')::uuid
 );
 
 select is(
   (select ou.is_active
    from public.organization_users ou
    join public.organizations o on o.id=ou.organization_id
-   where o.name='ERP Operator Journey' and ou.user_id=current_setting('test.erp_user_3')::uuid),
+   where o.name='ERP Operator Journey'
+     and ou.user_id=current_setting('test.erp_operator_user')::uuid),
   false,
-  'real-user flow: creator can deactivate a staff membership'
+  'real-user flow: creator can deactivate the non-creator staff membership'
 );
 
 do $q$
 begin
-  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_3')::uuid::text,true);
+  perform set_config('request.jwt.claim.sub',current_setting('test.erp_operator_user')::uuid::text,true);
 end $q$;
 
 select is(
@@ -2596,7 +2622,7 @@ select is(
 
 do $q$
 begin
-  perform set_config('request.jwt.claim.sub',current_setting('test.erp_user_5')::uuid::text,true);
+  perform set_config('request.jwt.claim.sub',current_setting('test.erp_creator_user')::uuid::text,true);
 end $q$;
 
 
