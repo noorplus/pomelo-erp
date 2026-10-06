@@ -4,6 +4,7 @@ import { createContext, useContext, useMemo, useState } from "react";
 import type { ApplicationContext, Organization } from "@/lib/app/types";
 
 type OrganizationContextValue = ApplicationContext & {
+  organizationState: "ready" | "no-organization";
   setActiveOrganization: (organizationId: string) => void;
 };
 
@@ -29,6 +30,7 @@ export function OrganizationProvider({
     return {
       ...initialContext,
       activeOrganization,
+      organizationState: activeOrganization ? "ready" : "no-organization",
       setActiveOrganization: setActiveOrganizationId,
     };
   }, [activeOrganizationId, initialContext]);
