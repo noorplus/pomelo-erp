@@ -2895,7 +2895,7 @@ begin
   if not found then raise exception 'journal entry not found'; end if;
   perform private.assert_member(j.organization_id);
   if j.status <> 'CONFIRMED' then raise exception 'only confirmed journals can be cancelled'; end if;
-  if j.entry_type='OPENING' and j.reversal_of_id is null then
+  if j.entry_type='OPENING' then
     raise exception 'opening journals cannot be cancelled; use an adjustment workflow';
   end if;
 
