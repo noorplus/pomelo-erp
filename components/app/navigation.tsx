@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BookOpen,
   CalendarDays,
+  ShoppingCart,
   Contact,
   LayoutDashboard,
   Package,
@@ -20,6 +21,7 @@ const navigation = [
   { href: "/accounting/periods", label: "Accounting periods", icon: CalendarDays },
   { href: "/master-data", label: "Master data", icon: Package },
   { href: "/products", label: "Products", icon: Package },
+  { href: "/sales", label: "Sales", icon: ShoppingCart },
 ];
 
 export function Navigation({ mobileOpen, onMobileClose }: { mobileOpen: boolean; onMobileClose: () => void }) {
