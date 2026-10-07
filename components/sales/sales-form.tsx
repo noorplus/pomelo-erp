@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { createSale } from "@/lib/sales/actions";
-import { FormActions, FormField, PageHeader, PageSection, Select } from "@/components/ui";
+import { Form, FormActions, FormField, PageHeader, PageSection, Select } from "@/components/ui";
 import { getErrorMessage } from "@/lib/app/errors";
 
 type Product={id:string;product_code:string|null;name:string};
@@ -20,7 +20,7 @@ export function SalesForm({org,userId,customers,accounts,products}:{org:string;u
  const subtotal=useMemo(()=>lines.reduce((n,l)=>n+(Number(l.quantity)||0)*(Number(l.unit_price)||0),0),[lines]); const total=Math.max(0,subtotal-Math.max(0,Number(discount)||0));
  function update(i:number,k:keyof Line,v:string){setLines(a=>a.map((l,idx)=>idx===i?{...l,[k]:k==="product_id"?v:Number(v)}:l))}
  async function submit(e:React.FormEvent){e.preventDefault();setError("");if(!customerId||!accountId) return setError("Customer and receivable account are required.");const valid=lines.filter(l=>l.product_id&&l.quantity>0&&l.unit_price>=0);if(valid.length!==lines.length)return setError("Complete every product line.");setBusy(true);try{const sale=await createSale(createClient(),org,userId,{customer_id:customerId,invoice_date:date,receivable_account_id:accountId,discount_amount:Number(discount)||0,items:valid});router.push("/sales/invoices/"+sale.id);router.refresh()}catch(cause){setError(getErrorMessage(cause));setBusy(false)}}
- return <div className="page"><PageHeader eyebrow="Sales" title="New sale" description="Create a draft invoice. Confirmation will allocate its invoice number and post inventory and accounting." actions={<Link className="button" href="/sales/invoices">Invoices</Link>}/><PageSection title="Invoice details"><form className="ui-form-grid" onSubmit={submit}>
+ return <div className="page"><PageHeader eyebrow="Sales" title="New sale" description="Create a draft invoice. Confirmation will allocate its invoice number and post inventory and accounting." actions={<Link className="button" href="/sales/invoices">Invoices</Link>}/><PageSection title="Invoice details"><Form onSubmit={submit}>
  <FormField label="Customer" required><Select value={customerId} onChange={e=>setCustomerId(e.target.value)}><option value="">Select customer</option>{customers.map(c=><option key={c.id} value={c.id}>{c.contact_number?c.contact_number+" — ":""}{c.name}</option>)}</Select></FormField>
  <FormField label="Invoice date" required><input className="ui-input" type="date" value={date} onChange={e=>setDate(e.target.value)} required/></FormField>
  <FormField label="Receivable account" required><Select value={accountId} onChange={e=>setAccountId(e.target.value)}><option value="">Select asset account</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.account_code} — {a.account_name}</option>)}</Select></FormField>
@@ -29,5 +29,5 @@ export function SalesForm({org,userId,customers,accounts,products}:{org:string;u
  <FormField label="Discount"><input className="ui-input" type="number" min="0" step="0.0001" value={discount} onChange={e=>setDiscount(Number(e.target.value))}/></FormField>
  <div className="content-card"><strong>Subtotal: {subtotal.toFixed(2)}</strong><br/>Discount: {Number(discount||0).toFixed(2)}<br/><strong>Total: {total.toFixed(2)}</strong></div>
  {error?<p className="ui-field-error" role="alert">{error}</p>:null}<FormActions><Link className="button" href="/sales/invoices">Cancel</Link><button className="button primary" disabled={busy}>{busy?"Saving…":"Create draft"}</button></FormActions>
- </form></PageSection></div>;
+ </Form></PageSection></div>;
 }
