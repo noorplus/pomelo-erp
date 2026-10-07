@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { createAccount, updateAccount, deactivateAccount } from "@/lib/accounting/actions";
-import { DataTable, FormActions, FormField, PageHeader, PageSection, SearchInput, Select, StatusBadge } from "@/components/ui";
+import { Form, DataTable, FormActions, FormField, PageHeader, PageSection, SearchInput, Select, StatusBadge } from "@/components/ui";
 import { getErrorMessage } from "@/lib/app/errors";
 import type { Tables } from "@/lib/supabase/database";
 
@@ -62,7 +62,7 @@ export function ChartOfAccounts({ organizationId, accounts }: { organizationId: 
   return <div className="page">
     <PageHeader eyebrow="Accounting" title="Chart of accounts" description="Manage the organization chart using the existing account fields. “Class” maps directly to account_type; there is no separate class column." />
     <PageSection title={form.id ? "Edit account" : "New account"} description="System accounts are protected; they are initialized and managed by the database contract.">
-      <form onSubmit={save} className="ui-form-grid">
+      <Form onSubmit={save} className="ui-form-grid">
         <FormField label="Code" htmlFor="account-code" required><input id="account-code" className="ui-input" value={form.code} onChange={e => setForm(v => ({ ...v, code: e.target.value }))} /></FormField>
         <FormField label="Name" htmlFor="account-name" required><input id="account-name" className="ui-input" value={form.name} onChange={e => setForm(v => ({ ...v, name: e.target.value }))} /></FormField>
         <FormField label="Class" htmlFor="account-type" required><Select id="account-type" value={form.type} onChange={e => setType(e.target.value as AccountType)}>{accountTypes.map(t => <option key={t} value={t}>{t}</option>)}</Select></FormField>
@@ -72,7 +72,7 @@ export function ChartOfAccounts({ organizationId, accounts }: { organizationId: 
         {form.id ? <FormField label="Lifecycle" htmlFor="account-active"><label className="ui-check"><input id="account-active" type="checkbox" checked={form.active} onChange={e => setForm(v => ({ ...v, active: e.target.checked }))} /> Active</label></FormField> : null}
         {message ? <p className="ui-field-hint">{message}</p> : null}{error ? <p className="ui-field-error" role="alert">{error}</p> : null}
         <FormActions><button className="button primary" disabled={busy} type="submit">{busy ? "Saving…" : form.id ? "Save account" : "Create account"}</button>{form.id ? <button className="button" disabled={busy} type="button" onClick={reset}>Cancel</button> : null}</FormActions>
-      </form>
+      </Form>
     </PageSection>
     <PageSection title="Accounts" actions={<SearchInput value={search} onChange={setSearch} placeholder="Search code, name or class" />}>
       <DataTable rows={filtered} columns={[
