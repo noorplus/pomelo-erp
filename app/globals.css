@@ -185,3 +185,18 @@ h1 { margin: 0; font-size: clamp(1.4rem, 3vw, 1.9rem); line-height: 1.15; letter
   .administration-member-add { grid-template-columns:minmax(0,1fr); }
   .administration-panel { padding:12px; }
 }
+
+/* Sales module */
+.ui-stats-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem;margin-bottom:1.25rem}
+.ui-stat-value{display:block;font-size:2rem;line-height:1.1;margin:.35rem 0}
+.ui-action-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}
+.ui-action-grid .content-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:.65rem;text-decoration:none}
+.ui-action-grid .content-card span{grid-column:2/-1}
+.ui-list{display:flex;flex-direction:column}
+.ui-list-row{display:grid;grid-template-columns:1fr auto auto;gap:1rem;align-items:center;padding:.8rem 0;border-bottom:1px solid var(--border)}
+.ui-list-row:last-child{border-bottom:0}
+.ui-detail-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem}
+.ui-detail-grid>div{display:flex;flex-direction:column;gap:.25rem}
+.ui-detail-grid span{font-size:.78rem;color:var(--muted)}
+.ui-action-bar{display:flex;justify-content:flex-end;gap:.75rem;margin-top:1rem}
+@media (max-width:800px){.ui-stats-grid,.ui-action-grid,.ui-detail-grid{grid-template-columns:1fr}.ui-list-row{grid-template-columns:1fr auto}}
