@@ -1,3 +1,5 @@
+"use client";
+
 import type { CSSProperties, ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { Pagination } from "./pagination";
