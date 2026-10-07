@@ -6,7 +6,7 @@ import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { createProduct } from "@/lib/products/actions";
-import { FormActions, FormField, PageHeader, PageSection, Select } from "@/components/ui";
+import { Form, FormActions, FormField, PageHeader, PageSection, Select } from "@/components/ui";
 import { getErrorMessage } from "@/lib/app/errors";
 
 type Unit = { id: string; name: string; is_active: boolean };
@@ -52,7 +52,7 @@ export function NewProduct({ org, units, accounts }: { org: string; units: Unit[
   return <div className="page">
     <PageHeader eyebrow="Products" title="New product" description="Create a product using the fields supported by the frozen database." actions={<Link className="button" href="/products"><ArrowLeft size={16} /> Products</Link>} />
     <PageSection title="Product information" description="The product code is generated automatically by the database when the product is saved.">
-      <form className="ui-form-grid" onSubmit={submit}>
+      <Form onSubmit={submit}>
         <FormField label="Product code" htmlFor="product-code"><input id="product-code" className="ui-input" value="Generated automatically on save" readOnly /></FormField>
         <FormField label="Name" htmlFor="product-name" required><input id="product-name" className="ui-input" value={name} onChange={(e) => setName(e.target.value)} autoFocus required /></FormField>
         <FormField label="Unit" htmlFor="product-unit" required><Select id="product-unit" value={unitId} onChange={(e) => setUnitId(e.target.value)}><option value="">Select unit</option>{units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</Select></FormField>
@@ -60,7 +60,7 @@ export function NewProduct({ org, units, accounts }: { org: string; units: Unit[
         <FormField label="Lifecycle" htmlFor="product-active"><label className="ui-check"><input id="product-active" type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> Active</label></FormField>
         {error ? <p className="ui-field-error">{error}</p> : null}
         <FormActions><button className="button primary" type="submit" disabled={busy}>{busy ? "Creating…" : "Create product"}</button><Link className="button" href="/products">Cancel</Link></FormActions>
-      </form>
+      </Form>
     </PageSection>
   </div>;
 }
