@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Building2, Users } from "lucide-react";
 import { getApplicationContext } from "@/lib/organizations/server";
 import { listOrganizationMembers } from "@/lib/organizations/queries";
+import { createClient } from "@/lib/supabase/server";
 import { PageHeader, PageSection, StatusBadge } from "@/components/ui";
 
 export default async function AdministrationPage() {
@@ -9,7 +10,7 @@ export default async function AdministrationPage() {
   if (!context.activeOrganization) return null;
 
   const members = await listOrganizationMembers(
-    await (await import("@/lib/supabase/server")).createClient(),
+    await createClient(),
     context.activeOrganization.id,
   );
   const activeMembers = members.filter((member) => member.is_active).length;

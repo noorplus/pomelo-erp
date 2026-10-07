@@ -4,8 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BookOpen,
+  Building2,
   CalendarDays,
-  Contact,
   LayoutDashboard,
   Package,
   Settings,
@@ -18,7 +18,6 @@ const navigation = [
   { href: "/accounting/accounts", label: "Chart of accounts", icon: BookOpen },
   { href: "/accounting/periods", label: "Accounting periods", icon: CalendarDays },
   { href: "/master-data", label: "Master data", icon: Package },
-  { href: "/organization-settings", label: "Organization settings", icon: Contact },
 ];
 
 export function Navigation({
