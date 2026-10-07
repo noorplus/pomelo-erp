@@ -4,7 +4,9 @@ import type { CSSProperties, ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { Pagination } from "./pagination";
 
-export type DataTableRowAction<T> = { label: string; onClick: (row: T) => void; disabled?: (row: T) => boolean };\n\nexport type DataTableColumn<T> = {
+export type DataTableRowAction<T> = { label: string; onClick: (row: T) => void; disabled?: (row: T) => boolean };
+
+export type DataTableColumn<T> = {
   key: string;
   header: ReactNode;
   render: (row: T) => ReactNode;
