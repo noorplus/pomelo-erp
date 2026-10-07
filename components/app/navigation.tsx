@@ -18,6 +18,7 @@ const navigation = [
   { href: "/accounting/accounts", label: "Chart of accounts", icon: BookOpen },
   { href: "/accounting/periods", label: "Accounting periods", icon: CalendarDays },
   { href: "/master-data", label: "Master data", icon: Package },
+  { href: "/products", label: "Products", icon: Package },
 ];
 
 export function Navigation({
