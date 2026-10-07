@@ -6,7 +6,11 @@ export async function listProducts(s: TypedSupabaseClient, org: string) {
   if (error) throwSupabaseError(error, "DATABASE_ERROR", "Unable to load products.");
   return data;
 }
-
+export async function getProduct(s: TypedSupabaseClient, org: string, id: string) {
+  const { data, error } = await s.from("products").select("*").eq("organization_id", org).eq("id", id).maybeSingle();
+  if (error) throwSupabaseError(error, "DATABASE_ERROR", "Unable to load the product.");
+  return data;
+}
 export async function listProductFormOptions(s: TypedSupabaseClient, org: string) {
   const [units, accounts] = await Promise.all([
     s.from("units_of_measure").select("id,name,is_active").eq("organization_id", org).eq("is_active", true).order("name"),
@@ -15,4 +19,18 @@ export async function listProductFormOptions(s: TypedSupabaseClient, org: string
   if (units.error) throwSupabaseError(units.error, "DATABASE_ERROR", "Unable to load product units.");
   if (accounts.error) throwSupabaseError(accounts.error, "DATABASE_ERROR", "Unable to load product accounts.");
   return { units: units.data, accounts: accounts.data };
+}
+export async function getProductActivity(s: TypedSupabaseClient, org: string, productId: string) {
+  const [balance, inventory, salesItems, purchaseItems, salesReturns, purchaseReturns] = await Promise.all([
+    s.from("inventory_balances").select("quantity,average_cost,inventory_value,updated_at").eq("organization_id", org).eq("product_id", productId).maybeSingle(),
+    s.from("inventory_transactions").select("id,transaction_number,transaction_date,transaction_type,direction,quantity,unit_cost,total_value,reference_type,reference_id,unit_cost_before,average_cost_after").eq("organization_id", org).eq("product_id", productId).order("transaction_date", { ascending: false }).order("created_at", { ascending: false }),
+    s.from("sales_items").select("id,quantity,unit_price,line_total,sales_id,sales(invoice_id,invoice_date,status)").eq("organization_id", org).eq("product_id", productId).order("created_at", { ascending: false }),
+    s.from("purchase_items").select("id,quantity,unit_cost,line_total,purchase_id,purchase(invoice_id,invoice_date,status)").eq("organization_id", org).eq("product_id", productId).order("created_at", { ascending: false }),
+    s.from("sales_return_items").select("id,quantity,unit_price,line_total,sales_return_id,sales_returns(return_number,return_date,status)").eq("organization_id", org).eq("product_id", productId).order("created_at", { ascending: false }),
+    s.from("purchase_return_items").select("id,quantity,unit_cost,line_total,purchase_return_id,purchase_returns(return_number,return_date,status)").eq("organization_id", org).eq("product_id", productId).order("created_at", { ascending: false }),
+  ]);
+  for (const result of [balance, inventory, salesItems, purchaseItems, salesReturns, purchaseReturns]) {
+    if (result.error) throwSupabaseError(result.error, "DATABASE_ERROR", "Unable to load product activity.");
+  }
+  return { balance: balance.data, inventory: inventory.data, salesItems: salesItems.data, purchaseItems: purchaseItems.data, salesReturns: salesReturns.data, purchaseReturns: purchaseReturns.data };
 }
