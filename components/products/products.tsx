@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Pencil, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { DataTable, PageHeader, SearchInput, StatusBadge } from "@/components/ui";
 import type { Tables } from "@/lib/supabase/database";
 
@@ -25,7 +25,6 @@ export function Products({ rows }: { rows: Product[] }) {
         { key: "name", header: "Name", render: (p) => p.name },
         { key: "unit", header: "Unit", render: () => "Configured" },
         { key: "status", header: "Status", render: (p) => <StatusBadge tone={p.is_active ? "success" : "neutral"}>{p.is_active ? "Active" : "Inactive"}</StatusBadge> },
-        { key: "action", header: "Action", render: (p) => <Link className="button" href={p.id ? "/products/new?edit=" + p.id : "/products/new"}><Pencil size={15} /> Edit</Link> },
       ]} empty="No products found." />
     </div>
   </div>;
