@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { createAccountingPeriod, closeAccountingPeriod } from "@/lib/accounting/actions";
-import { DataTable, FormActions, FormField, PageHeader, PageSection, StatusBadge } from "@/components/ui";
+import { Form, DataTable, FormActions, FormField, PageHeader, PageSection, StatusBadge } from "@/components/ui";
 import { getErrorMessage } from "@/lib/app/errors";
 import type { Tables } from "@/lib/supabase/database";
 
@@ -38,13 +38,13 @@ export function AccountingPeriods({ organizationId, periods }: { organizationId:
   return <div className="page">
     <PageHeader eyebrow="Accounting" title="Accounting periods" description="Create and close periods through the frozen database lifecycle RPCs." />
     <PageSection title="New period">
-      <form onSubmit={create} className="ui-form-grid">
+      <Form onSubmit={create} className="ui-form-grid">
         <FormField label="Name" htmlFor="period-name" required><input id="period-name" className="ui-input" value={form.name} onChange={e => setForm(v => ({ ...v, name: e.target.value }))} placeholder="FY 2026" /></FormField>
         <FormField label="Start date" htmlFor="period-start" required><input id="period-start" className="ui-input" type="date" value={form.startDate} onChange={e => setForm(v => ({ ...v, startDate: e.target.value }))} /></FormField>
         <FormField label="End date" htmlFor="period-end" required><input id="period-end" className="ui-input" type="date" value={form.endDate} onChange={e => setForm(v => ({ ...v, endDate: e.target.value }))} /></FormField>
         {message ? <p className="ui-field-hint">{message}</p> : null}{error ? <p className="ui-field-error" role="alert">{error}</p> : null}
         <FormActions><button className="button primary" disabled={busy} type="submit">{busy ? "Creating…" : "Create period"}</button></FormActions>
-      </form>
+      </Form>
     </PageSection>
     <PageSection title="Periods">
       <DataTable rows={periods} columns={[
