@@ -17,6 +17,15 @@ export function DataTable<T extends { id: string }>({
   rows,
   caption,
   empty,
+  loading = false,
+  error,
+  onRetry,
+  search,
+  pagination,
+  selectable = false,
+  selectedIds,
+  onSelectionChange,
+  columnVisibility = false,
 }: {
   columns: DataTableColumn<T>[];
   rows: T[];
@@ -32,22 +41,49 @@ export function DataTable<T extends { id: string }>({
   onSelectionChange?: (ids: string[]) => void;
   columnVisibility?: boolean;
 }) {
-  const [sort, setSort] = useState<{ key: string; direction: "asc" | "desc" } | null>(null);\n  const [localSelected, setLocalSelected] = useState<string[]>([]);\n  const [visibleKeys, setVisibleKeys] = useState(columns.map((column) => column.key));\n  const selected = selectedIds ?? localSelected;\n  const visibleColumns = columns.filter((column) => visibleKeys.includes(column.key) || !column.hideable);\n  const processedRows = useMemo(() => {\n    let result = rows;\n    if (search?.trim()) {\n      const query = search.trim().toLowerCase();\n      result = result.filter((row) => columns.some((column) => column.accessor?.(row)?.toString().toLowerCase().includes(query)));\n    }\n    if (sort) {\n      const column = columns.find((item) => item.key === sort.key);\n      if (column?.accessor) result = [...result].sort((a, b) => {\n        const av = column.accessor?.(a), bv = column.accessor?.(b);\n        if (av == null) return bv == null ? 0 : 1;\n        if (bv == null) return -1;\n        const value = typeof av === "number" && typeof bv === "number" ? av - bv : String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: "base" });\n        return sort.direction === "asc" ? value : -value;\n      });\n    }\n    return result;\n  }, [columns, rows, search, sort]);\n  const gridStyle = { "--ui-table-column-count": visibleColumns.length + (selectable ? 1 : 0) } as CSSProperties;
+  const [sort, setSort] = useState<{ key: string; direction: "asc" | "desc" } | null>(null);
+  const [localSelected, setLocalSelected] = useState<string[]>([]);
+  const [visibleKeys, setVisibleKeys] = useState(columns.map((column) => column.key));
+  const visibleColumns = columns.filter((column) => visibleKeys.includes(column.key) || !column.hideable);
+  const processedRows = useMemo(() => {
+    let result = rows;
+    if (search?.trim()) {
+      const query = search.trim().toLowerCase();
+      result = result.filter((row) => columns.some((column) => column.accessor?.(row)?.toString().toLowerCase().includes(query)));
+    }
+    if (sort) {
+      const column = columns.find((item) => item.key === sort.key);
+      if (column?.accessor) result = [...result].sort((a, b) => {
+        const av = column.accessor?.(a), bv = column.accessor?.(b);
+        if (av == null) return bv == null ? 0 : 1;
+        if (bv == null) return -1;
+        const value = typeof av === "number" && typeof bv === "number" ? av - bv : String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: "base" });
+        return sort.direction === "asc" ? value : -value;
+      });
+    }
+    return result;
+  }, [columns, rows, search, sort]);
+  const selected = selectedIds ?? localSelected;
+  const visibleColumns = columns.filter((column) => visibleKeys.includes(column.key) || !column.hideable);
+  const gridStyle = { "--ui-table-column-count": visibleColumns.length + (selectable ? 1 : 0) } as CSSProperties;
 
+  if (error) return <div className="ui-state ui-error-state"><strong>Unable to load records</strong><span>{error}</span>{onRetry ? <button className="button" type="button" onClick={onRetry}>Retry</button> : null}</div>;
   return (
-    <div className="ui-table-wrap">
+    <div className="ui-data-table">
+      {(search || columnVisibility || selected.length > 0) ? <div className="ui-data-table-toolbar"><div className="ui-data-table-toolbar-main">{search ? <span className="ui-table-result-count">Search: {search}</span> : null}{selected.length > 0 ? <span className="ui-table-result-count">{selected.length} selected</span> : null}</div>{columnVisibility ? <details><summary className="button">Columns</summary><div className="ui-data-table-columns-menu">{columns.filter((column) => column.hideable).map((column) => <label key={column.key}><input type="checkbox" checked={visibleKeys.includes(column.key)} onChange={() => setVisibleKeys((keys) => keys.includes(column.key) ? keys.filter((key) => key !== column.key) : [...keys, column.key])} /> {column.header}</label>)}</div></details> : null}</div> : null}
       {caption ? <div className="ui-table-caption">{caption}</div> : null}
-      <div className="ui-table-grid" role="table" aria-colcount={columns.length} aria-rowcount={rows.length + 1} style={gridStyle}>
+      <div className="ui-table-grid" role="table" aria-colcount={visibleColumns.length + (selectable ? 1 : 0)} aria-rowcount={processedRows.length + 1} style={gridStyle}>
         <div className="ui-table-grid-row ui-table-grid-header" role="row">
           {selectable ? <div className="ui-table-grid-cell ui-table-grid-header-cell" role="columnheader"><input aria-label="Select all rows" type="checkbox" checked={processedRows.length > 0 && processedRows.every((row) => selected.includes(row.id))} onChange={() => { const ids = processedRows.map((row) => row.id); const next = processedRows.every((row) => selected.includes(row.id)) ? selected.filter((id) => !ids.includes(id)) : Array.from(new Set([...selected, ...ids])); setLocalSelected(next); onSelectionChange?.(next); }} /></div> : null}{visibleColumns.map((column) => (
             <div className={["ui-table-grid-cell", "ui-table-grid-header-cell", column.className].filter(Boolean).join(" ")} key={column.key} role="columnheader">
-              {column.header}
+              {column.sortable && column.accessor ? <button className="ui-table-sort-button" type="button" onClick={() => setSort((current) => current?.key === column.key ? (current.direction === "asc" ? { key: column.key, direction: "desc" } : null) : { key: column.key, direction: "asc" })}>{column.header}{sort?.key === column.key ? (sort.direction === "asc" ? " ↑" : " ↓") : ""}</button> : column.header}
             </div>
           ))}
         </div>
         {loading ? <div className="ui-table-grid-empty" role="row"><div className="ui-table-empty-cell"><div className="ui-spinner" aria-label="Loading" /></div></div> : processedRows.length ? processedRows.map((row) => (
           <div className="ui-table-grid-row" key={row.id} role="row" aria-selected={selectable ? selected.includes(row.id) : undefined}>
-            {columns.map((column) => (
+            {selectable ? <div className="ui-table-grid-cell" role="cell"><input aria-label={"Select row " + row.id} type="checkbox" checked={selected.includes(row.id)} onChange={() => { const next = selected.includes(row.id) ? selected.filter((id) => id !== row.id) : [...selected, row.id]; setLocalSelected(next); onSelectionChange?.(next); }} /></div> : null}
+            {visibleColumns.map((column) => (
               <div className={["ui-table-grid-cell", column.className].filter(Boolean).join(" ")} key={column.key} role="cell">
                 {selectable ? null : null}{column.render(row)}
               </div>
@@ -59,6 +95,7 @@ export function DataTable<T extends { id: string }>({
           </div>
         )}
       </div>
+      {pagination ? <Pagination page={pagination.page} pageCount={pagination.pageCount} onPageChange={pagination.onPageChange} /> : null}
     </div>
   );
 }
