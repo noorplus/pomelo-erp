@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { createUnit, updateUnit, createProduct, updateProduct } from "@/lib/master-data/actions";
-import { DataTable, FormActions, FormField, PageHeader, PageSection, SearchInput, Select, StatusBadge } from "@/components/ui";
+import { Form, DataTable, FormActions, FormField, PageHeader, PageSection, SearchInput, Select, StatusBadge } from "@/components/ui";
 import { getErrorMessage } from "@/lib/app/errors";
 import type { Tables } from "@/lib/supabase/database";
 
@@ -40,12 +40,12 @@ function Units({ org, rows }: { org: string; rows: Unit[] }) {
 
   return <>
     <PageSection title={edit ? "Edit unit" : "New unit"}>
-      <form onSubmit={save} className="ui-member-form">
+      <Form onSubmit={save} className="ui-member-form">
         <FormField label="Name" htmlFor="unit-name" required>
           <input id="unit-name" className="ui-input" value={name} onChange={e => setName(e.target.value)} />
         </FormField>
         <button className="button primary" disabled={busy}>{edit ? "Save" : "Add unit"}</button>
-      </form>
+      </Form>
       {error ? <p className="ui-field-error">{error}</p> : null}
     </PageSection>
     <PageSection title="Units">
@@ -87,7 +87,7 @@ function Products({ org, rows, units, accounts }: { org: string; rows: Product[]
 
   return <>
     <PageSection title={f.id ? "Edit product" : "New product"}>
-      <form onSubmit={save} className="ui-form-grid">
+      <Form onSubmit={save} className="ui-form-grid">
         <FormField label="Product code" htmlFor="product-code">
           <input id="product-code" className="ui-input" value={f.id ? f.code : "Generated automatically on save"} readOnly />
         </FormField>
@@ -110,7 +110,7 @@ function Products({ org, rows, units, accounts }: { org: string; rows: Product[]
           <button className="button primary" disabled={busy}>{f.id ? "Save product" : "Create product"}</button>
           {f.id ? <button className="button" type="button" onClick={() => setF(blank)}>Cancel</button> : null}
         </FormActions>
-      </form>
+      </Form>
     </PageSection>
     <PageSection title="Products" actions={<SearchInput value={q} onChange={setQ} placeholder="Search products" />}>
       <DataTable rows={rows.filter(p => !q.trim() || [p.product_code ?? "", p.name].some(v => v.toLowerCase().includes(q.toLowerCase().trim())))} columns={[
