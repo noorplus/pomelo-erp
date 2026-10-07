@@ -140,7 +140,7 @@ function NumberSequences({ rows }: { rows: NumberSequence[] }) {
 
 export function MasterData({ org, units, products, accounts, numberSequences }: { org: string; units: Unit[]; products: Product[]; accounts: Account[]; numberSequences: NumberSequence[] }) {
   return <div className="page">
-    <PageHeader eyebrow="Master data" title="Master data" description="Manage units, contacts and products using only the existing frozen database fields." />
+    <PageHeader eyebrow="Master data" title="Master data" description="Manage units and products using only the existing frozen database fields." />
     <Units org={org} rows={units} />
     <Products org={org} rows={products} units={units} accounts={accounts} />
     <NumberSequences rows={numberSequences} />
