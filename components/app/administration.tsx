@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Building2, Check, Pencil, Plus, Users, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { addOrganizationUserByEmail, removeOrganizationUser, updateOrganization } from "@/lib/organizations/actions";
-import { DataTable, FormField, FormActions, StatusBadge } from "@/components/ui";
+import { Form, DataTable, FormField, FormActions, StatusBadge } from "@/components/ui";
 import { getErrorMessage } from "@/lib/app/errors";
 import type { Organization, OrganizationMembership } from "@/lib/app/types";
 
@@ -119,7 +119,7 @@ export function Administration({ organization, memberships, userId, creator }: P
           {!editingOrganization ? <button className="button" type="button" onClick={startEditing}><Pencil size={16} /> Edit organization</button> : null}
         </div>
         {editingOrganization ? (
-          <form className="administration-form" onSubmit={saveOrganization}>
+          <Form layout="plain" className="administration-form" onSubmit={saveOrganization}>
             <div className="ui-form-grid">
               <FormField label="Organization name" htmlFor="admin-org-name" required><input className="ui-input" id="admin-org-name" value={form.name} onChange={(e) => field("name", e.target.value)} /></FormField>
               <FormField label="Base currency" htmlFor="admin-org-currency" required><input className="ui-input" id="admin-org-currency" value={form.baseCurrency} onChange={(e) => field("baseCurrency", e.target.value)} maxLength={3} /></FormField>
@@ -133,7 +133,7 @@ export function Administration({ organization, memberships, userId, creator }: P
               <FormField label="BIN" htmlFor="admin-org-bin"><input className="ui-input" id="admin-org-bin" value={form.bin} onChange={(e) => field("bin", e.target.value)} /></FormField>
             </div>
             <FormActions><button className="button" type="button" onClick={cancelEditing} disabled={saving}><X size={16} /> Cancel</button><button className="button primary" type="submit" disabled={saving}><Check size={16} /> {saving ? "Saving…" : "Save changes"}</button></FormActions>
-          </form>
+          </Form>
         ) : (
           <div className="administration-details">
             <div className="administration-detail administration-detail-wide"><span>Organization name</span><strong>{organization.name}</strong></div>
@@ -155,10 +155,10 @@ export function Administration({ organization, memberships, userId, creator }: P
           <div className="administration-panel-title"><span className="administration-icon"><Users size={18} /></span><div><h2>Users</h2><p>{activeMembers} active member{activeMembers === 1 ? "" : "s"} in this organization.</p></div></div>
           <StatusBadge tone="info">Membership</StatusBadge>
         </div>
-        <form className="administration-member-add" onSubmit={addMember}>
+        <Form layout="inline" className="administration-member-add" onSubmit={addMember}>
           <FormField label="Add user by email" htmlFor="admin-member-email" required><input className="ui-input" id="admin-member-email" type="email" value={memberEmail} onChange={(e) => setMemberEmail(e.target.value)} placeholder="user@example.com" /></FormField>
           <button className="button primary" type="submit" disabled={memberSaving}><Plus size={16} /> {memberSaving ? "Adding…" : "Add user"}</button>
-        </form>
+        </Form>
         <DataTable rows={memberships} columns={membershipColumns} empty="No organization users found." />
         <p className="ui-field-hint administration-note">User names, roles, and permissions are not shown because those capabilities are not stored in the frozen application database.</p>
       </section>
