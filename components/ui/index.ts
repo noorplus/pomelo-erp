@@ -9,6 +9,7 @@ export { EmptyState } from "./empty-state";
 export { EntitySelector, type EntityOption } from "./entity-selector";
 export { ErrorState } from "./error-state";
 export { Filter } from "./filter";
+export { Form } from "./form";
 export { FormActions } from "./form-actions";
 export { FormField } from "./form-field";
 export { LoadingState } from "./loading-state";
