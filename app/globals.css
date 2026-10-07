@@ -252,3 +252,90 @@ h1 { margin: 0; font-size: clamp(1.4rem, 3vw, 1.9rem); line-height: 1.15; letter
   .ui-data-table-columns { align-self:flex-start; }
   .ui-data-table-columns-menu { left:0; right:auto; }
 }
+
+
+/* DataTable layout fix: semantic table + real horizontal scrolling */
+.ui-data-table {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.ui-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.ui-table {
+  width: max-content;
+  min-width: 760px;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: auto;
+}
+
+.ui-table th,
+.ui-table td {
+  white-space: nowrap;
+}
+
+.ui-table td {
+  max-width: 420px;
+}
+
+.ui-table td:not(.ui-table-actions-cell) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ui-table th:first-child,
+.ui-table td:first-child {
+  border-left: 0;
+}
+
+.ui-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.ui-table-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.ui-table-row-actions .button {
+  min-height: 32px;
+  padding: 0 9px;
+  font-size: .75rem;
+}
+
+.ui-table-search-input {
+  width: min(340px, 100%);
+}
+
+.ui-table-empty {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+@media (max-width: 767px) {
+  .ui-table-wrap {
+    border-radius: 7px;
+  }
+
+  .ui-table {
+    min-width: 720px;
+  }
+
+  .ui-table-search-input {
+    width: 100%;
+  }
+}
