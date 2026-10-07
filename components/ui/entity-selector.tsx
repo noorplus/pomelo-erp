@@ -1,5 +1,3 @@
-import type { ReactNode } from "react";
-
 export type EntityOption = { id: string; label: string; description?: string };
 
 export function EntitySelector({ label, value, options, onChange, placeholder = "Select…" }: {
