@@ -1,11 +1,2 @@
-import { createClient } from "@/lib/supabase/server";
-import { getApplicationContext } from "@/lib/organizations/server";
-import { listProductFormOptions } from "@/lib/products/queries";
-import { NewProduct } from "@/components/products/new-product";
-
-export default async function NewProductPage() {
-  const context = await getApplicationContext();
-  if (!context.activeOrganization) return null;
-  const options = await listProductFormOptions(await createClient(), context.activeOrganization.id);
-  return <NewProduct org={context.activeOrganization.id} units={options.units} accounts={options.accounts} />;
-}
+import {createClient} from "@/lib/supabase/server"; import {getApplicationContext} from "@/lib/organizations/server"; import {listProductFormOptions} from "@/lib/products/queries"; import {ProductForm} from "@/components/products/product-form";
+export default async function NewProductPage(){const c=await getApplicationContext();if(!c.activeOrganization)return null;const o=await listProductFormOptions(await createClient(),c.activeOrganization.id);return <ProductForm org={c.activeOrganization.id} units={o.units} accounts={o.accounts}/>;}
