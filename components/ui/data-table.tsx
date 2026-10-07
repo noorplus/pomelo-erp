@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useMemo, useState } from "react";
+import { Pagination } from "./pagination";
 
 export type DataTableColumn<T> = {
   key: string;
