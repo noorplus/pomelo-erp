@@ -6,11 +6,6 @@ export async function listUnits(s: TypedSupabaseClient, org: string) {
   if (error) throwSupabaseError(error, "DATABASE_ERROR", "Unable to load units of measure.");
   return data;
 }
-export async function listContacts(s: TypedSupabaseClient, org: string) {
-  const { data, error } = await s.from("contacts").select("*").eq("organization_id", org).order("name");
-  if (error) throwSupabaseError(error, "DATABASE_ERROR", "Unable to load contacts.");
-  return data;
-}
 export async function listProducts(s: TypedSupabaseClient, org: string) {
   const { data, error } = await s.from("products").select("*").eq("organization_id", org).order("name");
   if (error) throwSupabaseError(error, "DATABASE_ERROR", "Unable to load products.");

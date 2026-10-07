@@ -3,13 +3,12 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { createUnit, updateUnit, createContact, updateContact, createProduct, updateProduct } from "@/lib/master-data/actions";
+import { createUnit, updateUnit, createProduct, updateProduct } from "@/lib/master-data/actions";
 import { DataTable, FormActions, FormField, PageHeader, PageSection, SearchInput, Select, StatusBadge } from "@/components/ui";
 import { getErrorMessage } from "@/lib/app/errors";
 import type { Tables } from "@/lib/supabase/database";
 
 type Unit = Tables<"units_of_measure">;
-type Contact = Tables<"contacts">;
 type Product = Tables<"products">;
 type NumberSequence = Tables<"number_sequences">;
 type Account = { id: string; account_code: string; account_name: string; account_type: string; is_postable: boolean; is_active: boolean };
@@ -55,77 +54,6 @@ function Units({ org, rows }: { org: string; rows: Unit[] }) {
         { key: "status", header: "Status", render: u => <StatusBadge tone={u.is_active ? "success" : "neutral"}>{u.is_active ? "Active" : "Inactive"}</StatusBadge> },
         { key: "action", header: "Action", render: u => <button className="button" type="button" onClick={() => { setEdit(u.id); setName(u.name); }}>Edit</button> },
       ]} empty="No units found." />
-    </PageSection>
-  </>;
-}
-
-function Contacts({ org, rows }: { org: string; rows: Contact[] }) {
-  const r = useRouter();
-  const blank = { id: "", number: "", name: "", phone: "", email: "", address: "", active: true };
-  const [f, setF] = useState(blank);
-  const [q, setQ] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const filtered = useMemo(() => {
-    const x = q.toLowerCase().trim();
-    return x ? rows.filter(c => [c.contact_number ?? "", c.name, c.phone ?? "", c.email ?? ""].some(v => v.toLowerCase().includes(x))) : rows;
-  }, [rows, q]);
-
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    setBusy(true);
-    try {
-      if (!f.name.trim()) throw new Error("Contact name is required.");
-      const p = { contact_number: f.id ? f.number : null, name: f.name.trim(), phone: f.phone.trim() || null, email: f.email.trim() || null, address: f.address.trim() || null, is_active: f.active };
-      if (f.id) await updateContact(createClient(), org, f.id, p);
-      else await createContact(createClient(), org, p);
-      setF(blank);
-      r.refresh();
-    } catch (x) {
-      setError(getErrorMessage(x));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return <>
-    <PageSection title={f.id ? "Edit contact" : "New contact"}>
-      <form onSubmit={save} className="ui-form-grid">
-        <FormField label="Contact number" htmlFor="contact-number">
-          <input id="contact-number" className="ui-input" value={f.id ? f.number : "Generated automatically on save"} readOnly />
-        </FormField>
-        <FormField label="Name" htmlFor="contact-name" required>
-          <input id="contact-name" className="ui-input" value={f.name} onChange={e => setF(v => ({ ...v, name: e.target.value }))} />
-        </FormField>
-        <FormField label="Phone" htmlFor="contact-phone">
-          <input id="contact-phone" className="ui-input" value={f.phone} onChange={e => setF(v => ({ ...v, phone: e.target.value }))} />
-        </FormField>
-        <FormField label="Email" htmlFor="contact-email">
-          <input id="contact-email" type="email" className="ui-input" value={f.email} onChange={e => setF(v => ({ ...v, email: e.target.value }))} />
-        </FormField>
-        <FormField label="Address" htmlFor="contact-address">
-          <input id="contact-address" className="ui-input" value={f.address} onChange={e => setF(v => ({ ...v, address: e.target.value }))} />
-        </FormField>
-        <FormField label="Lifecycle" htmlFor="contact-active">
-          <label className="ui-check"><input id="contact-active" type="checkbox" checked={f.active} onChange={e => setF(v => ({ ...v, active: e.target.checked }))} /> Active</label>
-        </FormField>
-        <p className="ui-field-error">{error}</p>
-        <FormActions>
-          <button className="button primary" disabled={busy}>{f.id ? "Save contact" : "Create contact"}</button>
-          {f.id ? <button className="button" type="button" onClick={() => setF(blank)}>Cancel</button> : null}
-        </FormActions>
-      </form>
-    </PageSection>
-    <PageSection title="Contacts" actions={<SearchInput value={q} onChange={setQ} placeholder="Search contacts" />}>
-      <DataTable rows={filtered} columns={[
-        { key: "number", header: "Number", render: c => c.contact_number ?? "—" },
-        { key: "name", header: "Name", render: c => c.name },
-        { key: "phone", header: "Phone", render: c => c.phone ?? "—" },
-        { key: "email", header: "Email", render: c => c.email ?? "—" },
-        { key: "status", header: "Status", render: c => <StatusBadge tone={c.is_active ? "success" : "neutral"}>{c.is_active ? "Active" : "Inactive"}</StatusBadge> },
-        { key: "action", header: "Action", render: c => <button className="button" type="button" onClick={() => setF({ id: c.id, number: c.contact_number ?? "", name: c.name, phone: c.phone ?? "", email: c.email ?? "", address: c.address ?? "", active: c.is_active })}>Edit</button> },
-      ]} empty="No contacts found." />
     </PageSection>
   </>;
 }
@@ -210,11 +138,10 @@ function NumberSequences({ rows }: { rows: NumberSequence[] }) {
   </PageSection>;
 }
 
-export function MasterData({ org, units, contacts, products, accounts, numberSequences }: { org: string; units: Unit[]; contacts: Contact[]; products: Product[]; accounts: Account[]; numberSequences: NumberSequence[] }) {
+export function MasterData({ org, units, products, accounts, numberSequences }: { org: string; units: Unit[]; products: Product[]; accounts: Account[]; numberSequences: NumberSequence[] }) {
   return <div className="page">
-    <PageHeader eyebrow="Master data" title="Master data" description="Manage units, contacts and products using only the existing frozen database fields." />
+    <PageHeader eyebrow="Master data" title="Master data" description="Manage units and products using only the existing frozen database fields." />
     <Units org={org} rows={units} />
-    <Contacts org={org} rows={contacts} />
     <Products org={org} rows={products} units={units} accounts={accounts} />
     <NumberSequences rows={numberSequences} />
   </div>;
