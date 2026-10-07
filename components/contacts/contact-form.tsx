@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { createContact, updateContact } from "@/lib/contacts/actions";
-import { FormActions, FormField, PageHeader, PageSection } from "@/components/ui";
+import { Form, FormActions, FormField, PageHeader, PageSection } from "@/components/ui";
 import { getErrorMessage } from "@/lib/app/errors";
 import type { Tables } from "@/lib/supabase/database";
 
@@ -71,7 +71,7 @@ export function ContactForm({ organizationId, userId, contact }: Props) {
       />
 
       <PageSection title="Contact details">
-        <form className="ui-form-grid" onSubmit={submit}>
+        <Form onSubmit={submit}>
           <FormField label="Contact number">
             <input
               className="ui-input"
@@ -151,7 +151,7 @@ export function ContactForm({ organizationId, userId, contact }: Props) {
               {busy ? "Saving…" : contact ? "Save contact" : "Create contact"}
             </button>
           </FormActions>
-        </form>
+        </Form>
       </PageSection>
     </div>
   );
