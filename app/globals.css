@@ -154,3 +154,34 @@ h1 { margin: 0; font-size: clamp(1.4rem, 3vw, 1.9rem); line-height: 1.15; letter
 @media (max-width:767px) { .ui-form-grid { grid-template-columns:minmax(0,1fr); } .ui-member-form { grid-template-columns:minmax(0,1fr); } }
 
 .administration-card-icon { display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; margin-bottom:8px; border:1px solid var(--border); border-radius:8px; background:var(--surface-subtle); color:var(--primary); }
+
+/* Administration */
+.administration-page { padding-bottom: 8px; }
+.administration-intro { display:flex; align-items:flex-end; justify-content:space-between; gap:14px; margin-bottom:14px; min-width:0; }
+.administration-intro h1 { margin:0; }
+.administration-panel { margin-top:14px; padding:16px; background:var(--surface); border:1px solid var(--border); border-radius:10px; min-width:0; }
+.administration-panel-header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding-bottom:12px; border-bottom:1px solid var(--border); min-width:0; }
+.administration-panel-title { display:flex; align-items:center; gap:10px; min-width:0; }
+.administration-panel-title > div { min-width:0; }
+.administration-panel-title h2 { margin:0; font-size:1rem; }
+.administration-panel-title p { margin:3px 0 0; color:var(--muted); font-size:.78rem; line-height:1.4; }
+.administration-icon { display:inline-flex; flex:0 0 auto; align-items:center; justify-content:center; width:34px; height:34px; border:1px solid var(--border); border-radius:8px; background:var(--surface-subtle); color:var(--primary); }
+.administration-details { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 24px; min-width:0; }
+.administration-detail { min-width:0; padding:11px 0; border-bottom:1px solid var(--border); }
+.administration-detail-wide { grid-column:1 / -1; }
+.administration-detail span { display:block; margin-bottom:3px; color:var(--muted); font-size:.7rem; font-weight:700; }
+.administration-detail strong { display:block; min-width:0; overflow-wrap:anywhere; font-size:.86rem; font-weight:650; }
+.administration-form { padding-top:14px; }
+.administration-member-add { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end; gap:10px; padding:14px 0; }
+.administration-members-table { margin-top:2px; }
+.administration-empty { padding:24px 12px; margin-top:14px; border:1px dashed var(--border); border-radius:8px; color:var(--muted); text-align:center; font-size:.82rem; }
+.administration-note { margin-top:10px; }
+.administration-message { margin:10px 0 0; }
+@media (max-width:767px) {
+  .administration-intro, .administration-panel-header { align-items:stretch; flex-direction:column; }
+  .administration-intro > .ui-status-badge { align-self:flex-start; }
+  .administration-details { grid-template-columns:minmax(0,1fr); }
+  .administration-detail-wide { grid-column:auto; }
+  .administration-member-add { grid-template-columns:minmax(0,1fr); }
+  .administration-panel { padding:12px; }
+}
