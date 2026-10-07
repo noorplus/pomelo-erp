@@ -1,5 +1,3 @@
-"use server";
-
 import type { TypedSupabaseClient } from "@/lib/app/supabase";
 import { throwSupabaseError } from "@/lib/app/errors";
 import type { TablesInsert } from "@/lib/supabase/database";
