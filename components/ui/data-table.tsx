@@ -1,11 +1,10 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 export type DataTableColumn<T> = {
   key: string;
-  header: string;
+  header: ReactNode;
   render: (row: T) => ReactNode;
   className?: string;
-  width?: string;
 };
 
 export function DataTable<T extends { id: string }>({
@@ -19,31 +18,33 @@ export function DataTable<T extends { id: string }>({
   caption?: string;
   empty?: ReactNode;
 }) {
+  const gridStyle = { "--ui-table-column-count": columns.length } as CSSProperties;
+
   return (
     <div className="ui-table-wrap">
-      <table className="ui-table">
-        {caption ? <caption>{caption}</caption> : null}
-        <thead>
-          <tr>
+      {caption ? <div className="ui-table-caption">{caption}</div> : null}
+      <div className="ui-table-grid" role="table" aria-colcount={columns.length} aria-rowcount={rows.length + 1} style={gridStyle}>
+        <div className="ui-table-grid-row ui-table-grid-header" role="row">
+          {columns.map((column) => (
+            <div className={["ui-table-grid-cell", "ui-table-grid-header-cell", column.className].filter(Boolean).join(" ")} key={column.key} role="columnheader">
+              {column.header}
+            </div>
+          ))}
+        </div>
+        {rows.length ? rows.map((row) => (
+          <div className="ui-table-grid-row" key={row.id} role="row">
             {columns.map((column) => (
-              <th className={column.className} key={column.key} scope="col" style={{ width: column.width }}>
-                {column.header}
-              </th>
+              <div className={["ui-table-grid-cell", column.className].filter(Boolean).join(" ")} key={column.key} role="cell">
+                {column.render(row)}
+              </div>
             ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length ? rows.map((row) => (
-            <tr key={row.id}>
-              {columns.map((column) => (
-                <td className={column.className} key={column.key}>{column.render(row)}</td>
-              ))}
-            </tr>
-          )) : (
-            <tr><td className="ui-table-empty" colSpan={columns.length}>{empty ?? "No records found."}</td></tr>
-          )}
-        </tbody>
-      </table>
+          </div>
+        )) : (
+          <div className="ui-table-grid-empty" role="row">
+            <div className="ui-table-empty-cell" role="cell">{empty ?? "No records found."}</div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
