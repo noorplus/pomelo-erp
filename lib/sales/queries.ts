@@ -26,7 +26,7 @@ export async function getSale(s: TypedSupabaseClient, org: string, id: string) {
     s.from("sales").select("*").eq("organization_id", org).eq("id", id).single(),
     s.from("sales_items").select("*").eq("organization_id", org).eq("sales_id", id).order("line_number"),
   ]);
-  if (sale.error) throwSupabaseError(sale.error, "NOT_FOUND", "Sales document not found.");
+  if (sale.error) throwSupabaseError(sale.error, "DATABASE_ERROR", "Sales document not found.");
   if (items.error) throwSupabaseError(items.error, "DATABASE_ERROR", "Unable to load sales items.");
   const [customer, account, productRows] = await Promise.all([
     s.from("contacts").select("id,name,contact_number,phone,email,address").eq("organization_id", org).eq("id", sale.data.customer_id).single(),
@@ -77,7 +77,7 @@ export async function getSalesReturnFormOptions(s: TypedSupabaseClient, org: str
 
 export async function getSalesReturn(s: TypedSupabaseClient, org: string, id: string) {
   const { data: ret, error } = await s.from("sales_returns").select("*").eq("organization_id", org).eq("id", id).single();
-  if (error) throwSupabaseError(error, "NOT_FOUND", "Sales return not found.");
+  if (error) throwSupabaseError(error, "DATABASE_ERROR", "Sales return not found.");
   const items = await s.from("sales_return_items").select("*").eq("organization_id", org).eq("sales_return_id", id).order("line_number");
   if (items.error) throwSupabaseError(items.error, "DATABASE_ERROR", "Unable to load return items.");
   const [customer, sale, products] = await Promise.all([
