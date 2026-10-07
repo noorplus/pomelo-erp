@@ -65,7 +65,6 @@ export function DataTable<T extends { id: string }>({
     return result;
   }, [columns, rows, search, sort]);
   const selected = selectedIds ?? localSelected;
-  const visibleColumns = columns.filter((column) => visibleKeys.includes(column.key) || !column.hideable);
   const gridStyle = { "--ui-table-column-count": visibleColumns.length + (selectable ? 1 : 0) } as CSSProperties;
 
   if (error) return <div className="ui-state ui-error-state"><strong>Unable to load records</strong><span>{error}</span>{onRetry ? <button className="button" type="button" onClick={onRetry}>Retry</button> : null}</div>;
