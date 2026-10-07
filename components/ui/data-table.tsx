@@ -22,6 +22,8 @@ export function DataTable<T extends { id: string }>({
   error,
   onRetry,
   search,
+  onSearchChange,
+  searchPlaceholder = "Search…",
   pagination,
   selectable = false,
   selectedIds,
@@ -38,6 +40,8 @@ export function DataTable<T extends { id: string }>({
   error?: ReactNode;
   onRetry?: () => void;
   search?: string;
+  onSearchChange?: (value: string) => void;
+  searchPlaceholder?: string;
   pagination?: { page: number; pageCount: number; onPageChange: (page: number) => void };
   selectable?: boolean;
   selectedIds?: string[];
@@ -74,7 +78,7 @@ export function DataTable<T extends { id: string }>({
   if (error) return <div className="ui-state ui-error-state"><strong>Unable to load records</strong><span>{error}</span>{onRetry ? <button className="button" type="button" onClick={onRetry}>Retry</button> : null}</div>;
   return (
     <div className="ui-data-table">
-      {(search || columnVisibility || selected.length > 0) ? <div className="ui-data-table-toolbar"><div className="ui-data-table-toolbar-main">{search ? <span className="ui-table-result-count">Search: {search}</span> : null}{selected.length > 0 ? <span className="ui-table-result-count">{selected.length} selected</span> : null}{selected.length > 0 && bulkActions ? bulkActions : null}</div>{columnVisibility ? <details><summary className="button">Columns</summary><div className="ui-data-table-columns-menu">{columns.filter((column) => column.hideable).map((column) => <label key={column.key}><input type="checkbox" checked={visibleKeys.includes(column.key)} onChange={() => setVisibleKeys((keys) => keys.includes(column.key) ? keys.filter((key) => key !== column.key) : [...keys, column.key])} /> {column.header}</label>)}</div></details> : null}</div> : null}
+      {(search || columnVisibility || selected.length > 0) ? <div className="ui-data-table-toolbar"><div className="ui-data-table-toolbar-main">{onSearchChange ? <input className="ui-input ui-table-search-input" value={search ?? ""} onChange={(event) => onSearchChange(event.target.value)} placeholder={searchPlaceholder} aria-label="Search table" /> : search ? <span className="ui-table-result-count">Search: {search}</span> : null}{selected.length > 0 ? <span className="ui-table-result-count">{selected.length} selected</span> : null}{selected.length > 0 && bulkActions ? bulkActions : null}</div>{columnVisibility ? <details><summary className="button">Columns</summary><div className="ui-data-table-columns-menu">{columns.filter((column) => column.hideable).map((column) => <label key={column.key}><input type="checkbox" checked={visibleKeys.includes(column.key)} onChange={() => setVisibleKeys((keys) => keys.includes(column.key) ? keys.filter((key) => key !== column.key) : [...keys, column.key])} /> {column.header}</label>)}</div></details> : null}</div> : null}
       {caption ? <div className="ui-table-caption">{caption}</div> : null}
       <div className="ui-table-grid" role="table" aria-colcount={visibleColumns.length + (selectable ? 1 : 0)} aria-rowcount={processedRows.length + 1} style={gridStyle}>
         <div className="ui-table-grid-row ui-table-grid-header" role="row">
