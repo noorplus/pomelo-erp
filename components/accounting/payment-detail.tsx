@@ -21,6 +21,14 @@ export function PaymentDetail({ organizationId, payment, allocations, documents,
   const [error, setError] = useState("");
 
   const options = type === "SALES" ? documents.sales : type === "PURCHASE" ? documents.purchases : documents.expenses;
+  const documentLabel = (allocation: Allocation) => {
+    const list = allocation.document_type === "SALES"
+      ? documents.sales
+      : allocation.document_type === "PURCHASE"
+        ? documents.purchases
+        : documents.expenses;
+    return list.find((document) => document.id === allocation.document_id)?.label ?? allocation.document_id;
+  };
   const allocated = allocations.reduce((sum, a) => sum + Number(a.allocated_amount), 0);
   const remaining = Number(payment.amount) - allocated;
 
@@ -70,7 +78,7 @@ export function PaymentDetail({ organizationId, payment, allocations, documents,
     <PageSection title="Allocations">
       <DataTable rows={allocations} columns={[
         { key: "type", header: "Document type", render: (a) => a.document_type },
-        { key: "document", header: "Document", render: (a) => a.document_id },
+        { key: "document", header: "Document", render: (a) => documentLabel(a) },
         { key: "amount", header: "Allocated", render: (a) => Number(a.allocated_amount).toFixed(2) },
         { key: "action", header: "Action", render: (a) => payment.status === "DRAFT" ? <button className="button" type="button" disabled={busy} onClick={() => remove(a.id)}>Remove</button> : null },
       ]} empty="No payment allocations." />
