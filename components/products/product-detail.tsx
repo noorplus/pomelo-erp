@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, Pencil } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { PageHeader, PageSection, StatusBadge } from "@/components/ui";
 import type { Tables } from "@/lib/supabase/database";
 
@@ -18,7 +18,7 @@ export function ProductDetail({ product, unit, inventory, inventoryAccount, sale
 }) {
   return (
     <div className="page products-detail-page">
-      <PageHeader eyebrow="Products" title={product.name} description={product.product_code ?? "Product details"} actions={<><Link className="button" href="/products"><ArrowLeft size={16} /> Products</Link><Link className="button primary" href={`/products/new?id=${product.id}`}><Pencil size={16} /> Edit</Link></>} />
+      <PageHeader eyebrow="Products" title={product.name} description={product.product_code ?? "Product details"} actions={<><Link className="button" href="/products"><ArrowLeft size={16} /> Products</Link></>} />
       <PageSection title="Product details" actions={<StatusBadge tone={product.is_active ? "success" : "neutral"}>{product.is_active ? "Active" : "Inactive"}</StatusBadge>}>
         <div className="ui-detail-grid">
           <div><span>Product code</span><strong>{product.product_code ?? "—"}</strong></div>
