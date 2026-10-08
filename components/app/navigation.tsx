@@ -29,11 +29,13 @@ const navigation = [
 
 const accountingNavigation = [
   { href: "/accounting/accounts", label: "Chart of Accounts", icon: BookOpen },
+  { href: "/accounting/opening-balance", label: "Opening Balance", icon: Wallet },
   { href: "/accounting/ledger", label: "Account Ledger", icon: FileText },
   { href: "/accounting/transactions/journal-entries", label: "Journal Entries", icon: FileText },
   { href: "/accounting/transactions/payments", label: "Payments", icon: Wallet },
   { href: "/accounting/transactions/expenses", label: "Expenses", icon: Receipt },
   { href: "/accounting/periods", label: "Periods", icon: CalendarDays },
+  { href: "/accounting/setup/expense-categories", label: "Expense Categories", icon: Receipt },
   { href: "/accounting/receivables-payables", label: "Receivables & Payables", icon: Wallet },
   { href: "/accounting/reports/trial-balance", label: "Trial Balance", icon: FileText },
   { href: "/accounting/reports/profit-loss", label: "Profit & Loss", icon: FileText },
