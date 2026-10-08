@@ -1,5 +1,5 @@
-import Link from "next/link";
-import { DataTable, PageHeader, PageSection } from "@/components/ui";
+import { PageHeader, PageSection } from "@/components/ui";
+import { FinancialReportTable } from "@/components/accounting/financial-report-table";
 
 type ReportRow = { id: string; account_code: string; account_name: string; account_type: string; debit: number; credit: number; balance: number; is_control_account: boolean };
 
@@ -33,14 +33,7 @@ export function FinancialReport({
       <p className="ui-field-hint">Only CONFIRMED journal activity is included. Draft and cancelled entries are excluded.</p>
     </PageSection>
     <PageSection title="Accounts">
-      <DataTable rows={data} columns={[
-        { key: "code", header: "Code", render: (r) => <Link href={"/accounting/ledger?account=" + r.id}>{r.account_code}</Link> },
-        { key: "name", header: "Account", render: (r) => r.account_name },
-        { key: "type", header: "Class", render: (r) => r.account_type },
-        { key: "debit", header: "Debit", render: (r) => money(r.debit) },
-        { key: "credit", header: "Credit", render: (r) => money(r.credit) },
-        { key: "balance", header: "Balance", render: (r) => money(r.balance) },
-      ]} empty="No posted account activity found." />
+      <FinancialReportTable rows={data} />
     </PageSection>
     <PageSection title="Summary">
       {variant === "trial" ? <div className="ui-detail-grid"><div><span>Total debit</span><strong>{money(trialDebit)}</strong></div><div><span>Total credit</span><strong>{money(trialCredit)}</strong></div><div><span>Difference</span><strong>{money(trialDebit - trialCredit)}</strong></div></div> : null}
