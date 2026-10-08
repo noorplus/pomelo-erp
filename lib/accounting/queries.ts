@@ -196,3 +196,19 @@ export async function getFinancialReportData(
     filters: { from, to, periodId: filters?.periodId ?? "" },
   };
 }
+
+export async function listPaymentAllocationDocuments(supabase: TypedSupabaseClient, organizationId: string, contactId?: string | null) {
+  const [sales, purchases, expenses] = await Promise.all([
+    supabase.from("sales").select("id,invoice_id,customer_id,invoice_date,total_amount,status").eq("organization_id", organizationId).eq("status", "CONFIRMED").order("invoice_date", { ascending: false }),
+    supabase.from("purchase").select("id,invoice_id,supplier_id,invoice_date,total_amount,status").eq("organization_id", organizationId).eq("status", "CONFIRMED").order("invoice_date", { ascending: false }),
+    supabase.from("expenses").select("id,expense_number,contact_id,expense_date,amount,status").eq("organization_id", organizationId).eq("status", "CONFIRMED").order("expense_date", { ascending: false }),
+  ]);
+  if (sales.error) throwSupabaseError(sales.error, "DATABASE_ERROR", "Unable to load sales documents for allocation.");
+  if (purchases.error) throwSupabaseError(purchases.error, "DATABASE_ERROR", "Unable to load purchase documents for allocation.");
+  if (expenses.error) throwSupabaseError(expenses.error, "DATABASE_ERROR", "Unable to load expense documents for allocation.");
+  return {
+    sales: (sales.data ?? []).filter((d) => !contactId || d.customer_id === contactId),
+    purchases: (purchases.data ?? []).filter((d) => !contactId || d.supplier_id === contactId),
+    expenses: (expenses.data ?? []).filter((d) => !contactId || d.contact_id === contactId),
+  };
+}
