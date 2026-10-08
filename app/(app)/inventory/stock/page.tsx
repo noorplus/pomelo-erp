@@ -1,0 +1,2 @@
+import{createClient}from"@/lib/supabase/server";import{getApplicationContext}from"@/lib/organizations/server";import{listInventoryStock}from"@/lib/inventory/queries";import{InventoryStock}from"@/components/inventory/inventory";
+export default async function Page(){const c=await getApplicationContext();if(!c.activeOrganization)return null;return <InventoryStock rows={await listInventoryStock(await createClient(),c.activeOrganization.id)}/>} 

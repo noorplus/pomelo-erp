@@ -1,17 +1,2 @@
-import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { getApplicationContext } from "@/lib/organizations/server";
-import { getJournalEntry } from "@/lib/accounting/queries";
-import { JournalEntryDetail } from "@/components/accounting/journal-entry-detail";
-
-export default async function Page({ params }: { params: Promise<{ id: string }> }) {
-  const c = await getApplicationContext();
-  if (!c.activeOrganization) return null;
-  const { id } = await params;
-  try {
-    const data = await getJournalEntry(await createClient(), c.activeOrganization.id, id);
-    return <JournalEntryDetail entry={data.header} lines={data.lines} />;
-  } catch {
-    notFound();
-  }
-}
+import {notFound} from "next/navigation";import {createClient}from"@/lib/supabase/server";import {getApplicationContext}from"@/lib/organizations/server";import {getJournalEntry}from"@/lib/accounting/queries";import {JournalEntryDetail}from"@/components/accounting/journal-entry-detail";
+export default async function Page({params}:{params:Promise<{id:string}>}){const c=await getApplicationContext();if(!c.activeOrganization)return null;const{id}=await params;let data;try{data=await getJournalEntry(await createClient(),c.activeOrganization.id,id)}catch{notFound()}return <JournalEntryDetail entry={data.header} lines={data.lines}/>} 

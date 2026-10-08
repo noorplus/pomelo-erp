@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
 import { DataTable, PageHeader, PageSection, StatusBadge } from "@/components/ui";
 
