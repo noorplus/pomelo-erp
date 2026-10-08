@@ -1,5 +1,29 @@
 "use client";
-import Link from "next/link";
+
 import { useState } from "react";
-import { DataTable, PageHeader, PageSection, Select } from "@/components/ui";
-export function AccountLedger({accounts,account,rows}:{accounts:any[];account:any;rows:any[]}){const [id,setId]=useState(account?.id??"");return <div className="page"><PageHeader eyebrow="Accounting / Accounts" title="Account Ledger" description="Account transaction lines from the frozen account_transactions table."/><PageSection title="Account"><Select value={id} onChange={e=>{setId(e.target.value);window.location.href="/accounting/ledger?account="+e.target.value;}}>{accounts.map(a=><option key={a.id} value={a.id}>{a.account_code+" — "+a.account_name}</option>)}</Select></PageSection><PageSection title={account?account.account_name:"Ledger"}><DataTable rows={rows} columns={[{key:"line_number",header:"Line",render:r=>r.line_number},{key:"description",header:"Description",render:r=>r.description||"—"},{key:"debit",header:"Debit",render:r=>Number(r.debit).toFixed(2)},{key:"credit",header:"Credit",render:r=>Number(r.credit).toFixed(2)},{key:"created_at",header:"Created",render:r=>new Date(r.created_at).toLocaleString()}]} empty="No ledger transactions found."/></PageSection></div>}
+import Link from "next/link";
+import { DataTable, PageHeader, PageSection, Select, StatusBadge } from "@/components/ui";
+
+export function AccountLedger({ accounts, account, rows }: { accounts: any[]; account: any; rows: any[] }) {
+  const [id, setId] = useState(account?.id ?? "");
+  return <div className="page">
+    <PageHeader eyebrow="Accounting / Accounts" title="Account Ledger" description="Posted account transaction lines from the frozen account_transactions table." />
+    <PageSection title="Account">
+      <Select value={id} onChange={(e) => { setId(e.target.value); window.location.href = "/accounting/ledger?account=" + e.target.value; }}>
+        {accounts.map((a) => <option key={a.id} value={a.id}>{a.account_code} — {a.account_name}</option>)}
+      </Select>
+    </PageSection>
+    <PageSection title={account ? account.account_name : "Ledger"}>
+      <DataTable rows={rows} columns={[
+        { key: "date", header: "Date", render: (r) => r.journal_entries?.entry_date ?? "—" },
+        { key: "entry", header: "Entry", render: (r) => r.journal_entries?.entry_number ? <Link href={"/accounting/transactions/journal-entries?entry=" + r.journal_entry_id}>{r.journal_entries.entry_number}</Link> : "—" },
+        { key: "type", header: "Type", render: (r) => r.journal_entries?.entry_type ?? "—" },
+        { key: "line_number", header: "Line", render: (r) => r.line_number },
+        { key: "description", header: "Description", render: (r) => r.description || "—" },
+        { key: "debit", header: "Debit", render: (r) => Number(r.debit).toFixed(2) },
+        { key: "credit", header: "Credit", render: (r) => Number(r.credit).toFixed(2) },
+        { key: "status", header: "Status", render: (r) => <StatusBadge tone="success">{r.journal_entries?.status ?? "CONFIRMED"}</StatusBadge> },
+      ]} empty="No posted ledger transactions found." />
+    </PageSection>
+  </div>;
+}
