@@ -7,5 +7,5 @@ export default async function NewProductPage() {
   const context = await getApplicationContext();
   if (!context.activeOrganization) return null;
   const options = await listProductFormOptions(await createClient(), context.activeOrganization.id);
-  return <NewProduct org={context.activeOrganization.id} units={options.units} accounts={options.accounts} />;
+  return <NewProduct org={context.activeOrganization.id} {...options} />;
 }

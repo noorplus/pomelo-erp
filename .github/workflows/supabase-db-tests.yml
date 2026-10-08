@@ -2,14 +2,9 @@ name: Supabase Database Tests
 
 on:
   push:
-    branches: [main, "chore/**"]
-    paths:
-      - "supabase/**"
-      - ".github/workflows/supabase-db-tests.yml"
+    branches: [main, "chore/**", "feat/**"]
   pull_request:
-    paths:
-      - "supabase/**"
-      - ".github/workflows/supabase-db-tests.yml"
+    branches: ["main"]
 
 jobs:
   database:

@@ -40,11 +40,20 @@ export async function getProductDetails(s: TypedSupabaseClient, org: string, id:
 }
 
 export async function listProductFormOptions(s: TypedSupabaseClient, org: string) {
-  const [units, accounts] = await Promise.all([
+  const [units, inventoryAccounts, salesAccounts, cogsAccounts] = await Promise.all([
     s.from("units_of_measure").select("id,name,is_active").eq("organization_id", org).eq("is_active", true).order("name"),
-    s.from("accounts").select("id,account_code,account_name,account_type,is_postable,is_active").eq("organization_id", org).eq("is_active", true).eq("is_postable", true).order("account_code"),
+    s.from("accounts").select("id,account_code,account_name,account_type,is_postable,is_active").eq("organization_id", org).eq("is_active", true).eq("is_postable", true).eq("account_type", "ASSET").order("account_code"),
+    s.from("accounts").select("id,account_code,account_name,account_type,is_postable,is_active").eq("organization_id", org).eq("is_active", true).eq("is_postable", true).eq("account_type", "REVENUE").order("account_code"),
+    s.from("accounts").select("id,account_code,account_name,account_type,is_postable,is_active").eq("organization_id", org).eq("is_active", true).eq("is_postable", true).eq("account_type", "EXPENSE").order("account_code"),
   ]);
   if (units.error) throwSupabaseError(units.error, "DATABASE_ERROR", "Unable to load product units.");
-  if (accounts.error) throwSupabaseError(accounts.error, "DATABASE_ERROR", "Unable to load product accounts.");
-  return { units: units.data, accounts: accounts.data };
+  if (inventoryAccounts.error || salesAccounts.error || cogsAccounts.error) {
+    throwSupabaseError(inventoryAccounts.error ?? salesAccounts.error ?? cogsAccounts.error, "DATABASE_ERROR", "Unable to load product accounting accounts.");
+  }
+  return {
+    units: units.data,
+    inventoryAccounts: inventoryAccounts.data,
+    salesAccounts: salesAccounts.data,
+    cogsAccounts: cogsAccounts.data,
+  };
 }
