@@ -1,0 +1,2 @@
+import{notFound}from"next/navigation";import{createClient}from"@/lib/supabase/server";import{getApplicationContext}from"@/lib/organizations/server";import{getPurchaseReturn}from"@/lib/purchase/queries";import{PurchaseReturnDetail}from"@/components/purchase/purchase";
+export default async function Page({params}:{params:Promise<{id:string}>}){const c=await getApplicationContext();if(!c.activeOrganization)return null;try{return <PurchaseReturnDetail ret={await getPurchaseReturn(await createClient(),c.activeOrganization.id,(await params).id)}/>}catch{notFound()}}

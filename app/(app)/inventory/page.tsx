@@ -1,0 +1,2 @@
+import{createClient}from"@/lib/supabase/server";import{getApplicationContext}from"@/lib/organizations/server";import{getInventoryDashboard}from"@/lib/inventory/queries";import{InventoryDashboard}from"@/components/inventory/inventory";
+export default async function Page(){const c=await getApplicationContext();if(!c.activeOrganization)return null;return <InventoryDashboard {...await getInventoryDashboard(await createClient(),c.activeOrganization.id)}/>

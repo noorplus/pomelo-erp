@@ -1,11 +1,2 @@
-import { createClient } from "@/lib/supabase/server";
-import { getApplicationContext } from "@/lib/organizations/server";
-import { getOpeningBalanceState } from "@/lib/accounting/queries";
-import { OpeningBalance } from "@/components/accounting/opening-balance";
-
-export default async function Page() {
-  const c = await getApplicationContext();
-  if (!c.activeOrganization) return null;
-  const state = await getOpeningBalanceState(await createClient(), c.activeOrganization.id);
-  return <OpeningBalance organizationId={c.activeOrganization.id} {...state} />;
-}
+import {createClient}from "@/lib/supabase/server";import {getApplicationContext}from "@/lib/organizations/server";import {getOpeningBalanceState}from "@/lib/accounting/queries";import {OpeningBalance}from "@/components/accounting/opening-balance";
+export default async function Page(){const c=await getApplicationContext();if(!c.activeOrganization)return null;const s=await createClient();const[state,{data:products,error}]=await Promise.all([getOpeningBalanceState(s,c.activeOrganization.id),s.from("products").select("id,product_code,name,inventory_account_id,is_active,unit_id").eq("organization_id",c.activeOrganization.id).order("name")]);if(error)throw error;return <OpeningBalance organizationId={c.activeOrganization.id} userId={c.user.id} products={products??[]} {...state}/>}

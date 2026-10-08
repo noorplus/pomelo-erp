@@ -1,0 +1,2 @@
+import{createClient}from"@/lib/supabase/server";import{getApplicationContext}from"@/lib/organizations/server";import{getPurchaseReturnFormOptions}from"@/lib/purchase/queries";import{PurchaseReturnForm}from"@/components/purchase/purchase";
+export default async function Page(){const c=await getApplicationContext();if(!c.activeOrganization)return null;return <PurchaseReturnForm org={c.activeOrganization.id} userId={c.user.id} {...await getPurchaseReturnFormOptions(await createClient(),c.activeOrganization.id)}/>

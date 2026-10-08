@@ -1,0 +1,2 @@
+import{notFound}from"next/navigation";import{createClient}from"@/lib/supabase/server";import{getApplicationContext}from"@/lib/organizations/server";import{getProductInventory}from"@/lib/inventory/queries";import{ProductInventory}from"@/components/inventory/inventory";
+export default async function Page({params}:{params:Promise<{id:string}>}){const c=await getApplicationContext();if(!c.activeOrganization)return null;try{return <ProductInventory {...await getProductInventory(await createClient(),c.activeOrganization.id,(await params).id)}/>}catch{notFound()}}

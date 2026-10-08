@@ -1,0 +1,2 @@
+import{createClient}from"@/lib/supabase/server";import{getApplicationContext}from"@/lib/organizations/server";import{listPurchases,listPurchaseReturns}from"@/lib/purchase/queries";import{PurchaseDashboard}from"@/components/purchase/purchase";
+export default async function Page(){const c=await getApplicationContext();if(!c.activeOrganization)return null;const s=await createClient();const[rows,returns]=await Promise.all([listPurchases(s,c.activeOrganization.id),listPurchaseReturns(s,c.activeOrganization.id)]);return <PurchaseDashboard rows={rows} returns={returns}/>}

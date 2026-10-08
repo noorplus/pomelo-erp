@@ -1,0 +1,2 @@
+import{createClient}from"@/lib/supabase/server";import{getApplicationContext}from"@/lib/organizations/server";import{listPurchases}from"@/lib/purchase/queries";import{PurchaseList}from"@/components/purchase/purchase";
+export default async function Page(){const c=await getApplicationContext();if(!c.activeOrganization)return null;return <PurchaseList rows={await listPurchases(await createClient(),c.activeOrganization.id)}/>
