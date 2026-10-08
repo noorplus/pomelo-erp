@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { createUnit, updateUnit, createProduct, updateProduct } from "@/lib/master-data/actions";
@@ -114,7 +115,7 @@ function Products({ org, rows, units, accounts }: { org: string; rows: Product[]
     </PageSection>
     <PageSection title="Products" actions={<SearchInput value={q} onChange={setQ} placeholder="Search products" />}>
       <DataTable rows={rows.filter(p => !q.trim() || [p.product_code ?? "", p.name].some(v => v.toLowerCase().includes(q.toLowerCase().trim())))} columns={[
-        { key: "code", header: "Code", render: p => <a href={`/products/${p.id}`}>{p.product_code ?? "—"}</a> },
+        { key: "code", header: "Code", render: p => <Link href={`/products/${p.id}`}>{p.product_code ?? "—"}</Link> },
         { key: "name", header: "Name", render: p => <a href={`/products/${p.id}`}>{p.name}</a> },
         { key: "unit", header: "Unit", render: p => units.find(u => u.id === p.unit_id)?.name ?? "—" },
         { key: "status", header: "Status", render: p => <StatusBadge tone={p.is_active ? "success" : "neutral"}>{p.is_active ? "Active" : "Inactive"}</StatusBadge> },
