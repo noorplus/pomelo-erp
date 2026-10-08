@@ -4,7 +4,7 @@ import { DataTable, StatusBadge } from "@/components/ui";
 
 export type RecentJournalEntryRow = {
   id: string;
-  entry_number: string;
+  entry_number: string | null;
   entry_date: string;
   entry_type: string;
   status: string;
@@ -16,7 +16,7 @@ export function RecentJournalEntriesTable({ rows }: { rows: RecentJournalEntryRo
     <DataTable
       rows={rows}
       columns={[
-        { key: "number", header: "Entry", render: (entry) => entry.entry_number },
+        { key: "number", header: "Entry", render: (entry) => entry.entry_number ?? "—" },
         { key: "date", header: "Date", render: (entry) => entry.entry_date },
         { key: "type", header: "Type", render: (entry) => entry.entry_type },
         {
