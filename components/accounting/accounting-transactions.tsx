@@ -118,7 +118,7 @@ export function AccountingTransactions({
   const title = mode === "journal" ? "Journal Entries" : mode === "payments" ? "Payments" : "Expenses";
   const columns = mode === "journal"
     ? [
-        { key: "entry_number", header: "Entry", render: (r: any) => r.entry_number || "Draft" },
+        { key: "entry_number", header: "Entry", render: (r: any) => <Link href={"/accounting/transactions/journal-entries/" + r.id}>{r.entry_number || "Draft"}</Link> },
         { key: "entry_date", header: "Date", render: (r: any) => r.entry_date },
         { key: "entry_type", header: "Type", render: (r: any) => r.entry_type },
         { key: "status", header: "Status", render: (r: any) => <StatusBadge tone={tone(r.status)}>{r.status}</StatusBadge> },
