@@ -35,7 +35,15 @@ export function NewProduct({ org, units, accounts, product }: { org: string; uni
     }
     setBusy(true);
     try {
-      if (product) {\n        await updateProduct(createClient(), org, product.id, {\n          product_code: product.product_code, name: name.trim(), unit_id: unitId, inventory_account_id: inventoryAccountId, sales_account_id: salesAccountId, cogs_account_id: cogsAccountId, is_active: active,\n        });\n        router.push(`/products/${product.id}`);\n        router.refresh();\n        return;\n      }\n      const created = await createProduct(createClient(), org, {
+      if (product) {
+        await updateProduct(createClient(), org, product.id, {
+          product_code: product.product_code, name: name.trim(), unit_id: unitId, inventory_account_id: inventoryAccountId, sales_account_id: salesAccountId, cogs_account_id: cogsAccountId, is_active: active,
+        });
+        router.push(`/products/${product.id}`);
+        router.refresh();
+        return;
+      }
+      const created = await createProduct(createClient(), org, {
         product_code: null,
         name: name.trim(),
         unit_id: unitId,
