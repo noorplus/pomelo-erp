@@ -114,8 +114,8 @@ function Products({ org, rows, units, accounts }: { org: string; rows: Product[]
     </PageSection>
     <PageSection title="Products" actions={<SearchInput value={q} onChange={setQ} placeholder="Search products" />}>
       <DataTable rows={rows.filter(p => !q.trim() || [p.product_code ?? "", p.name].some(v => v.toLowerCase().includes(q.toLowerCase().trim())))} columns={[
-        { key: "code", header: "Code", render: p => p.product_code ?? "—" },
-        { key: "name", header: "Name", render: p => p.name },
+        { key: "code", header: "Code", render: p => <a href={`/products/${p.id}`}>{p.product_code ?? "—"}</a> },
+        { key: "name", header: "Name", render: p => <a href={`/products/${p.id}`}>{p.name}</a> },
         { key: "unit", header: "Unit", render: p => units.find(u => u.id === p.unit_id)?.name ?? "—" },
         { key: "status", header: "Status", render: p => <StatusBadge tone={p.is_active ? "success" : "neutral"}>{p.is_active ? "Active" : "Inactive"}</StatusBadge> },
         { key: "action", header: "Action", render: p => <button className="button" type="button" onClick={() => setF({ id: p.id, code: p.product_code ?? "", name: p.name, unit: p.unit_id, inventory: p.inventory_account_id, sales: p.sales_account_id, cogs: p.cogs_account_id, active: p.is_active })}>Edit</button> },
