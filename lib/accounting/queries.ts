@@ -126,3 +126,16 @@ export async function listAccountLedger(supabase: TypedSupabaseClient, organizat
   const {data,error}=await supabase.from("account_transactions").select("*").eq("organization_id",organizationId).eq("account_id",accountId).order("created_at",{ascending:false});
   if(error) throwSupabaseError(error,"DATABASE_ERROR","Unable to load account ledger."); return data;
 }
+
+
+export async function getFinancialReportData(supabase: TypedSupabaseClient, organizationId: string) {
+  const [a,t]=await Promise.all([
+    supabase.from("accounts").select("id,account_code,account_name,account_type,normal_balance,is_control_account,is_active").eq("organization_id",organizationId).order("account_code"),
+    supabase.from("account_transactions").select("account_id,debit,credit").eq("organization_id",organizationId)
+  ]);
+  if(a.error) throwSupabaseError(a.error,"DATABASE_ERROR","Unable to load accounts for financial reports.");
+  if(t.error) throwSupabaseError(t.error,"DATABASE_ERROR","Unable to load account transactions for financial reports.");
+  const totals=new Map<string,{debit:number;credit:number}>();
+  for(const row of t.data){const x=totals.get(row.account_id)||{debit:0,credit:0};x.debit+=Number(row.debit);x.credit+=Number(row.credit);totals.set(row.account_id,x);}
+  return a.data.map(account=>{const x=totals.get(account.id)||{debit:0,credit:0};return {...account,debit:x.debit,credit:x.credit,balance:account.normal_balance==="DEBIT"?x.debit-x.credit:x.credit-x.debit};});
+}
