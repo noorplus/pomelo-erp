@@ -40,7 +40,10 @@ export async function deactivateAccount(supabase: TypedSupabaseClient, organizat
   await updateAccount(supabase, organizationId, accountId, { is_active: false });
 }
 
-export async function confirmJournalEntry(supabase: TypedSupabaseClient, id: string) { await callRpc(supabase, "confirm_journal_entry", { p_journal_entry_id: id }, "Unable to confirm journal entry."); }
+export async function confirmJournalEntry(supabase: TypedSupabaseClient, id: string) {
+  await callRpc(supabase, "validate_journal_balance", { p_journal_entry_id: id }, "Unable to validate journal balance.");
+  await callRpc(supabase, "confirm_journal_entry", { p_journal_entry_id: id }, "Unable to confirm journal entry.");
+}
 export async function cancelJournalEntry(supabase: TypedSupabaseClient, id: string) { await callRpc(supabase, "cancel_journal_entry", { p_journal_entry_id: id }, "Unable to cancel journal entry."); }
 export async function confirmPayment(supabase: TypedSupabaseClient, id: string) { await callRpc(supabase, "confirm_payment", { p_id: id }, "Unable to confirm payment."); }
 export async function cancelPayment(supabase: TypedSupabaseClient, id: string) { await callRpc(supabase, "cancel_payment", { p_id: id }, "Unable to cancel payment."); }
@@ -71,18 +74,8 @@ export async function createOpeningBalance(
   input: { accountingPeriodId: string; entryDate: string; lines: Array<{ account_id: string; debit: number; credit: number }> },
 ) {
   const id = await createJournalEntry(supabase, organizationId, {
-    organization_id: organizationId,
-    entry_number: null,
-    accounting_period_id: input.accountingPeriodId,
-    entry_date: input.entryDate,
-    entry_type: "OPENING",
-    status: "DRAFT",
-    reference_type: null,
-    reference_id: null,
-    description: "Opening balance",
-    posted_at: null,
-    reversal_of_id: null,
-    created_by: null,
+    organization_id: organizationId, entry_number: null, accounting_period_id: input.accountingPeriodId, entry_date: input.entryDate,
+    entry_type: "OPENING", status: "DRAFT", reference_type: null, reference_id: null, description: "Opening balance", posted_at: null, reversal_of_id: null, created_by: null,
   }, input.lines.map((line) => ({ ...line, description: "Opening balance", contact_id: null })));
   await confirmJournalEntry(supabase, id);
   return id;
@@ -94,11 +87,7 @@ export async function createPayment(supabase: TypedSupabaseClient, organizationI
   return data.id;
 }
 
-export async function createPaymentAllocation(
-  supabase: TypedSupabaseClient,
-  organizationId: string,
-  input: Omit<TablesInsert<"payment_allocations">, "organization_id">,
-) {
+export async function createPaymentAllocation(supabase: TypedSupabaseClient, organizationId: string, input: Omit<TablesInsert<"payment_allocations">, "organization_id">) {
   const { data, error } = await supabase.from("payment_allocations").insert({ ...input, organization_id: organizationId }).select("id").single();
   if (error) throwSupabaseError(error, "DATABASE_ERROR", "Unable to create the payment allocation.");
   return data.id;
@@ -115,26 +104,15 @@ export async function createExpense(supabase: TypedSupabaseClient, organizationI
   return data.id;
 }
 
-export async function createExpenseCategory(
-  supabase: TypedSupabaseClient,
-  organizationId: string,
-  input: Omit<TablesInsert<"expense_categories">, "organization_id">,
-) {
+export async function createExpenseCategory(supabase: TypedSupabaseClient, organizationId: string, input: Omit<TablesInsert<"expense_categories">, "organization_id">) {
   const { data, error } = await supabase.from("expense_categories").insert({ ...input, organization_id: organizationId }).select("id").single();
   if (error) throwSupabaseError(error, "DATABASE_ERROR", "Unable to create the expense category.");
   return data.id;
 }
-
-export async function updateExpenseCategory(
-  supabase: TypedSupabaseClient,
-  organizationId: string,
-  id: string,
-  input: Omit<TablesUpdate<"expense_categories">, "organization_id">,
-) {
+export async function updateExpenseCategory(supabase: TypedSupabaseClient, organizationId: string, id: string, input: Omit<TablesUpdate<"expense_categories">, "organization_id">) {
   const { error } = await supabase.from("expense_categories").update(input).eq("organization_id", organizationId).eq("id", id);
   if (error) throwSupabaseError(error, "DATABASE_ERROR", "Unable to update the expense category.");
 }
-
 export async function deactivateExpenseCategory(supabase: TypedSupabaseClient, organizationId: string, id: string) {
   await updateExpenseCategory(supabase, organizationId, id, { is_active: false });
 }

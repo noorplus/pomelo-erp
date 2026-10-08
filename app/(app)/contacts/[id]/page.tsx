@@ -7,7 +7,7 @@ import { ContactDetail } from "@/components/contacts/contact-detail";
 export default async function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const context = await getApplicationContext();
   if (!context.activeOrganization) return null;
-  const contact = await getContact(await createClient(), context.activeOrganization.id, (await params).id);
-  if (!contact) notFound();
-  return <ContactDetail contact={contact} />;
+  const result = await getContact(await createClient(), context.activeOrganization.id, (await params).id);
+  if (!result.contact) notFound();
+  return <ContactDetail contact={result.contact} activity={result.activity} />;
 }
