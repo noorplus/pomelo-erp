@@ -30,7 +30,7 @@ export function ContactsList({ rows }: { rows: Contact[] }) {
             { key: "phone", header: "Phone", render: (contact) => contact.phone ?? "—" },
             { key: "email", header: "Email", render: (contact) => contact.email ?? "—" },
             { key: "status", header: "Status", render: (contact) => <StatusBadge tone={contact.is_active ? "success" : "neutral"}>{contact.is_active ? "Active" : "Inactive"}</StatusBadge> },
-            { key: "action", header: "Action", render: (contact) => <Link className="button" href={`/contacts/new?id=${contact.id}`}>Edit</Link> },
+            { key: "action", header: "Action", render: (contact) => <Link className="button" href={`/contacts/${contact.id}/edit`}>Edit</Link> },
           ]}
           empty="No contacts found."
         />
