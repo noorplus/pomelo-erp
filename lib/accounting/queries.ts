@@ -112,13 +112,57 @@ export async function listPayments(supabase: TypedSupabaseClient, organizationId
 }
 
 export async function getPayment(supabase: TypedSupabaseClient, organizationId: string, id: string) {
-  const [p, a] = await Promise.all([
+  const [payment, allocations] = await Promise.all([
     supabase.from("payments").select("*").eq("organization_id", organizationId).eq("id", id).single(),
     supabase.from("payment_allocations").select("*").eq("organization_id", organizationId).eq("payment_id", id),
   ]);
-  if (p.error) throwSupabaseError(p.error, "DATABASE_ERROR", "Unable to load payment.");
-  if (a.error) throwSupabaseError(a.error, "DATABASE_ERROR", "Unable to load payment allocations.");
-  return { payment: p.data, allocations: a.data };
+  if (payment.error) throwSupabaseError(payment.error, "DATABASE_ERROR", "Unable to load payment.");
+  if (allocations.error) throwSupabaseError(allocations.error, "DATABASE_ERROR", "Unable to load payment allocations.");
+  return { payment: payment.data, allocations: allocations.data };
+}
+
+export async function getJournalSourceReference(
+  supabase: TypedSupabaseClient,
+  organizationId: string,
+  referenceType: string | null,
+  referenceId: string | null,
+) {
+  if (!referenceType || !referenceId) return null;
+
+  switch (referenceType) {
+    case "SALES": {
+      const { data, error } = await supabase.from("sales").select("id,invoice_id").eq("organization_id", organizationId).eq("id", referenceId).maybeSingle();
+      if (error) throwSupabaseError(error, "DATABASE_ERROR", "Unable to load the journal source.");
+      return data ? { label: data.invoice_id ?? data.id, href: `/sales/invoices/${data.id}` } : null;
+    }
+    case "PURCHASE": {
+      const { data, error } = await supabase.from("purchase").select("id,invoice_id").eq("organization_id", organizationId).eq("id", referenceId).maybeSingle();
+      if (error) throwSupabaseError(error, "DATABASE_ERROR", "Unable to load the journal source.");
+      return data ? { label: data.invoice_id ?? data.id, href: `/purchase/invoices/${data.id}` } : null;
+    }
+    case "PAYMENT": {
+      const { data, error } = await supabase.from("payments").select("id,payment_number").eq("organization_id", organizationId).eq("id", referenceId).maybeSingle();
+      if (error) throwSupabaseError(error, "DATABASE_ERROR", "Unable to load the journal source.");
+      return data ? { label: data.payment_number ?? data.id, href: `/accounting/transactions/payments/${data.id}` } : null;
+    }
+    case "EXPENSE": {
+      const { data, error } = await supabase.from("expenses").select("id,expense_number").eq("organization_id", organizationId).eq("id", referenceId).maybeSingle();
+      if (error) throwSupabaseError(error, "DATABASE_ERROR", "Unable to load the journal source.");
+      return data ? { label: data.expense_number ?? data.id, href: "/accounting/transactions/expenses" } : null;
+    }
+    case "PURCHASE_RETURN": {
+      const { data, error } = await supabase.from("purchase_returns").select("id,return_number").eq("organization_id", organizationId).eq("id", referenceId).maybeSingle();
+      if (error) throwSupabaseError(error, "DATABASE_ERROR", "Unable to load the journal source.");
+      return data ? { label: data.return_number ?? data.id, href: `/purchase/returns/${data.id}` } : null;
+    }
+    case "SALES_RETURN": {
+      const { data, error } = await supabase.from("sales_returns").select("id,return_number").eq("organization_id", organizationId).eq("id", referenceId).maybeSingle();
+      if (error) throwSupabaseError(error, "DATABASE_ERROR", "Unable to load the journal source.");
+      return data ? { label: data.return_number ?? data.id, href: `/sales/returns/${data.id}` } : null;
+    }
+    default:
+      return null;
+  }
 }
 
 export async function listExpenses(supabase: TypedSupabaseClient, organizationId: string) {

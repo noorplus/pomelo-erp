@@ -41,9 +41,9 @@ export async function getSale(s: TypedSupabaseClient, org: string, id: string) {
 export async function listSalesReturns(s: TypedSupabaseClient, org: string) {
   const { data, error } = await s.from("sales_returns").select("*").eq("organization_id", org).order("return_date", { ascending: false }).order("created_at", { ascending: false });
   if (error) throwSupabaseError(error, "DATABASE_ERROR", "Unable to load sales returns.");
-  const ids = [...new Set(data.flatMap((x) => [x.customer_id, x.sales_id]))];
+  const customerIds = [...new Set(data.map((x) => x.customer_id))];
   const [contacts, sales] = await Promise.all([
-    data.length ? s.from("contacts").select("id,name,contact_number").eq("organization_id", org).in("id", ids.filter((x) => data.some((d) => d.customer_id === x))) : { data: [], error: null },
+    customerIds.length ? s.from("contacts").select("id,name,contact_number").eq("organization_id", org).in("id", customerIds) : { data: [], error: null },
     data.length ? s.from("sales").select("id,invoice_id,customer_id").eq("organization_id", org).in("id", data.map((x) => x.sales_id)) : { data: [], error: null },
   ]);
   if (contacts.error || sales.error) throwSupabaseError(contacts.error ?? sales.error, "DATABASE_ERROR", "Unable to load return references.");

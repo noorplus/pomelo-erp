@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { DataTable, PageHeader, PageSection, StatusBadge } from "@/components/ui";
 
-export function JournalEntryDetail({ entry, lines }: { entry: any; lines: any[] }) {
+export function JournalEntryDetail({ entry, lines, source }: { entry: any; lines: any[]; source: { label: string; href: string } | null }) {
   const tone = entry.status === "CONFIRMED" ? "success" : entry.status === "CANCELLED" ? "danger" : "neutral";
   const debit = lines.reduce((s, l) => s + Number(l.debit ?? 0), 0);
   const credit = lines.reduce((s, l) => s + Number(l.credit ?? 0), 0);
@@ -14,7 +14,7 @@ export function JournalEntryDetail({ entry, lines }: { entry: any; lines: any[] 
         <div><span>Date</span><strong>{entry.entry_date}</strong></div>
         <div><span>Type</span><strong>{entry.entry_type}</strong></div>
         <div><span>Status</span><strong><StatusBadge tone={tone}>{entry.status}</StatusBadge></strong></div>
-        <div><span>Reference</span><strong>{entry.reference_type ?? "—"}</strong></div>
+        <div><span>Reference</span><strong>{entry.reference_type ?? "—"}{source ? <> · <Link href={source.href}>{source.label}</Link></> : ""}</strong></div>
         <div><span>Posted</span><strong>{entry.posted_at ? new Date(entry.posted_at).toLocaleString() : "—"}</strong></div>
       </div>
     </PageSection>
