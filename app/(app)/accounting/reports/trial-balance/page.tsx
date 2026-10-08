@@ -1,1 +1,12 @@
-import {createClient} from "@/lib/supabase/server";import{getApplicationContext}from"@/lib/organizations/server";import{getFinancialReportData}from"@/lib/accounting/queries";import{FinancialReport}from"@/components/accounting/financial-report";export default async function Page(){const c=await getApplicationContext();if(!c.activeOrganization)return null;const rows=await getFinancialReportData(await createClient(),c.activeOrganization.id);return <FinancialReport title="Trial Balance" description="Debit and credit totals by account." rows={rows} filter={()=>true}/>}
+import { createClient } from "@/lib/supabase/server";
+import { getApplicationContext } from "@/lib/organizations/server";
+import { getFinancialReportData } from "@/lib/accounting/queries";
+import { FinancialReport } from "@/components/accounting/financial-report";
+
+export default async function Page({ searchParams }: { searchParams: Promise<{ period?: string; from?: string; to?: string }> }) {
+  const c = await getApplicationContext();
+  if (!c.activeOrganization) return null;
+  const p = await searchParams;
+  const data = await getFinancialReportData(await createClient(), c.activeOrganization.id, { periodId: p.period, from: p.from, to: p.to });
+  return <FinancialReport title="Trial Balance" description="Posted debit and credit totals by account." rows={data.rows} filter={() => true} periods={data.periods} from={data.filters.from} to={data.filters.to} periodId={data.filters.periodId} variant="trial" />;
+}

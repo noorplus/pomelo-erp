@@ -1,2 +1,53 @@
+import Link from "next/link";
 import { DataTable, PageHeader, PageSection } from "@/components/ui";
-export function FinancialReport({title,description,rows,filter}:{title:string;description:string;rows:any[];filter:(r:any)=>boolean}){const data=rows.filter(filter);const total=data.reduce((s,r)=>s+r.balance,0);return <div className="page"><PageHeader eyebrow="Accounting / Reports" title={title} description={description}/><PageSection title="Accounts"><DataTable rows={data} columns={[{key:"code",header:"Code",render:r=>r.account_code},{key:"name",header:"Account",render:r=>r.account_name},{key:"type",header:"Class",render:r=>r.account_type},{key:"debit",header:"Debit",render:r=>r.debit.toFixed(2)},{key:"credit",header:"Credit",render:r=>r.credit.toFixed(2)},{key:"balance",header:"Balance",render:r=>r.balance.toFixed(2)}]} empty="No account activity found."/></PageSection><PageSection title="Total"><strong>{total.toFixed(2)}</strong></PageSection></div>}
+
+type ReportRow = { id: string; account_code: string; account_name: string; account_type: string; debit: number; credit: number; balance: number; is_control_account: boolean };
+
+export function FinancialReport({
+  title, description, rows, filter, periods, from, to, periodId, variant = "ledger",
+}: {
+  title: string; description: string; rows: ReportRow[]; filter: (row: ReportRow) => boolean;
+  periods: Array<{ id: string; name: string; start_date: string; end_date: string; status: string }>;
+  from?: string; to?: string; periodId?: string; variant?: "trial" | "profit-loss" | "balance-sheet" | "receivables-payables" | "ledger";
+}) {
+  const data = rows.filter(filter);
+  const revenue = data.filter((r) => r.account_type === "REVENUE").reduce((s, r) => s + r.balance, 0);
+  const expenses = data.filter((r) => r.account_type === "EXPENSE").reduce((s, r) => s + r.balance, 0);
+  const netIncome = revenue - expenses;
+  const assets = data.filter((r) => r.account_type === "ASSET").reduce((s, r) => s + r.balance, 0);
+  const liabilities = data.filter((r) => r.account_type === "LIABILITY").reduce((s, r) => s + r.balance, 0);
+  const equity = data.filter((r) => r.account_type === "EQUITY").reduce((s, r) => s + r.balance, 0);
+  const trialDebit = data.reduce((s, r) => s + r.debit, 0);
+  const trialCredit = data.reduce((s, r) => s + r.credit, 0);
+  const money = (value: number) => value.toFixed(2);
+
+  return <div className="page">
+    <PageHeader eyebrow="Accounting / Reports" title={title} description={description} />
+    <PageSection title="Report filters">
+      <form className="ui-form-grid" method="get">
+        <label className="ui-field"><span className="ui-field-label">Accounting period</span><select className="ui-input" name="period"><option value="">All posted activity</option>{periods.map((p) => <option key={p.id} value={p.id} selected={p.id === periodId}>{p.name} · {p.start_date} to {p.end_date}</option>)}</select></label>
+        <label className="ui-field"><span className="ui-field-label">From</span><input className="ui-input" type="date" name="from" defaultValue={from ?? ""} /></label>
+        <label className="ui-field"><span className="ui-field-label">To</span><input className="ui-input" type="date" name="to" defaultValue={to ?? ""} /></label>
+        <div className="ui-field"><span className="ui-field-label">&nbsp;</span><button className="button primary" type="submit">Apply filters</button></div>
+      </form>
+      <p className="ui-field-hint">Only CONFIRMED journal activity is included. Draft and cancelled entries are excluded.</p>
+    </PageSection>
+    <PageSection title="Accounts">
+      <DataTable rows={data} columns={[
+        { key: "code", header: "Code", render: (r) => <Link href={"/accounting/ledger?account=" + r.id}>{r.account_code}</Link> },
+        { key: "name", header: "Account", render: (r) => r.account_name },
+        { key: "type", header: "Class", render: (r) => r.account_type },
+        { key: "debit", header: "Debit", render: (r) => money(r.debit) },
+        { key: "credit", header: "Credit", render: (r) => money(r.credit) },
+        { key: "balance", header: "Balance", render: (r) => money(r.balance) },
+      ]} empty="No posted account activity found." />
+    </PageSection>
+    <PageSection title="Summary">
+      {variant === "trial" ? <div className="ui-detail-grid"><div><span>Total debit</span><strong>{money(trialDebit)}</strong></div><div><span>Total credit</span><strong>{money(trialCredit)}</strong></div><div><span>Difference</span><strong>{money(trialDebit - trialCredit)}</strong></div></div> : null}
+      {variant === "profit-loss" ? <div className="ui-detail-grid"><div><span>Revenue</span><strong>{money(revenue)}</strong></div><div><span>Expenses</span><strong>{money(expenses)}</strong></div><div><span>Net income</span><strong>{money(netIncome)}</strong></div></div> : null}
+      {variant === "balance-sheet" ? <div className="ui-detail-grid"><div><span>Assets</span><strong>{money(assets)}</strong></div><div><span>Liabilities</span><strong>{money(liabilities)}</strong></div><div><span>Equity</span><strong>{money(equity)}</strong></div><div><span>Equity + net income</span><strong>{money(equity + netIncome)}</strong></div><div><span>Balance difference</span><strong>{money(assets - liabilities - equity - netIncome)}</strong></div></div> : null}
+      {variant === "receivables-payables" ? <div className="ui-detail-grid"><div><span>Receivables</span><strong>{money(data.filter((r) => r.account_type === "ASSET").reduce((s, r) => s + r.balance, 0))}</strong></div><div><span>Payables</span><strong>{money(data.filter((r) => r.account_type === "LIABILITY").reduce((s, r) => s + r.balance, 0))}</strong></div></div> : null}
+      {variant === "ledger" ? <div><strong>{data.length}</strong> accounts</div> : null}
+    </PageSection>
+  </div>;
+}
