@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { getApplicationContext } from "@/lib/organizations/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAccountingDashboard } from "@/lib/accounting/queries";
@@ -61,8 +60,8 @@ export default async function AccountingDashboardPage() {
         description="Use the existing database-backed accounting configuration."
         actions={
           <div className="ui-page-header-actions">
-            <Link className="button" href="/accounting/accounts">Chart of Accounts</Link>
-            <Link className="button" href="/accounting/periods">Periods</Link>
+            <a className="button" href="/accounting/accounts">Chart of Accounts</a>
+            <a className="button" href="/accounting/periods">Periods</a>
           </div>
         }
       >
