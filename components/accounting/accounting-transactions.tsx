@@ -1,0 +1,61 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { confirmExpense, confirmJournalEntry, confirmPayment, cancelExpense, cancelJournalEntry, cancelPayment, createExpense, createJournalEntry, createPayment } from "@/lib/accounting/actions";
+import { DataTable, FormActions, FormField, PageHeader, PageSection, Select, StatusBadge } from "@/components/ui";
+
+const today = () => new Date().toISOString().slice(0, 10);
+const tone = (s: string) => s === "CONFIRMED" ? "success" : s === "CANCELLED" ? "danger" : "neutral";
+
+export function AccountingTransactions({ mode, organizationId, rows, accounts, contacts, periods, categories }: any) {
+  const router = useRouter();
+  const [busy,setBusy]=useState(false), [error,setError]=useState("");
+  const [form,setForm]=useState<any>({date:today(),periodId:periods.find((p:any)=>p.status==="OPEN")?.id??"",type:mode==="payments"?"RECEIPT":"ADJUSTMENT",description:"",amount:"",contactId:"",accountId:"",settlementAccountId:"",categoryId:"",payableAccountId:"",lines:[{accountId:"",debit:"",credit:""}]});
+  const set=(key:string,value:any)=>setForm((x:any)=>({...x,[key]:value}));
+  async function save(e:any){e.preventDefault();setBusy(true);setError("");try{const c=createClient();
+    if(mode==="journal"){const lines=form.lines.filter((x:any)=>x.accountId).map((x:any)=>({account_id:x.accountId,debit:Number(x.debit||0),credit:Number(x.credit||0),description:null,contact_id:null}));if(lines.length<2)throw new Error("A journal entry needs at least two lines.");if(lines.reduce((s:number,x:any)=>s+x.debit,0)!==lines.reduce((s:number,x:any)=>s+x.credit,0))throw new Error("Journal entry debits and credits must balance.");await createJournalEntry(c,organizationId,{accounting_period_id:form.periodId,entry_date:form.date,entry_type:form.type,status:"DRAFT",reference_type:null,reference_id:null,description:form.description||null,posted_at:null,reversal_of_id:null,created_by:null},lines);}
+    else if(mode==="payments")await createPayment(c,organizationId,{payment_number:null,payment_type:form.type,contact_id:form.contactId||null,payment_date:form.date,amount:Number(form.amount),account_id:form.accountId,settlement_account_id:form.settlementAccountId,status:"DRAFT",posted_journal_entry_id:null,description:form.description||null,created_by:null});
+    else await createExpense(c,organizationId,{expense_number:null,expense_category_id:form.categoryId,contact_id:form.contactId||null,payable_account_id:form.payableAccountId,expense_date:form.date,amount:Number(form.amount),description:form.description||null,status:"DRAFT",posted_journal_entry_id:null,created_by:null});
+    router.refresh();}catch(e:any){setError(e.message||"Unable to save.");}finally{setBusy(false);}}
+  async function changeStatus(id:string,action:"confirm"|"cancel"){setBusy(true);try{const c=createClient();if(mode==="journal")action==="confirm"?await confirmJournalEntry(c,id):await cancelJournalEntry(c,id);else if(mode==="payments")action==="confirm"?await confirmPayment(c,id):await cancelPayment(c,id);else action==="confirm"?await confirmExpense(c,id):await cancelExpense(c,id);router.refresh();}catch(e:any){setError(e.message||"Unable to update status.");}finally{setBusy(false);}}
+  const title=mode==="journal"?"Journal Entries":mode==="payments"?"Payments":"Expenses";
+  const columns=mode==="journal"?[
+    {key:"entry_number",header:"Entry",render:(r:any)=>r.entry_number||"—"},{key:"entry_date",header:"Date",render:(r:any)=>r.entry_date},{key:"entry_type",header:"Type",render:(r:any)=>r.entry_type},{key:"status",header:"Status",render:(r:any)=><StatusBadge tone={tone(r.status)}>{r.status}</StatusBadge>},{key:"description",header:"Description",render:(r:any)=>r.description||"—"},{key:"actions",header:"Actions",render:(r:any)=>r.status==="DRAFT"?<><button className="button" type="button" disabled={busy} onClick={()=>changeStatus(r.id,"confirm")}>Confirm</button><button className="button" type="button" disabled={busy} onClick={()=>changeStatus(r.id,"cancel")}>Cancel</button></>:null}
+  ]:mode==="payments"?[
+    {key:"payment_number",header:"Payment",render:(r:any)=>r.payment_number||"—"},{key:"payment_date",header:"Date",render:(r:any)=>r.payment_date},{key:"payment_type",header:"Type",render:(r:any)=>r.payment_type},{key:"amount",header:"Amount",render:(r:any)=>Number(r.amount).toFixed(2)},{key:"status",header:"Status",render:(r:any)=><StatusBadge tone={tone(r.status)}>{r.status}</StatusBadge>},{key:"actions",header:"Actions",render:(r:any)=>r.status==="DRAFT"?<><button className="button" type="button" disabled={busy} onClick={()=>changeStatus(r.id,"confirm")}>Confirm</button><button className="button" type="button" disabled={busy} onClick={()=>changeStatus(r.id,"cancel")}>Cancel</button></>:null}
+  ]:[
+    {key:"expense_number",header:"Expense",render:(r:any)=>r.expense_number||"—"},{key:"expense_date",header:"Date",render:(r:any)=>r.expense_date},{key:"amount",header:"Amount",render:(r:any)=>Number(r.amount).toFixed(2)},{key:"status",header:"Status",render:(r:any)=><StatusBadge tone={tone(r.status)}>{r.status}</StatusBadge>},{key:"description",header:"Description",render:(r:any)=>r.description||"—"},{key:"actions",header:"Actions",render:(r:any)=>r.status==="DRAFT"?<><button className="button" type="button" disabled={busy} onClick={()=>changeStatus(r.id,"confirm")}>Confirm</button><button className="button" type="button" disabled={busy} onClick={()=>changeStatus(r.id,"cancel")}>Cancel</button></>:null}
+  ];
+  return <div className="page"><PageHeader eyebrow="Accounting / Transactions" title={title} description="Database-backed transaction workflow."/>
+    <PageSection title={mode==="journal"?"New journal entry":"New transaction"}>
+      <form className="ui-form-grid" onSubmit={save}>
+        {mode==="journal"?<>
+          <FormField label="Accounting period" htmlFor="period" required><Select id="period" value={form.periodId} onChange={e=>set("periodId",e.target.value)}><option value="">Select period</option>{periods.map((p:any)=><option key={p.id} value={p.id}>{p.name} · {p.status}</option>)}</Select></FormField>
+          <FormField label="Entry date" htmlFor="date" required><input id="date" className="ui-input" type="date" value={form.date} onChange={e=>set("date",e.target.value)}/></FormField>
+          <FormField label="Entry type" htmlFor="type" required><Select id="type" value={form.type} onChange={e=>set("type",e.target.value)}>{["PURCHASE","SALES","PURCHASE_RETURN","SALES_RETURN","EXPENSE","PAYMENT","OPENING","ADJUSTMENT","OTHER"].map(x=><option key={x}>{x}</option>)}</Select></FormField>
+          <FormField label="Description" htmlFor="description"><input id="description" className="ui-input" value={form.description} onChange={e=>set("description",e.target.value)}/></FormField>
+          <div className="ui-form-full"><strong>Journal lines</strong>{form.lines.map((line:any,i:number)=><div className="ui-form-grid" key={i}><FormField label="Account" htmlFor={"account-"+i} required><Select id={"account-"+i} value={line.accountId} onChange={e=>set("lines",form.lines.map((x:any,j:number)=>j===i?{...x,accountId:e.target.value}:x))}><option value="">Select account</option>{accounts.filter((a:any)=>a.is_active&&a.is_postable).map((a:any)=><option key={a.id} value={a.id}>{a.account_code+" — "+a.account_name}</option>)}</Select></FormField><FormField label="Debit" htmlFor={"debit-"+i}><input id={"debit-"+i} className="ui-input" type="number" step="0.01" value={line.debit} onChange={e=>set("lines",form.lines.map((x:any,j:number)=>j===i?{...x,debit:e.target.value}:x))}/></FormField><FormField label="Credit" htmlFor={"credit-"+i}><input id={"credit-"+i} className="ui-input" type="number" step="0.01" value={line.credit} onChange={e=>set("lines",form.lines.map((x:any,j:number)=>j===i?{...x,credit:e.target.value}:x))}/></FormField></div>)}<button type="button" className="button" onClick={()=>set("lines",[...form.lines,{accountId:"",debit:"",credit:""}])}>Add line</button></div>
+        </>:mode==="payments"?<>
+          <FormField label="Payment type" htmlFor="type" required><Select id="type" value={form.type} onChange={e=>set("type",e.target.value)}><option>RECEIPT</option><option>PAYMENT</option></Select></FormField>
+          <FormField label="Date" htmlFor="date" required><input id="date" className="ui-input" type="date" value={form.date} onChange={e=>set("date",e.target.value)}/></FormField>
+          <FormField label="Contact" htmlFor="contact"><Select id="contact" value={form.contactId} onChange={e=>set("contactId",e.target.value)}><option value="">No contact</option>{contacts.filter((c:any)=>c.is_active).map((c:any)=><option key={c.id} value={c.id}>{c.name}</option>)}</Select></FormField>
+          <FormField label="Amount" htmlFor="amount" required><input id="amount" className="ui-input" type="number" min="0.01" step="0.01" value={form.amount} onChange={e=>set("amount",e.target.value)}/></FormField>
+          <FormField label="Account" htmlFor="account" required><Select id="account" value={form.accountId} onChange={e=>set("accountId",e.target.value)}><option value="">Select account</option>{accounts.filter((a:any)=>a.is_active).map((a:any)=><option key={a.id} value={a.id}>{a.account_code+" — "+a.account_name}</option>)}</Select></FormField>
+          <FormField label="Settlement account" htmlFor="settlement" required><Select id="settlement" value={form.settlementAccountId} onChange={e=>set("settlementAccountId",e.target.value)}><option value="">Select account</option>{accounts.filter((a:any)=>a.is_active).map((a:any)=><option key={a.id} value={a.id}>{a.account_code+" — "+a.account_name}</option>)}</Select></FormField>
+          <FormField label="Description" htmlFor="description"><input id="description" className="ui-input" value={form.description} onChange={e=>set("description",e.target.value)}/></FormField>
+        </>:<>
+          <FormField label="Expense date" htmlFor="date" required><input id="date" className="ui-input" type="date" value={form.date} onChange={e=>set("date",e.target.value)}/></FormField>
+          <FormField label="Expense category" htmlFor="category" required><Select id="category" value={form.categoryId} onChange={e=>set("categoryId",e.target.value)}><option value="">Select category</option>{categories.filter((c:any)=>c.is_active).map((c:any)=><option key={c.id} value={c.id}>{c.category_code+" — "+c.name}</option>)}</Select></FormField>
+          <FormField label="Contact" htmlFor="contact"><Select id="contact" value={form.contactId} onChange={e=>set("contactId",e.target.value)}><option value="">No contact</option>{contacts.filter((c:any)=>c.is_active).map((c:any)=><option key={c.id} value={c.id}>{c.name}</option>)}</Select></FormField>
+          <FormField label="Payable account" htmlFor="payable" required><Select id="payable" value={form.payableAccountId} onChange={e=>set("payableAccountId",e.target.value)}><option value="">Select account</option>{accounts.filter((a:any)=>a.is_active).map((a:any)=><option key={a.id} value={a.id}>{a.account_code+" — "+a.account_name}</option>)}</Select></FormField>
+          <FormField label="Amount" htmlFor="amount" required><input id="amount" className="ui-input" type="number" min="0.01" step="0.01" value={form.amount} onChange={e=>set("amount",e.target.value)}/></FormField>
+          <FormField label="Description" htmlFor="description"><input id="description" className="ui-input" value={form.description} onChange={e=>set("description",e.target.value)}/></FormField>
+        </>}
+        {error?<p className="ui-field-error" role="alert">{error}</p>:null}<FormActions><button className="button primary" disabled={busy} type="submit">Create draft</button></FormActions>
+      </form>
+    </PageSection>
+    <PageSection title={title}><DataTable rows={rows} columns={columns} empty={"No "+title.toLowerCase()+" found."}/></PageSection>
+  </div>;
+}
