@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import Link from"next/link";import{useMemo,useState}from"react";import{DataTable,PageHeader,PageSection,SearchInput,StatusBadge}from"@/components/ui";
 const money=(n:number)=>n.toLocaleString("en-BD",{minimumFractionDigits:2,maximumFractionDigits:2});

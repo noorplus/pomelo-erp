@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import Link from "next/link";import{useMemo,useState}from"react";import{useRouter,useSearchParams}from"next/navigation";import{CheckCircle2,FilePlus2,Plus,RotateCcw,Trash2,XCircle}from"lucide-react";import{DataTable,FormActions,FormField,PageHeader,PageSection,SearchInput,Select,StatusBadge}from "@/components/ui";import{createClient}from"@/lib/supabase/client";import{cancelPurchase,confirmPurchase,createPurchase,createPurchaseReturn,cancelPurchaseReturn,confirmPurchaseReturn}from"@/lib/purchase/actions";import{getErrorMessage}from"@/lib/app/errors";
 const money=(n:number)=>new Intl.NumberFormat("en-BD",{style:"currency",currency:"BDT",maximumFractionDigits:2}).format(n);
