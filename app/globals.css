@@ -339,3 +339,14 @@ h1 { margin: 0; font-size: clamp(1.4rem, 3vw, 1.9rem); line-height: 1.15; letter
     width: 100%;
   }
 }
+
+
+.navigation-group { margin-top: 3px; }
+.navigation-group-toggle { width: 100%; font: inherit; text-align: left; cursor: pointer; }
+.navigation-group-toggle.navigation-link-active { border-color: #c7d7fe; }
+.navigation-chevron { margin-left: auto; transition: transform 140ms ease; }
+.navigation-chevron-open { transform: rotate(180deg); }
+.navigation-submenu { margin: 1px 0 5px 28px; padding-left: 8px; border-left: 1px solid var(--border); }
+.navigation-sublink { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 8px; border-radius: 6px; color: var(--muted); font-size: 0.8125rem; font-weight: 600; }
+.navigation-sublink:hover { background: var(--surface-subtle); color: var(--foreground); }
+.navigation-sublink-active { background: var(--primary-soft); color: #0849b8; }
