@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { DataTable, PageHeader, PageSection, Select, StatusBadge } from "@/components/ui";
 
 export function AccountLedger({ accounts, account, rows }: { accounts: any[]; account: any; rows: any[] }) {
@@ -16,7 +15,7 @@ export function AccountLedger({ accounts, account, rows }: { accounts: any[]; ac
     <PageSection title={account ? account.account_name : "Ledger"}>
       <DataTable rows={rows} columns={[
         { key: "date", header: "Date", render: (r) => r.journal_entries?.entry_date ?? "—" },
-        { key: "entry", header: "Entry", render: (r) => r.journal_entries?.entry_number ? <Link href={"/accounting/transactions/journal-entries?entry=" + r.journal_entry_id}>{r.journal_entries.entry_number}</Link> : "—" },
+        { key: "entry", header: "Entry", render: (r) => r.journal_entries?.entry_number ?? "—" },
         { key: "type", header: "Type", render: (r) => r.journal_entries?.entry_type ?? "—" },
         { key: "line_number", header: "Line", render: (r) => r.line_number },
         { key: "description", header: "Description", render: (r) => r.description || "—" },
