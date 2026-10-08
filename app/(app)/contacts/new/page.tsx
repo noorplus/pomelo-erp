@@ -13,21 +13,17 @@ export default async function NewContactPage({ searchParams }: Props) {
   if (!context.activeOrganization) return null;
 
   const params = await searchParams;
-  const contact = params.id
-    ? await getContact(
-        await createClient(),
-        context.activeOrganization.id,
-        params.id,
-      )
+  const result = params.id
+    ? await getContact(await createClient(), context.activeOrganization.id, params.id)
     : null;
 
-  if (params.id && !contact) notFound();
+  if (params.id && !result?.contact) notFound();
 
   return (
     <ContactForm
       organizationId={context.activeOrganization.id}
       userId={context.user.id}
-      contact={contact}
+      contact={result?.contact ?? null}
     />
   );
 }
