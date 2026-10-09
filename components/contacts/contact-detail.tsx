@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowLeft, Pencil } from "lucide-react";
 import { DataTable, PageHeader, PageSection, StatusBadge } from "@/components/ui";
