@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import {
   BookOpen, Boxes, CalendarDays, ChevronDown, ChevronLeft, ChevronRight,
   Contact, FileText, LayoutDashboard, Package, Receipt, Settings, ShoppingCart, Wallet, X,
@@ -97,12 +97,19 @@ const storageServerSnapshot = () => false;
 export function Navigation({ mobileOpen, onMobileClose }: { mobileOpen: boolean; onMobileClose: () => void }) {
   const pathname = usePathname();
   const activeModule = modules.flatMap((section) => section.modules).find((item) => moduleIsActive(pathname, item));
-  const [expandedModule, setExpandedModule] = useState(activeModule?.id ?? "");
+  const [expansion, setExpansion] = useState({ pathname, moduleId: activeModule?.id ?? "" });
+  const expandedModule = expansion.pathname === pathname
+    ? expansion.moduleId
+    : activeModule?.id ?? expansion.moduleId;
+  const setExpandedModule = (value: string | ((current: string) => string)) => {
+    setExpansion((current) => {
+      const currentModule = current.pathname === pathname
+        ? current.moduleId
+        : activeModule?.id ?? current.moduleId;
+      return { pathname, moduleId: typeof value === "function" ? value(currentModule) : value };
+    });
+  };
   const collapsed = useSyncExternalStore(storageSubscribe, storageSnapshot, storageServerSnapshot);
-
-  useEffect(() => {
-    if (activeModule) setExpandedModule(activeModule.id);
-  }, [activeModule?.id, pathname]);
 
   const setCollapsed = (value: boolean) => {
     try {
