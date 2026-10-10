@@ -11,7 +11,7 @@ Create one predictable information hierarchy across every route so users can sca
 - Build the presentation only from existing typed records and supported queries/actions.
 - Prefer shared components over page-specific markup and keep TypeScript strict.
 
-## Route inventory (43 page routes)
+## Route inventory (42 page routes)
 
 ### Dashboard
 - `/` (app dashboard)
@@ -28,9 +28,8 @@ Create one predictable information hierarchy across every route so users can sca
 - `/purchase`, `/purchase/invoices`, `/purchase/invoices/new`, `/purchase/invoices/[id]`
 - `/purchase/returns`, `/purchase/returns/new`, `/purchase/returns/[id]`
 
-### Inventory and master data
+### Inventory
 - `/inventory`, `/inventory/stock`, `/inventory/transactions`, `/inventory/products/[id]`
-- `/master-data`
 
 ### Accounting
 - `/accounting`, `/accounting/accounts`, `/accounting/ledger`, `/accounting/opening-balance`, `/accounting/periods`, `/accounting/receivables-payables`
@@ -58,6 +57,7 @@ Create one predictable information hierarchy across every route so users can sca
 - Standardized the shared section surface, spacing, headings, summary tiles, table typography, and mobile stacking so routes using the shared primitives have a more consistent information hierarchy.
 - Converted the product catalogue to the shared section/search pattern and made the visible result count explicit.
 - Removed the hard-coded “Configured” product unit cell because it did not display a real unit name or value. The frozen schema/query remains the source of truth; no placeholder is presented as data.
+- Removed the standalone Master Data page and navigation entry; moved unit creation/editing into Products and the read-only document-number sequence view into Administration. The old `/master-data` URL permanently redirects to `/products`.
 
 ## Follow-up review checklist
 

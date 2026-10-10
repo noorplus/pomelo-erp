@@ -10,7 +10,7 @@ export async function listProducts(s: TypedSupabaseClient, org: string) {
 export async function listProductUnits(s: TypedSupabaseClient, org: string) {
   const { data, error } = await s
     .from("units_of_measure")
-    .select("id,name")
+    .select("id,name,is_active")
     .eq("organization_id", org)
     .order("name");
   if (error) throwSupabaseError(error, "DATABASE_ERROR", "Unable to load product units.");

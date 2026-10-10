@@ -2,22 +2,26 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, Check, Pencil, Plus, Users, X } from "lucide-react";
+import { Building2, Check, FileText, Pencil, Plus, Users, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { addOrganizationUserByEmail, removeOrganizationUser, updateOrganization } from "@/lib/organizations/actions";
 import { DataTable, FormField, FormActions, StatusBadge } from "@/components/ui";
 import { getErrorMessage } from "@/lib/app/errors";
 import { formatDate } from "@/lib/formatters";
 import type { Organization, OrganizationMembership } from "@/lib/app/types";
+import type { Tables } from "@/lib/supabase/database";
+
+type NumberSequence = Tables<"number_sequences">;
 
 type Props = {
   organization: Organization;
   memberships: OrganizationMembership[];
   userId: string;
   creator: boolean;
+  numberSequences: NumberSequence[];
 };
 
-export function Administration({ organization, memberships, userId, creator }: Props) {
+export function Administration({ organization, memberships, userId, creator, numberSequences }: Props) {
   const router = useRouter();
   const [editingOrganization, setEditingOrganization] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -162,6 +166,21 @@ export function Administration({ organization, memberships, userId, creator }: P
         </form>
         <DataTable rows={memberships} columns={membershipColumns} empty="No organization users found." />
         <p className="ui-field-hint administration-note">User names, roles, and permissions are not shown because those capabilities are not stored in the frozen application database.</p>
+      </section>
+
+      <section className="administration-panel">
+        <div className="administration-panel-header">
+          <div className="administration-panel-title"><span className="administration-icon"><FileText size={18} /></span><div><h2>Document numbering</h2><p>System-managed numbering sequences. Values are read-only.</p></div></div>
+          <StatusBadge tone="info">System-managed</StatusBadge>
+        </div>
+        <DataTable rows={numberSequences} columns={[
+          { key: "document_type", header: "Document", render: (row: NumberSequence) => row.document_type },
+          { key: "prefix", header: "Prefix", render: (row: NumberSequence) => row.prefix },
+          { key: "next_number", header: "Next number", render: (row: NumberSequence) => row.next_number.toString() },
+          { key: "padding", header: "Padding", render: (row: NumberSequence) => row.padding.toString() },
+          { key: "preview", header: "Next generated", render: (row: NumberSequence) => row.prefix + String(row.next_number).padStart(row.padding, "0") },
+          { key: "status", header: "Status", render: (row: NumberSequence) => <StatusBadge tone={row.is_active ? "success" : "neutral"}>{row.is_active ? "Active" : "Inactive"}</StatusBadge> },
+        ]} empty="No number sequences found." />
       </section>
 
       {(message || error) ? <p className={error ? "ui-field-error administration-message" : "ui-field-hint administration-message"} role={error ? "alert" : "status"}>{error || message}</p> : null}
