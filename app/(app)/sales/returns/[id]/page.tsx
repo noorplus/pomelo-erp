@@ -13,5 +13,5 @@ export default async function SalesReturnDetailPage({ params }: { params: Promis
   } catch {
     notFound();
   }
-  return <ReturnDetail item={item} />;
+  return <ReturnDetail item={item} organizationName={context.activeOrganization.name} />;
 }

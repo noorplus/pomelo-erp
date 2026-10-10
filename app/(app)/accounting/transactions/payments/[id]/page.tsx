@@ -15,7 +15,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     listPaymentAllocationDocuments(s, c.activeOrganization.id, payment.contact_id),
     s.from("contacts").select("id,name").eq("organization_id", c.activeOrganization.id).eq("id", payment.contact_id ?? "00000000-0000-0000-0000-000000000000").maybeSingle(),
   ]);
-  return <PaymentDetail
+  return <PaymentDetail organizationName={c.activeOrganization.name}
     organizationId={c.activeOrganization.id}
     payment={payment}
     allocations={allocations}

@@ -3,13 +3,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
 import { DataTable, PageHeader, PageSection, StatusBadge } from "@/components/ui";
+import { PrintDocument } from "@/components/printing/print-document";
 
-export function JournalEntryDetail({ entry, lines, source }: { entry: any; lines: any[]; source: { label: string; href: string } | null }) {
+export function JournalEntryDetail({ entry, lines, source, organizationName = "Pomelo ERP" }: { entry: any; lines: any[]; source: { label: string; href: string } | null; organizationName?: string }) {
   const tone = entry.status === "CONFIRMED" ? "success" : entry.status === "CANCELLED" ? "danger" : "neutral";
   const debit = lines.reduce((s, l) => s + Number(l.debit ?? 0), 0);
   const credit = lines.reduce((s, l) => s + Number(l.credit ?? 0), 0);
   return <div className="page">
-    <PageHeader eyebrow="Accounting / Transactions" title={entry.entry_number ?? "Draft journal"} description={entry.description ?? "Journal entry detail."} actions={<Link className="button" href="/accounting/transactions/journal-entries">Back to journal entries</Link>} />
+    <PageHeader eyebrow="Accounting / Transactions" title={entry.entry_number ?? "Draft journal"} description={entry.description ?? "Journal entry detail."} actions={<><PrintDocument organizationName={organizationName} title="Journal Entry" documentNumber={entry.entry_number ?? "Draft"} issueDate={entry.entry_date} status={entry.status} partyLabel="Reference" partyName={source?.label ?? entry.reference_type ?? "Journal entry"} summary={[{label:"Debit",value:debit.toFixed(2)},{label:"Credit",value:credit.toFixed(2)},{label:"Difference",value:(debit-credit).toFixed(2)}]} columns={[{key:"line",label:"Line",align:"center"},{key:"account",label:"Account"},{key:"description",label:"Description"},{key:"debit",label:"Debit",align:"right"},{key:"credit",label:"Credit",align:"right"}]} rows={lines.map((line) => ({id:line.id,line:String(line.line_number),account:line.accounts ? line.accounts.account_code + " — " + line.accounts.account_name : line.account_id,description:line.description || "—",debit:Number(line.debit).toFixed(2),credit:Number(line.credit).toFixed(2)}))} note={entry.description ?? undefined} /><Link className="button" href="/accounting/transactions/journal-entries">Back to journal entries</Link></>} />
     <PageSection title="Journal header">
       <div className="ui-detail-grid">
         <div><span>Entry number</span><strong>{entry.entry_number ?? "Draft"}</strong></div>
