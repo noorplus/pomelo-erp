@@ -50,6 +50,9 @@ export function PrintDocument({
 }) {
   const [printedAt, setPrintedAt] = useState<Date | null>(null);
   const portalTarget = typeof document === "undefined" ? null : document.getElementById("print-portal-root");
+  const documentDate = issueDate
+    ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(`${issueDate.slice(0, 10)}T12:00:00`))
+    : "—";
   const printDateTime = printedAt
     ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(printedAt)
     : "—";
@@ -86,7 +89,7 @@ export function PrintDocument({
             ))}
           </div>
           <div className="print-document-dates">
-            <div><span>Document date</span><strong>{issueDate || "—"}</strong></div>
+            <div><span>Document date</span><strong>{documentDate}</strong></div>
             <div><span>Printed on</span><strong>{printDateTime}</strong></div>
           </div>
         </section>
