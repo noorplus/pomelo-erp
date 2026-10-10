@@ -495,3 +495,49 @@ h1 { margin: 0; font-size: clamp(1.4rem, 3vw, 1.9rem); line-height: 1.15; letter
   .print-document-footer span { max-width: 48%; }
   a { color: #111 !important; text-decoration: none !important; }
 }
+
+
+/* Consistent information hierarchy across ERP routes */
+.page { display: flex; flex-direction: column; gap: 0; }
+.ui-page-header { align-items: center; padding: 2px 0 16px; margin-bottom: 2px; border-bottom: 1px solid var(--border); }
+.ui-page-header-copy { display: grid; gap: 4px; }
+.ui-page-header-copy .eyebrow { margin-bottom: 0; }
+.ui-page-header-copy .lede { max-width: 760px; }
+.ui-page-header-actions { justify-content: flex-end; flex-shrink: 0; }
+.ui-page-section { margin-top: 16px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); box-shadow: 0 1px 2px rgba(16, 24, 40, .035); }
+.ui-section-header { align-items: center; gap: 14px; margin-bottom: 12px; }
+.ui-section-header > div:first-child { min-width: 0; }
+.ui-section-header h2 { font-size: .98rem; font-weight: 750; letter-spacing: -.01em; }
+.ui-section-header p { max-width: 760px; }
+.ui-section-actions { justify-content: flex-end; }
+.ui-detail-grid { gap: 12px; }
+.ui-detail-grid > div { min-width: 0; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.ui-detail-grid span { line-height: 1.4; }
+.ui-detail-grid strong { overflow-wrap: anywhere; font-size: clamp(1.05rem, 1.6vw, 1.35rem); line-height: 1.25; font-weight: 750; font-variant-numeric: tabular-nums; }
+.ui-table { font-variant-numeric: tabular-nums; }
+.ui-table th { position: sticky; top: 0; z-index: 1; }
+.ui-table td { line-height: 1.45; }
+.ui-table td a:not(.button) { color: var(--primary); font-weight: 650; text-decoration: none; }
+.ui-table td a:not(.button):hover { text-decoration: underline; text-underline-offset: 2px; }
+.ui-data-table-toolbar { align-items: center; flex-wrap: wrap; }
+.ui-data-table-toolbar-main { flex: 1 1 240px; }
+.ui-table-wrap:focus-within { outline: 2px solid var(--primary-soft); outline-offset: 1px; }
+.dashboard-main-grid .ui-page-section { padding: 14px; }
+.dashboard-main-grid .dashboard-panel { padding: 0; border: 0; background: transparent; }
+@media (max-width: 767px) {
+  .ui-page-header { align-items: stretch; flex-direction: column; gap: 12px; padding-bottom: 13px; }
+  .ui-page-header-actions { justify-content: flex-start; width: 100%; }
+  .ui-page-header-actions > .button { flex: 1 1 auto; }
+  .ui-page-section { margin-top: 12px; padding: 12px; border-radius: 10px; }
+  .ui-section-header { align-items: stretch; flex-direction: column; gap: 9px; }
+  .ui-section-actions { justify-content: flex-start; width: 100%; }
+  .ui-section-actions > * { max-width: 100%; }
+  .ui-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .ui-detail-grid > div { padding: 10px; }
+  .ui-detail-grid strong { font-size: 1.05rem; }
+  .ui-data-table-toolbar-main { flex-basis: 100%; }
+}
+@media (max-width: 420px) {
+  .ui-detail-grid { grid-template-columns: minmax(0, 1fr); }
+  .ui-page-header-actions > .button { flex-basis: 100%; }
+}

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Plus } from "lucide-react";
-import { DataTable, PageHeader, SearchInput, StatusBadge } from "@/components/ui";
+import { DataTable, PageHeader, PageSection, SearchInput, StatusBadge } from "@/components/ui";
 import type { Tables } from "@/lib/supabase/database";
 
 type Product = Tables<"products">;
@@ -13,21 +13,64 @@ export function Products({ rows }: { rows: Product[] }) {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return rows;
-    return rows.filter((p) => [p.product_code ?? "", p.name].some((v) => v.toLowerCase().includes(q)));
+    return rows.filter((product) =>
+      [product.product_code ?? "", product.name].some((value) => value.toLowerCase().includes(q)),
+    );
   }, [rows, query]);
 
   return (
     <div className="page">
-      <PageHeader eyebrow="Products" title="Products" description="Manage products and their accounting configuration." actions={<Link className="button primary" href="/products/new"><Plus size={16} /> New product</Link>} />
-      <div className="content-card">
-        <div className="ui-table-toolbar"><div className="ui-table-toolbar-main"><SearchInput value={query} onChange={setQuery} placeholder="Search by code or name" /></div></div>
-        <DataTable rows={filtered} columns={[
-          { key: "code", header: "Code", render: (p) => <Link href={`/products/${p.id}`}><code>{p.product_code ?? "—"}</code></Link> },
-          { key: "name", header: "Name", render: (p) => <Link href={`/products/${p.id}`}>{p.name}</Link> },
-          { key: "unit", header: "Unit", render: () => "Configured" },
-          { key: "status", header: "Status", render: (p) => <StatusBadge tone={p.is_active ? "success" : "neutral"}>{p.is_active ? "Active" : "Inactive"}</StatusBadge> },
-        ]} empty="No products found." />
-      </div>
+      <PageHeader
+        eyebrow="Products"
+        title="Products"
+        description="Manage products and their accounting configuration."
+        actions={
+          <Link className="button primary" href="/products/new">
+            <Plus size={16} aria-hidden="true" /> New product
+          </Link>
+        }
+      />
+      <PageSection
+        title="Product catalogue"
+        description={`${filtered.length} of ${rows.length} product${rows.length === 1 ? "" : "s"}`}
+        actions={
+          <SearchInput
+            value={query}
+            onChange={setQuery}
+            placeholder="Search by code or name"
+          />
+        }
+      >
+        <DataTable
+          rows={filtered}
+          columns={[
+            {
+              key: "code",
+              header: "Code",
+              render: (product) => (
+                <Link href={`/products/${product.id}`}>
+                  <code>{product.product_code ?? "—"}</code>
+                </Link>
+              ),
+            },
+            {
+              key: "name",
+              header: "Product name",
+              render: (product) => <Link href={`/products/${product.id}`}>{product.name}</Link>,
+            },
+            {
+              key: "status",
+              header: "Status",
+              render: (product) => (
+                <StatusBadge tone={product.is_active ? "success" : "neutral"}>
+                  {product.is_active ? "Active" : "Inactive"}
+                </StatusBadge>
+              ),
+            },
+          ]}
+          empty="No products match your search."
+        />
+      </PageSection>
     </div>
   );
 }
