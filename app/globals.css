@@ -460,48 +460,63 @@ h1 { margin: 0; font-size: clamp(1.4rem, 3vw, 1.9rem); line-height: 1.15; letter
 /* Shared ERP document printing */
 .print-trigger { display: inline-flex; align-items: center; gap: 7px; }
 .print-document-root { display: none; }
-@page { size: A4 portrait; margin: 12mm; }
+@page { size: A4 portrait; margin: 13mm 13mm 15mm; }
 @media print {
   html, body { width: auto !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; background: #fff !important; color: #111 !important; overflow: visible !important; }
   body > * { display: none !important; }
   body > #print-portal-root { display: block !important; }
   #print-portal-root, #print-portal-root * { visibility: visible !important; }
   #print-portal-root .print-document-root { display: block !important; position: static !important; width: 100% !important; margin: 0 !important; padding: 0 !important; background: #fff !important; color: #111 !important; }
-  .print-document { width: 100%; color: #111; background: #fff; font-family: Arial, Helvetica, sans-serif; font-size: 10pt; line-height: 1.45; }
-  .print-document-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; padding-bottom: 16px; border-bottom: 2px solid #1f2937; }
-  .print-document-brand { margin: 0; font-size: 18pt; font-weight: 800; letter-spacing: -.03em; }
-  .print-document-caption { margin: 3px 0 0; color: #555; font-size: 8pt; }
-  .print-document-title { text-align: right; }
-  .print-document-title h1 { margin: 0 0 3px; font-size: 18pt; line-height: 1.15; }
-  .print-document-title p { margin: 0 0 4px; font-weight: 700; }
-  .print-document-status { display: inline-block; padding: 2px 7px; border: 1px solid #888; border-radius: 3px; font-size: 7pt; font-weight: 700; letter-spacing: .04em; }
-  .print-document-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 18px 0; }
-  .print-document-meta > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-  .print-document-dates { gap: 12px !important; }
-  .print-document-party p { margin: 2px 0 0; overflow-wrap: anywhere; font-size: 9pt; }
+  .print-document { width: 100%; color: #111; background: #fff; font-family: Arial, Helvetica, sans-serif; font-size: 9.5pt; line-height: 1.4; }
+  .print-document-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 22px; padding: 0 0 13px; border-bottom: 2px solid #111827; }
+  .print-document-issuer { min-width: 0; max-width: 55%; }
+  .print-document-brand { margin: 0; font-size: 19pt; line-height: 1.15; font-weight: 800; letter-spacing: -.035em; overflow-wrap: anywhere; }
+  .print-document-caption { margin: 5px 0 0; color: #555; font-size: 8pt; }
+  .print-document-title { min-width: 0; max-width: 48%; text-align: right; }
+  .print-document-kind { margin: 0 0 3px; color: #555; font-size: 7pt; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+  .print-document-title h1 { margin: 0 0 4px; font-size: 17pt; line-height: 1.15; letter-spacing: -.02em; overflow-wrap: anywhere; }
+  .print-document-title .print-document-number { margin: 0 0 6px; font-size: 10pt; font-weight: 700; overflow-wrap: anywhere; }
+  .print-document-status { display: inline-block; padding: 3px 8px; border: 1px solid #737373; border-radius: 3px; color: #333; font-size: 7pt; font-weight: 700; letter-spacing: .045em; text-transform: uppercase; }
+  .print-status-confirmed { border-color: #166534; color: #166534; }
+  .print-status-cancelled { border-color: #991b1b; color: #991b1b; }
+  .print-status-draft { border-color: #92400e; color: #92400e; }
+  .print-document-meta { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(180px, .7fr); gap: 20px; margin: 16px 0 20px; align-items: start; }
+  .print-document-meta > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .print-document-party { padding: 10px 12px; border: 1px solid #d1d5db; border-left: 3px solid #374151; background: #fafafa; }
+  .print-document-section-label { color: #555; font-size: 7pt; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+  .print-document-party .print-document-party-name { margin: 0 0 2px; font-size: 11pt; line-height: 1.25; overflow-wrap: anywhere; }
+  .print-document-party p { margin: 1px 0 0; overflow-wrap: anywhere; font-size: 8.5pt; }
   .print-document-party b { font-weight: 700; }
   .print-document-address { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .print-document-dates { gap: 0 !important; padding: 7px 0; }
+  .print-document-dates > div { display: grid; grid-template-columns: minmax(78px, .8fr) minmax(0, 1.2fr); gap: 8px; padding: 8px 0; border-bottom: 1px solid #e5e7eb; }
+  .print-document-dates > div:first-child { padding-top: 3px; }
+  .print-document-dates > div:last-child { border-bottom: 0; }
   .print-document-meta span, .print-document-summary span { color: #555; font-size: 8pt; }
-  .print-document-meta strong { overflow-wrap: anywhere; font-size: 10pt; }
-  .print-document-table { width: 100%; border-collapse: collapse; table-layout: auto; }
+  .print-document-meta strong { overflow-wrap: anywhere; font-size: 9pt; }
+  .print-document-table { width: 100%; border-collapse: collapse; table-layout: auto; font-size: 8.5pt; }
   .print-document-table thead { display: table-header-group; }
+  .print-document-table tfoot { display: table-row-group; }
   .print-document-table tr { break-inside: avoid; page-break-inside: avoid; }
-  .print-document-table th { padding: 8px 6px; border-top: 1px solid #444; border-bottom: 1px solid #444; background: #f2f4f7 !important; color: #111; text-align: left; font-size: 8pt; font-weight: 700; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-  .print-document-table td { padding: 7px 6px; border-bottom: 1px solid #d0d5dd; vertical-align: top; overflow-wrap: anywhere; }
-  .print-align-right { text-align: right !important; }
+  .print-document-table th { padding: 8px 6px; border-top: 1px solid #374151; border-bottom: 1px solid #374151; background: #f3f4f6 !important; color: #111; text-align: left; font-size: 7.5pt; font-weight: 750; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .print-document-table td { padding: 7px 6px; border-bottom: 1px solid #e5e7eb; vertical-align: top; overflow-wrap: anywhere; }
+  .print-document-table th:first-child, .print-document-table td:first-child { padding-left: 4px; }
+  .print-document-table th:last-child, .print-document-table td:last-child { padding-right: 4px; }
+  .print-align-right { text-align: right !important; white-space: nowrap; }
   .print-align-center { text-align: center !important; }
   .print-empty { padding: 16px 6px !important; text-align: center; color: #555; }
-  .print-document-summary { display: grid; justify-content: end; min-width: 220px; max-width: 340px; margin: 16px 0 0 auto; }
-  .print-document-summary > div { display: flex; justify-content: space-between; gap: 18px; padding: 5px 0; border-bottom: 1px solid #e5e7eb; }
-  .print-document-summary > div:last-child { padding-top: 8px; border-bottom: 2px solid #111; font-size: 11pt; }
-  .print-document-summary strong { text-align: right; font-variant-numeric: tabular-nums; }
-  .print-document-note { margin: 18px 0 0; color: #444; font-size: 8pt; }
-  .print-document-footer { display: flex; justify-content: space-between; gap: 20px; margin-top: 38px; padding-top: 10px; border-top: 1px solid #d0d5dd; color: #555; font-size: 8pt; }
-  .print-document-footer span { max-width: 48%; }
+  .print-document-summary { display: grid; width: min(100%, 320px); margin: 14px 0 0 auto; break-inside: avoid; page-break-inside: avoid; }
+  .print-document-summary > div { display: flex; justify-content: space-between; align-items: baseline; gap: 18px; padding: 6px 2px; border-bottom: 1px solid #e5e7eb; }
+  .print-document-summary > div.print-document-summary-total { margin-top: 2px; padding: 9px 2px 7px; border-bottom: 2px solid #111; font-size: 11pt; font-weight: 750; }
+  .print-document-summary strong { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .print-document-note { margin: 14px 0 0; color: #444; font-size: 8pt; overflow-wrap: anywhere; }
+  .print-document-footer { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; margin-top: 30px; padding-top: 9px; border-top: 1px solid #d1d5db; color: #555; font-size: 7.5pt; break-inside: avoid; page-break-inside: avoid; }
+  .print-document-footer > span { max-width: 48%; }
+  .print-document-signature { display: flex; flex-direction: column; align-items: flex-start; gap: 7px; color: #333; }
+  .print-document-signature i { display: block; width: 180px; max-width: 100%; border-bottom: 1px solid #6b7280; }
   a { color: #111 !important; text-decoration: none !important; }
 }
-
-
+  
 /* Consistent information hierarchy across ERP routes */
 .page { display: flex; flex-direction: column; gap: 0; }
 .ui-page-header { align-items: center; padding: 2px 0 16px; margin-bottom: 2px; border-bottom: 1px solid var(--border); }
