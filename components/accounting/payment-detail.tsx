@@ -5,13 +5,14 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { createPaymentAllocation, deletePaymentAllocation } from "@/lib/accounting/actions";
 import { DataTable, FormActions, FormField, PageHeader, PageSection, Select, StatusBadge } from "@/components/ui";
+import { PrintDocument } from "@/components/printing/print-document";
 
 type Payment = { id: string; payment_number: string | null; payment_type: string; contact_id: string | null; payment_date: string; amount: number; status: string; description: string | null };
 type Allocation = { id: string; document_type: string; document_id: string; allocated_amount: number };
 type Doc = { id: string; label: string; date: string; amount: number };
 
-export function PaymentDetail({ organizationId, payment, allocations, documents, contactName }: {
-  organizationId: string; payment: Payment; allocations: Allocation[]; documents: { sales: Doc[]; purchases: Doc[]; expenses: Doc[] }; contactName: string;
+export function PaymentDetail({ organizationId, payment, allocations, documents, contactName, organizationName = "Pomelo ERP" }: {
+  organizationId: string; payment: Payment; allocations: Allocation[]; documents: { sales: Doc[]; purchases: Doc[]; expenses: Doc[] }; contactName: string; organizationName?: string;
 }) {
   const router = useRouter();
   const [type, setType] = useState(payment.payment_type === "RECEIPT" ? "SALES" : "PURCHASE");
@@ -54,7 +55,7 @@ export function PaymentDetail({ organizationId, payment, allocations, documents,
   }
 
   return <div className="page">
-    <PageHeader eyebrow="Accounting / Payments" title={payment.payment_number ?? "Draft payment"} description="Review and manage payment allocations before confirmation." />
+    <PageHeader eyebrow="Accounting / Payments" title={payment.payment_number ?? "Draft payment"} description="Review and manage payment allocations before confirmation." actions={<PrintDocument organizationName={organizationName} title={payment.payment_type === "RECEIPT" ? "Payment Receipt" : "Payment Voucher"} documentNumber={payment.payment_number ?? "Draft"} issueDate={payment.payment_date} status={payment.status} partyLabel="Contact" partyName={contactName || "No contact"} summary={[{label:"Payment amount",value:Number(payment.amount).toFixed(2)},{label:"Allocated",value:allocated.toFixed(2)},{label:"Remaining",value:remaining.toFixed(2)}]} columns={[{key:"document",label:"Allocated document"},{key:"amount",label:"Allocated amount",align:"right"}]} rows={allocations.map((a) => ({id:a.id,document:documentLabel(a),amount:Number(a.allocated_amount).toFixed(2)}))} note={payment.description ?? undefined} />} />
     <PageSection title="Payment">
       <div className="ui-detail-grid">
         <div><span>Type</span><strong>{payment.payment_type}</strong></div>

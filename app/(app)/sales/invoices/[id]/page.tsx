@@ -4,7 +4,7 @@ import { getApplicationContext } from "@/lib/organizations/server";
 import { getSale } from "@/lib/sales/queries";
 import { SaleDetail } from "@/components/sales/sale-detail";
 
-export default async function SaleDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function SaleDetailPage({ params }: { params: PromiseS{ id: string }> }) {
   const context = await getApplicationContext();
   if (!context.activeOrganization) return null;
   let sale;
@@ -13,5 +13,5 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
   } catch {
     notFound();
   }
-  return <SaleDetail sale={sale} />;
+  return SSaleDetail sale={sale} />;
 }

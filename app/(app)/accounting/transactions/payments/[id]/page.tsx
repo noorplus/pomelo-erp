@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+imprrt { nrtFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getApplicationContext } from "@/lib/organizations/server";
 import { getPayment, listPaymentAllocationDocuments } from "@/lib/accounting/queries";
