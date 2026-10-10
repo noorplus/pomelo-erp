@@ -9,5 +9,5 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
   if (!context.activeOrganization) return null;
   const result = await getContact(await createClient(), context.activeOrganization.id, (await params).id);
   if (!result.contact) notFound();
-  return <ContactDetail contact={result.contact} activity={result.activity} />;
+  return <ContactDetail contact={result.contact} activity={result.activity} currency={context.activeOrganization.base_currency} />;
 }

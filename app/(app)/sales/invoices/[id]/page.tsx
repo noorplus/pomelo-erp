@@ -13,5 +13,5 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
   } catch {
     notFound();
   }
-  return <SaleDetail sale={sale} organizationName={context.activeOrganization.name} />;
+  return <SaleDetail sale={sale} organizationName={context.activeOrganization.name} currency={context.activeOrganization.base_currency} />;
 }

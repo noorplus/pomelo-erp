@@ -9,5 +9,5 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   if (!context.activeOrganization) return null;
   const details = await getProductDetails(await createClient(), context.activeOrganization.id, (await params).id);
   if (!details) notFound();
-  return <ProductDetail {...details} />;
+  return <ProductDetail {...details} currency={context.activeOrganization.base_currency} />;
 }

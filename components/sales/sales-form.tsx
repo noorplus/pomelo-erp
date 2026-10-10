@@ -7,13 +7,15 @@ import { createClient } from "@/lib/supabase/client";
 import { createSale } from "@/lib/sales/actions";
 import { FormActions, FormField, PageHeader, PageSection, Select } from "@/components/ui";
 import { getErrorMessage } from "@/lib/app/errors";
+import { formatCurrency } from "@/lib/formatters";
 
 type Product={id:string;product_code:string|null;name:string};
 type Option={id:string;name:string;contact_number:string|null};
 type Account={id:string;account_code:string;account_name:string};
 type Line={product_id:string;quantity:number;unit_price:number};
 
-export function SalesForm({org,userId,customers,accounts,products}:{org:string;userId:string;customers:Option[];accounts:Account[];products:Product[]}) {
+export function SalesForm({org,userId,customers,accounts,products,currency="BDT"}:{org:string;userId:string;customers:Option[];accounts:Account[];products:Product[];currency?:string}) {
+ const money=(value:number)=>formatCurrency(value,currency);
  const router=useRouter(); const today=new Date().toISOString().slice(0,10);
  const [customerId,setCustomerId]=useState(""); const [accountId,setAccountId]=useState(""); const [date,setDate]=useState(today); const [discount,setDiscount]=useState(0);
  const [lines,setLines]=useState<Line[]>([{product_id:"",quantity:1,unit_price:0}]); const [busy,setBusy]=useState(false); const [error,setError]=useState("");
@@ -24,10 +26,10 @@ export function SalesForm({org,userId,customers,accounts,products}:{org:string;u
  <FormField label="Customer" required><Select value={customerId} onChange={e=>setCustomerId(e.target.value)}><option value="">Select customer</option>{customers.map(c=><option key={c.id} value={c.id}>{c.contact_number?c.contact_number+" — ":""}{c.name}</option>)}</Select></FormField>
  <FormField label="Invoice date" required><input className="ui-input" type="date" value={date} onChange={e=>setDate(e.target.value)} required/></FormField>
  <FormField label="Receivable account" required><Select value={accountId} onChange={e=>setAccountId(e.target.value)}><option value="">Select asset account</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.account_code} — {a.account_name}</option>)}</Select></FormField>
- <div className="ui-table-wrap"><table className="ui-table"><thead><tr><th>Product</th><th>Qty</th><th>Unit price</th><th>Total</th><th></th></tr></thead><tbody>{lines.map((l,i)=><tr key={i}><td><Select value={l.product_id} onChange={e=>update(i,"product_id",e.target.value)}><option value="">Select product</option>{products.map(p=><option key={p.id} value={p.id}>{p.product_code? p.product_code+" — ":""}{p.name}</option>)}</Select></td><td><input className="ui-input" type="number" min="0.0001" step="0.0001" value={l.quantity} onChange={e=>update(i,"quantity",e.target.value)}/></td><td><input className="ui-input" type="number" min="0" step="0.0001" value={l.unit_price} onChange={e=>update(i,"unit_price",e.target.value)}/></td><td>{(l.quantity*l.unit_price).toFixed(2)}</td><td><button className="button" type="button" onClick={()=>setLines(a=>a.filter((_,idx)=>idx!==i))} disabled={lines.length===1}><Trash2 size={15}/></button></td></tr>)}</tbody></table></div>
+ <div className="ui-table-wrap"><table className="ui-table"><thead><tr><th>Product</th><th>Qty</th><th>Unit price</th><th>Total</th><th></th></tr></thead><tbody>{lines.map((l,i)=><tr key={i}><td><Select value={l.product_id} onChange={e=>update(i,"product_id",e.target.value)}><option value="">Select product</option>{products.map(p=><option key={p.id} value={p.id}>{p.product_code? p.product_code+" — ":""}{p.name}</option>)}</Select></td><td><input className="ui-input" type="number" min="0.0001" step="0.0001" value={l.quantity} onChange={e=>update(i,"quantity",e.target.value)}/></td><td><input className="ui-input" type="number" min="0" step="0.0001" value={l.unit_price} onChange={e=>update(i,"unit_price",e.target.value)}/></td><td>{money(l.quantity*l.unit_price)}</td><td><button className="button" type="button" onClick={()=>setLines(a=>a.filter((_,idx)=>idx!==i))} disabled={lines.length===1}><Trash2 size={15}/></button></td></tr>)}</tbody></table></div>
  <button className="button" type="button" onClick={()=>setLines(a=>[...a,{product_id:"",quantity:1,unit_price:0}])}><Plus size={16}/> Add line</button>
  <FormField label="Discount"><input className="ui-input" type="number" min="0" step="0.0001" value={discount} onChange={e=>setDiscount(Number(e.target.value))}/></FormField>
- <div className="content-card"><strong>Subtotal: {subtotal.toFixed(2)}</strong><br/>Discount: {Number(discount||0).toFixed(2)}<br/><strong>Total: {total.toFixed(2)}</strong></div>
+ <div className="content-card"><strong>Subtotal: {money(subtotal)}</strong><br/>Discount: {money(Number(discount||0))}<br/><strong>Total: {money(total)}</strong></div>
  {error?<p className="ui-field-error" role="alert">{error}</p>:null}<FormActions><Link className="button" href="/sales/invoices">Cancel</Link><button className="button primary" disabled={busy}>{busy?"Saving…":"Create draft"}</button></FormActions>
  </form></PageSection></div>;
 }
