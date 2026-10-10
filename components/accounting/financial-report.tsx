@@ -1,14 +1,15 @@
 import { PageHeader, PageSection } from "@/components/ui";
 import { FinancialReportTable } from "@/components/accounting/financial-report-table";
+import { formatCurrency } from "@/lib/formatters";
 
 type ReportRow = { id: string; account_code: string; account_name: string; account_type: string; debit: number; credit: number; balance: number; is_control_account: boolean };
 
 export function FinancialReport({
-  title, description, rows, filter, periods, from, to, periodId, variant = "ledger",
+  title, description, rows, filter, periods, from, to, periodId, variant = "ledger", currency = "BDT",
 }: {
   title: string; description: string; rows: ReportRow[]; filter: (row: ReportRow) => boolean;
   periods: Array<{ id: string; name: string; start_date: string; end_date: string; status: string }>;
-  from?: string; to?: string; periodId?: string; variant?: "trial" | "profit-loss" | "balance-sheet" | "receivables-payables" | "ledger";
+  from?: string; to?: string; periodId?: string; currency?: string; variant?: "trial" | "profit-loss" | "balance-sheet" | "receivables-payables" | "ledger";
 }) {
   const data = rows.filter(filter);
   const revenue = data.filter((r) => r.account_type === "REVENUE").reduce((s, r) => s + r.balance, 0);
@@ -19,7 +20,7 @@ export function FinancialReport({
   const equity = data.filter((r) => r.account_type === "EQUITY").reduce((s, r) => s + r.balance, 0);
   const trialDebit = data.reduce((s, r) => s + r.debit, 0);
   const trialCredit = data.reduce((s, r) => s + r.credit, 0);
-  const money = (value: number) => value.toFixed(2);
+  const money = (value: number) => formatCurrency(value, currency);
 
   return <div className="page">
     <PageHeader eyebrow="Accounting / Reports" title={title} description={description} />
@@ -33,7 +34,7 @@ export function FinancialReport({
       <p className="ui-field-hint">Only CONFIRMED journal activity is included. Draft and cancelled entries are excluded.</p>
     </PageSection>
     <PageSection title="Accounts">
-      <FinancialReportTable rows={data} />
+      <FinancialReportTable rows={data} currency={currency} />
     </PageSection>
     <PageSection title="Summary">
       {variant === "trial" ? <div className="ui-detail-grid"><div><span>Total debit</span><strong>{money(trialDebit)}</strong></div><div><span>Total credit</span><strong>{money(trialCredit)}</strong></div><div><span>Difference</span><strong>{money(trialDebit - trialCredit)}</strong></div></div> : null}

@@ -7,6 +7,7 @@ import { createAccountingPeriod, closeAccountingPeriod } from "@/lib/accounting/
 import { DataTable, FormActions, FormField, PageHeader, PageSection, StatusBadge } from "@/components/ui";
 import { getErrorMessage } from "@/lib/app/errors";
 import type { Tables } from "@/lib/supabase/database";
+import { formatDate } from "@/lib/formatters";
 
 type Period = Tables<"accounting_periods">;
 
@@ -49,9 +50,9 @@ export function AccountingPeriods({ organizationId, periods }: { organizationId:
     <PageSection title="Periods">
       <DataTable rows={periods} columns={[
         { key: "name", header: "Name", render: p => p.name },
-        { key: "dates", header: "Date range", render: p => <>{p.start_date} → {p.end_date}</> },
+        { key: "dates", header: "Date range", render: p => <>{formatDate(p.start_date)} → {formatDate(p.end_date)}</> },
         { key: "status", header: "Status", render: p => <StatusBadge tone={p.status === "OPEN" ? "success" : "neutral"}>{p.status}</StatusBadge> },
-        { key: "closed", header: "Closed", render: p => p.closed_at ? new Date(p.closed_at).toLocaleDateString() : "—" },
+        { key: "closed", header: "Closed", render: p => p.closed_at ? formatDate(p.closed_at) : "—" },
         { key: "action", header: "Action", render: p => p.status === "OPEN" ? <button className="button" disabled={closingId === p.id} type="button" onClick={() => close(p.id)}>{closingId === p.id ? "Closing…" : "Close period"}</button> : <span className="ui-field-hint">Closed</span> },
       ]} empty="No accounting periods yet." />
     </PageSection>
