@@ -346,3 +346,48 @@ h1 { margin: 0; font-size: clamp(1.4rem, 3vw, 1.9rem); line-height: 1.15; letter
 @media (min-width:768px){.navigation{transition:width 160ms ease,flex-basis 160ms ease}.navigation-collapsed{width:68px;flex-basis:68px}.navigation-collapsed .navigation-title,.navigation-collapsed .navigation-section-label,.navigation-collapsed .navigation-link span,.navigation-collapsed .navigation-chevron,.navigation-collapsed .navigation-submenu{display:none}.navigation-collapsed .navigation-header{justify-content:center;padding:0}.navigation-collapsed .navigation-header-actions{width:100%;justify-content:center}.navigation-collapsed .navigation-collapse{width:38px;height:30px}.navigation-collapsed .navigation-link{justify-content:center;gap:0;padding:0}.navigation-collapsed .navigation-section{margin-top:7px}.navigation-collapsed .navigation-group-toggle{justify-content:center}}
 @media (max-width:767px){.navigation-collapse{display:none}.navigation-section-label{padding-left:9px}.navigation-content{padding-bottom:10px}}
 @media (prefers-reduced-motion:reduce){.navigation,.navigation-link,.navigation-chevron{transition:none}}
+
+
+/* Expandable module navigation */
+.navigation-header-actions { display: flex; align-items: center; gap: 2px; }
+.navigation-collapse { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
+.navigation-collapse:hover { background: var(--surface-subtle); color: var(--foreground); }
+.navigation-content { display: grid; gap: 9px; padding-bottom: 8px; }
+.navigation-home { display: grid; gap: 1px; }
+.navigation-section { display: grid; gap: 2px; min-width: 0; }
+.navigation-section-label { padding: 3px 9px 2px; color: var(--muted); font-size: .64rem; font-weight: 800; letter-spacing: .075em; text-transform: uppercase; }
+.navigation-group-toggle { width: 100%; font: inherit; text-align: left; background: transparent; cursor: pointer; }
+.navigation-group-toggle > span { flex: 1; min-width: 0; }
+.navigation-chevron { flex: 0 0 auto; margin-left: auto; color: var(--muted); transition: transform 140ms ease; }
+.navigation-chevron-open { transform: rotate(180deg); }
+.navigation-submenu { display: grid; gap: 1px; margin: 1px 0 3px 14px; padding-left: 8px; border-left: 1px solid var(--border); }
+.navigation-sublink { display: flex; align-items: center; gap: 8px; min-height: 32px; min-width: 0; padding: 5px 8px; border: 1px solid transparent; border-radius: 6px; color: var(--muted); font-size: .79rem; font-weight: 550; line-height: 1.25; overflow-wrap: anywhere; transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease; }
+.navigation-sublink > svg { flex: 0 0 auto; }
+.navigation-sublink > span { min-width: 0; }
+.navigation-sublink:hover { background: var(--surface-subtle); color: var(--foreground); }
+.navigation-sublink-active { background: var(--primary-soft); border-color: #c7d7fe; color: #0849b8; font-weight: 700; }
+.navigation-collapsed { width: 58px; flex-basis: 58px; padding-inline: 5px; overflow-x: hidden; }
+.navigation-collapsed .navigation-header { justify-content: center; padding-inline: 0; }
+.navigation-collapsed .navigation-title,
+.navigation-collapsed .navigation-section-label,
+.navigation-collapsed .navigation-link > span,
+.navigation-collapsed .navigation-chevron,
+.navigation-collapsed .navigation-submenu { display: none; }
+.navigation-collapsed .navigation-header-actions { justify-content: center; }
+.navigation-collapsed .navigation-link { justify-content: center; gap: 0; padding-inline: 0; }
+.navigation-collapsed .navigation-group-toggle { justify-content: center; }
+.navigation-collapsed .navigation-section { gap: 3px; }
+.navigation-collapsed .navigation-content { gap: 7px; }
+@media (max-width: 767px) {
+  .navigation-collapsed { width: min(276px, 84vw); flex-basis: auto; padding: 9px; }
+  .navigation-collapsed .navigation-title,
+  .navigation-collapsed .navigation-section-label,
+  .navigation-collapsed .navigation-link > span { display: initial; }
+  .navigation-collapsed .navigation-chevron { display: none; }
+  .navigation-collapsed .navigation-link { justify-content: flex-start; gap: 9px; padding-inline: 9px; }
+  .navigation-collapsed .navigation-header { justify-content: space-between; padding-inline: 7px; }
+  .navigation-collapsed .navigation-header-actions { justify-content: flex-end; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .navigation-chevron, .navigation-sublink { transition: none; }
+}
