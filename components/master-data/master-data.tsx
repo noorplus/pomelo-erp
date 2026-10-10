@@ -46,7 +46,7 @@ function Units({ org, rows }: { org: string; rows: Unit[] }) {
         </FormField>
         <button className="button primary" disabled={busy}>{edit ? "Save" : "Add unit"}</button>
       </form>
-      {error ? {error ? <p className="ui-field-error" role="alert">{error}</p> : null} : null}
+      {error ? <p className="ui-field-error" role="alert">{error}</p> : null}
     </PageSection>
     <PageSection title="Units">
       <DataTable rows={rows} columns={[
