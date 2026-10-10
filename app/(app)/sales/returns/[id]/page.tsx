@@ -4,7 +4,7 @@ import { getApplicationContext } from "@/lib/organizations/server";
 import { getSalesReturn } from "@/lib/sales/queries";
 import { ReturnDetail } from "@/components/sales/return-detail";
 
-export default async function SalesReturnDetailPage({ params }: { params: PromiseR{ id: string }> }) {
+export default async function SalesReturnDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const context = await getApplicationContext();
   if (!context.activeOrganization) return null;
   let item;
@@ -13,5 +13,5 @@ export default async function SalesReturnDetailPage({ params }: { params: Promis
   } catch {
     notFound();
   }
-  return RReturnDetail item={item} />;
+  return <ReturnDetail item={item} organizationName={context.activeOrganization.name} />;
 }
