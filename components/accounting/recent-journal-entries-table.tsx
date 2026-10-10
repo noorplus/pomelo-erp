@@ -1,6 +1,7 @@
 "use client";
 
 import { DataTable, StatusBadge } from "@/components/ui";
+import { formatDate } from "@/lib/formatters";
 
 export type RecentJournalEntryRow = {
   id: string;
@@ -17,7 +18,7 @@ export function RecentJournalEntriesTable({ rows }: { rows: RecentJournalEntryRo
       rows={rows}
       columns={[
         { key: "number", header: "Entry", render: (entry) => entry.entry_number ?? "—" },
-        { key: "date", header: "Date", render: (entry) => entry.entry_date },
+        { key: "date", header: "Date", render: (entry) => formatDate(entry.entry_date) },
         { key: "type", header: "Type", render: (entry) => entry.entry_type },
         {
           key: "status",

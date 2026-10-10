@@ -1,6 +1,6 @@
 import { PageHeader, PageSection } from "@/components/ui";
 import { FinancialReportTable } from "@/components/accounting/financial-report-table";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, formatDate } from "@/lib/formatters";
 
 type ReportRow = { id: string; account_code: string; account_name: string; account_type: string; debit: number; credit: number; balance: number; is_control_account: boolean };
 
@@ -26,7 +26,7 @@ export function FinancialReport({
     <PageHeader eyebrow="Accounting / Reports" title={title} description={description} />
     <PageSection title="Report filters">
       <form className="ui-form-grid" method="get">
-        <label className="ui-field"><span className="ui-field-label">Accounting period</span><select className="ui-input" name="period"><option value="">All posted activity</option>{periods.map((p) => <option key={p.id} value={p.id} selected={p.id === periodId}>{p.name} · {p.start_date} to {p.end_date}</option>)}</select></label>
+        <label className="ui-field"><span className="ui-field-label">Accounting period</span><select className="ui-input" name="period"><option value="">All posted activity</option>{periods.map((p) => <option key={p.id} value={p.id} selected={p.id === periodId}>{p.name} · {formatDate(p.start_date)} to {formatDate(p.end_date)}</option>)}</select></label>
         <label className="ui-field"><span className="ui-field-label">From</span><input className="ui-input" type="date" name="from" defaultValue={from ?? ""} /></label>
         <label className="ui-field"><span className="ui-field-label">To</span><input className="ui-input" type="date" name="to" defaultValue={to ?? ""} /></label>
         <div className="ui-field"><span className="ui-field-label">&nbsp;</span><button className="button primary" type="submit">Apply filters</button></div>
