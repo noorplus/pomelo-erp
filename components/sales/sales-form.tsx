@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { createSale } from "@/lib/sales/actions";
 import { FormActions, FormField, PageHeader, PageSection, Select } from "@/components/ui";
 import { getErrorMessage } from "@/lib/app/errors";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, getLocalDateInputValue } from "@/lib/formatters";
 
 type Product={id:string;product_code:string|null;name:string};
 type Option={id:string;name:string;contact_number:string|null};
@@ -16,7 +16,7 @@ type Line={product_id:string;quantity:number;unit_price:number};
 
 export function SalesForm({org,userId,customers,accounts,products,currency="BDT"}:{org:string;userId:string;customers:Option[];accounts:Account[];products:Product[];currency?:string}) {
  const money=(value:number)=>formatCurrency(value,currency);
- const router=useRouter(); const today=new Date().toISOString().slice(0,10);
+ const router=useRouter(); const today=getLocalDateInputValue();
  const [customerId,setCustomerId]=useState(""); const [accountId,setAccountId]=useState(""); const [date,setDate]=useState(today); const [discount,setDiscount]=useState(0);
  const [lines,setLines]=useState<Line[]>([{product_id:"",quantity:1,unit_price:0}]); const [busy,setBusy]=useState(false); const [error,setError]=useState("");
  const subtotal=useMemo(()=>lines.reduce((n,l)=>n+(Number(l.quantity)||0)*(Number(l.unit_price)||0),0),[lines]); const total=Math.max(0,subtotal-Math.max(0,Number(discount)||0));

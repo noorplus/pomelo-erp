@@ -10,7 +10,7 @@ import {
   createExpense, createJournalEntry, createPayment,
 } from "@/lib/accounting/actions";
 import { DataTable, FormActions, FormField, PageHeader, PageSection, Select, StatusBadge } from "@/components/ui";
-import { formatCurrency, formatDate } from "@/lib/formatters";
+import { formatCurrency, formatDate, getLocalDateInputValue } from "@/lib/formatters";
 
 type Account = { id: string; account_code: string; account_name: string; account_type: string; is_active: boolean; is_postable: boolean };
 type Contact = { id: string; contact_number: string | null; name: string; is_active: boolean };
@@ -19,7 +19,7 @@ type Category = { id: string; category_code: string; name: string; expense_accou
 type Line = { accountId: string; debit: string; credit: string };
 type Mode = "journal" | "payments" | "expenses";
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => getLocalDateInputValue();
 const tone = (s: string) => s === "CONFIRMED" ? "success" : s === "CANCELLED" ? "danger" : "neutral";
 
 export function AccountingTransactions({
@@ -122,7 +122,7 @@ export function AccountingTransactions({
   const columns = mode === "journal"
     ? [
         { key: "entry_number", header: "Entry", render: (r: any) => <Link href={"/accounting/transactions/journal-entries/" + r.id}>{r.entry_number || "Draft"}</Link> },
-        { key: "entry_date", header: "Date", render: (r: any) => r.entry_date },
+        { key: "entry_date", header: "Date", render: (r: any) => formatDate(r.entry_date) },
         { key: "entry_type", header: "Type", render: (r: any) => r.entry_type },
         { key: "status", header: "Status", render: (r: any) => <StatusBadge tone={tone(r.status)}>{r.status}</StatusBadge> },
         { key: "description", header: "Description", render: (r: any) => r.description || "—" },
@@ -152,7 +152,7 @@ export function AccountingTransactions({
     <PageSection title={mode === "journal" ? "New journal entry" : "New transaction"}>
       <form className="ui-form-grid" onSubmit={save}>
         {mode === "journal" ? <>
-          <FormField label="Accounting period" htmlFor="period" required><Select id="period" value={form.periodId} onChange={(e) => set("periodId", e.target.value)}><option value="">Select open period</option>{openPeriods.map((p) => <option key={p.id} value={p.id}>{p.name} · {p.start_date} → {p.end_date}</option>)}</Select></FormField>
+          <FormField label="Accounting period" htmlFor="period" required><Select id="period" value={form.periodId} onChange={(e) => set("periodId", e.target.value)}><option value="">Select open period</option>{openPeriods.map((p) => <option key={p.id} value={p.id}>{p.name} · {formatDate(p.start_date)} → {formatDate(p.end_date)}</option>)}</Select></FormField>
           <FormField label="Entry date" htmlFor="date" required><input id="date" className="ui-input" type="date" value={form.date} onChange={(e) => set("date", e.target.value)} /></FormField>
           <FormField label="Entry type" htmlFor="type" required><Select id="type" value={form.type} onChange={(e) => set("type", e.target.value)}><option value="OPENING">OPENING</option><option value="ADJUSTMENT">ADJUSTMENT</option><option value="OTHER">OTHER</option></Select></FormField>
           <FormField label="Description" htmlFor="description"><input id="description" className="ui-input" value={form.description} onChange={(e) => set("description", e.target.value)} /></FormField>
