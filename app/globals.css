@@ -541,3 +541,86 @@ h1 { margin: 0; font-size: clamp(1.4rem, 3vw, 1.9rem); line-height: 1.15; letter
   .ui-detail-grid { grid-template-columns: minmax(0, 1fr); }
   .ui-page-header-actions > .button { flex-basis: 100%; }
 }
+
+/* Site-wide compact density and alignment system */
+:root {
+  --ui-space-1: 4px;
+  --ui-space-2: 6px;
+  --ui-space-3: 8px;
+  --ui-control-height: 32px;
+  --ui-table-cell-y: 5px;
+  --ui-table-cell-x: 8px;
+}
+.main-container { padding: 10px 12px 16px; }
+.ui-page-header { align-items: center; gap: 10px; margin-bottom: 10px; }
+.ui-page-header h1, .page-header h1, .administration-intro h1 { line-height: 1.15; }
+.ui-page-header-actions, .ui-section-actions, .ui-table-toolbar-actions,
+.ui-data-table-toolbar-main { gap: 6px; }
+.ui-page-section { margin-top: 10px; }
+.ui-section-header { align-items: center; gap: 8px; margin-bottom: 6px; }
+.ui-section-header h2 { font-size: .94rem; }
+.ui-section-header p { margin-top: 2px; line-height: 1.3; }
+.content-card { padding: 10px; border-radius: 7px; }
+.ui-form-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 8px;
+}
+.ui-form-field { gap: 3px; }
+.ui-form-field > label, .ui-filter > span, .ui-entity-selector > span { font-size: .75rem; }
+.ui-input { min-height: var(--ui-control-height); padding: 0 8px; border-radius: 6px; font-size: .84rem; }
+.ui-input-prefix > span { left: 8px; }
+.ui-input-prefix .ui-input { padding-left: 38px; }
+.ui-search { min-height: var(--ui-control-height); padding: 0 7px; }
+.ui-search button { width: 26px; height: 26px; }
+.ui-filter, .ui-entity-selector { gap: 3px; }
+.button { min-height: 32px; padding: 0 10px; border-radius: 6px; font-size: .82rem; }
+.ui-form-actions { gap: 6px; margin-top: 10px; }
+.ui-form-grid .ui-form-actions { margin-top: 2px; }
+.ui-table-wrap { border-radius: 7px; }
+.ui-table { font-size: .78rem; }
+.ui-table th, .ui-table td {
+  padding: var(--ui-table-cell-y) var(--ui-table-cell-x);
+  line-height: 1.3;
+}
+.ui-table th { font-size: .66rem; letter-spacing: .025em; }
+.ui-table td { max-width: 360px; }
+.ui-table-row-actions { gap: 4px; }
+.ui-table-row-actions .button { min-height: 27px; padding: 0 7px; font-size: .72rem; }
+.ui-table-empty { padding: 20px 10px !important; }
+.ui-table-grid-cell { padding: var(--ui-table-cell-y) var(--ui-table-cell-x); }
+.ui-table-grid { font-size: .78rem; }
+.ui-table-grid-header-cell { font-size: .66rem; }
+.ui-pagination { gap: 7px; padding-top: 7px; font-size: .74rem; }
+.ui-data-table-toolbar { gap: 7px; margin-bottom: 7px; }
+.ui-status-badge { min-height: 21px; padding: 0 7px; font-size: .68rem; }
+.ui-tab { min-height: 33px; padding: 0 9px; font-size: .82rem; }
+.ui-tab-panel { padding-top: 9px; }
+.ui-dialog-header { padding: 9px 11px; }
+.ui-dialog-body { padding: 11px; }
+.administration-panel { margin-top: 10px; padding: 12px; border-radius: 8px; }
+.administration-panel-header { gap: 8px; padding-bottom: 9px; }
+.administration-icon, .administration-card-icon { width: 30px; height: 30px; margin-bottom: 0; }
+.administration-details { column-gap: 18px; }
+.administration-detail { padding: 7px 0; }
+.administration-detail span { margin-bottom: 2px; }
+.administration-form { padding-top: 10px; }
+.administration-member-add { gap: 8px; padding: 10px 0; }
+.ui-stats-grid, .ui-action-grid, .ui-detail-grid { gap: .75rem; }
+.ui-stat-value { font-size: 1.65rem; margin: .2rem 0; }
+.ui-list-row { gap: .75rem; padding: .5rem 0; }
+.ui-detail-grid > div { gap: .2rem; }
+.navigation { padding: 6px; }
+.navigation-link { min-height: 32px; padding: 0 8px; font-size: .83rem; }
+.navigation-sublink { min-height: 29px; font-size: .78rem; }
+.ui-state { padding: 18px 12px; }
+.ui-empty-state, .ui-error-state { border-radius: 7px; }
+@media (max-width: 767px) {
+  .main-container { padding: 8px 8px 12px; }
+  .ui-page-header, .ui-section-header, .ui-table-toolbar { gap: 7px; }
+  .ui-page-header-actions, .ui-section-actions, .ui-table-toolbar-actions { gap: 6px; }
+  .ui-form-grid { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .ui-table th, .ui-table td, .ui-table-grid-cell { padding: 5px 7px; }
+  .ui-table-row-actions .button { min-height: 29px; }
+  .administration-panel { padding: 10px; }
+  .ui-dialog-body { padding: 10px; }
+}

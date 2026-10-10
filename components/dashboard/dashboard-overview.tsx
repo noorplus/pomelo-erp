@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowDownLeft, ArrowUpRight, BookOpen, Boxes, Contact, FileText, Package, Receipt, ShoppingCart, Wallet } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, BookOpen, Contact, FileText, Package, Receipt, ShoppingCart, Wallet } from "lucide-react";
 import { EmptyState, PageHeader, PageSection, StatusBadge } from "@/components/ui";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/formatters";
 import type { DashboardData } from "@/lib/dashboard/queries";
@@ -19,22 +19,19 @@ function MetricCard({
   value,
   detail,
   href,
-  icon: Icon,
 }: {
   label: string;
   value: string;
   detail: string;
   href: string;
-  icon: typeof Receipt;
 }) {
   return (
-    <Link href={href} className="dashboard-metric-card">
-      <div className="dashboard-metric-top">
-        <span>{label}</span>
-        <span className="dashboard-metric-icon"><Icon size={18} aria-hidden="true" /></span>
+    <Link href={href} className="dashboard-metric-card" aria-label={`${label}: ${value}. ${detail}`}>
+      <div className="dashboard-metric-heading">
+        <span className="dashboard-metric-label">{label}</span>
+        <strong className="dashboard-metric-value">{value}</strong>
       </div>
-      <strong className="dashboard-metric-value">{value}</strong>
-      <span className="dashboard-metric-detail">{detail}</span>
+      <span className="dashboard-metric-detail" title={detail}>{detail}</span>
     </Link>
   );
 }
@@ -68,10 +65,10 @@ export function DashboardOverview({
       />
 
       <div className="dashboard-metrics">
-        <MetricCard label="Net sales" value={formatCurrency(data.metrics.netSales, data.currency)} detail="Confirmed sales less confirmed returns this month" href="/sales/invoices" icon={Receipt} />
-        <MetricCard label="Net purchases" value={formatCurrency(data.metrics.netPurchases, data.currency)} detail="Confirmed purchases less confirmed returns this month" href="/purchase/invoices" icon={ShoppingCart} />
-        <MetricCard label="Inventory value" value={formatCurrency(data.metrics.inventoryValue, data.currency)} detail="Current value from inventory balances" href="/inventory/stock" icon={Boxes} />
-        <MetricCard label="Draft documents" value={formatNumber(data.metrics.openDrafts)} detail="Sales, purchase, payment and expense drafts" href="/sales/invoices" icon={FileText} />
+        <MetricCard label="Net sales" value={formatCurrency(data.metrics.netSales, data.currency)} detail="Confirmed sales less confirmed returns this month" href="/sales/invoices" />
+        <MetricCard label="Net purchases" value={formatCurrency(data.metrics.netPurchases, data.currency)} detail="Confirmed purchases less confirmed returns this month" href="/purchase/invoices" />
+        <MetricCard label="Inventory value" value={formatCurrency(data.metrics.inventoryValue, data.currency)} detail="Current value from inventory balances" href="/inventory/stock" />
+        <MetricCard label="Draft documents" value={formatNumber(data.metrics.openDrafts)} detail="Sales, purchase, payment and expense drafts" href="/sales/invoices" />
       </div>
 
       <div className="dashboard-main-grid">
