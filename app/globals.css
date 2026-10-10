@@ -463,9 +463,10 @@ h1 { margin: 0; font-size: clamp(1.4rem, 3vw, 1.9rem); line-height: 1.15; letter
 @page { size: A4 portrait; margin: 12mm; }
 @media print {
   html, body { width: auto !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; background: #fff !important; color: #111 !important; overflow: visible !important; }
-  body * { visibility: hidden !important; }
-  .print-document-root, .print-document-root * { visibility: visible !important; }
-  .print-document-root { display: block !important; position: fixed !important; inset: 0 auto auto 0 !important; z-index: 2147483647 !important; width: 100% !important; margin: 0 !important; padding: 0 !important; background: #fff !important; color: #111 !important; }
+  body > * { display: none !important; }
+  body > #print-portal-root { display: block !important; }
+  #print-portal-root, #print-portal-root * { visibility: visible !important; }
+  #print-portal-root .print-document-root { display: block !important; position: static !important; width: 100% !important; margin: 0 !important; padding: 0 !important; background: #fff !important; color: #111 !important; }
   .print-document { width: 100%; color: #111; background: #fff; font-family: Arial, Helvetica, sans-serif; font-size: 10pt; line-height: 1.45; }
   .print-document-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; padding-bottom: 16px; border-bottom: 2px solid #1f2937; }
   .print-document-brand { margin: 0; font-size: 18pt; font-weight: 800; letter-spacing: -.03em; }
@@ -476,6 +477,10 @@ h1 { margin: 0; font-size: clamp(1.4rem, 3vw, 1.9rem); line-height: 1.15; letter
   .print-document-status { display: inline-block; padding: 2px 7px; border: 1px solid #888; border-radius: 3px; font-size: 7pt; font-weight: 700; letter-spacing: .04em; }
   .print-document-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 18px 0; }
   .print-document-meta > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .print-document-dates { gap: 12px !important; }
+  .print-document-party p { margin: 2px 0 0; overflow-wrap: anywhere; font-size: 9pt; }
+  .print-document-party b { font-weight: 700; }
+  .print-document-address { white-space: pre-wrap; overflow-wrap: anywhere; }
   .print-document-meta span, .print-document-summary span { color: #555; font-size: 8pt; }
   .print-document-meta strong { overflow-wrap: anywhere; font-size: 10pt; }
   .print-document-table { width: 100%; border-collapse: collapse; table-layout: auto; }

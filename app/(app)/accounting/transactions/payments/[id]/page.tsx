@@ -13,17 +13,18 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   if (!payment) notFound();
   const [documents, contacts] = await Promise.all([
     listPaymentAllocationDocuments(s, c.activeOrganization.id, payment.contact_id),
-    s.from("contacts").select("id,name").eq("organization_id", c.activeOrganization.id).eq("id", payment.contact_id ?? "00000000-0000-0000-0000-000000000000").maybeSingle(),
+    s.from("contacts").select("id,name,contact_number,phone,email,address").eq("organization_id", c.activeOrganization.id).eq("id", payment.contact_id ?? "00000000-0000-0000-0000-000000000000").maybeSingle(),
   ]);
   return <PaymentDetail currency={c.activeOrganization.base_currency} organizationName={c.activeOrganization.name}
     organizationId={c.activeOrganization.id}
     payment={payment}
     allocations={allocations}
     documents={{
-      sales: documents.sales.map((d) => ({ id: d.id, label: d.invoice_id ?? d.id, date: d.invoice_date, amount: Number(d.total_amount) })),
-      purchases: documents.purchases.map((d) => ({ id: d.id, label: d.invoice_id ?? d.id, date: d.invoice_date, amount: Number(d.total_amount) })),
-      expenses: documents.expenses.map((d) => ({ id: d.id, label: d.expense_number ?? d.id, date: d.expense_date, amount: Number(d.amount) })),
+      sales: documents.sales.map((d) => ({ id: d.id, label: d.invoice_id ?? "Sales document", date: d.invoice_date, amount: Number(d.total_amount) })),
+      purchases: documents.purchases.map((d) => ({ id: d.id, label: d.invoice_id ?? "Purchase document", date: d.invoice_date, amount: Number(d.total_amount) })),
+      expenses: documents.expenses.map((d) => ({ id: d.id, label: d.expense_number ?? "Expense document", date: d.expense_date, amount: Number(d.amount) })),
     }}
     contactName={contacts.data?.name ?? ""}
+    partyContact={contacts.data}
   />;
 }

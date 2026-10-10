@@ -81,7 +81,7 @@ export async function getSalesReturn(s: TypedSupabaseClient, org: string, id: st
   const items = await s.from("sales_return_items").select("*").eq("organization_id", org).eq("sales_return_id", id).order("line_number");
   if (items.error) throwSupabaseError(items.error, "DATABASE_ERROR", "Unable to load return items.");
   const [customer, sale, products] = await Promise.all([
-    s.from("contacts").select("id,name,contact_number").eq("organization_id", org).eq("id", ret.customer_id).single(),
+    s.from("contacts").select("id,name,contact_number,phone,email,address").eq("organization_id", org).eq("id", ret.customer_id).single(),
     s.from("sales").select("id,invoice_id,invoice_date").eq("organization_id", org).eq("id", ret.sales_id).single(),
     items.data.length ? s.from("products").select("id,product_code,name").eq("organization_id", org).in("id", items.data.map((x) => x.product_id)) : { data: [], error: null },
   ]);

@@ -12,8 +12,8 @@ type Payment = { id: string; payment_number: string | null; payment_type: string
 type Allocation = { id: string; document_type: string; document_id: string; allocated_amount: number };
 type Doc = { id: string; label: string; date: string; amount: number };
 
-export function PaymentDetail({ organizationId, payment, allocations, documents, contactName, organizationName = "Pomelo ERP", currency = "BDT" }: {
-  organizationId: string; payment: Payment; allocations: Allocation[]; documents: { sales: Doc[]; purchases: Doc[]; expenses: Doc[] }; contactName: string; organizationName?: string; currency?: string;
+export function PaymentDetail({ organizationId, payment, allocations, documents, contactName, partyContact, organizationName = "Pomelo ERP", currency = "BDT" }: {
+  organizationId: string; payment: Payment; allocations: Allocation[]; documents: { sales: Doc[]; purchases: Doc[]; expenses: Doc[] }; contactName: string; partyContact?: { contact_number?: string | null; phone?: string | null; email?: string | null; address?: string | null } | null; organizationName?: string; currency?: string;
 }) {
   const money = (value: number) => formatCurrency(value, currency);
   const router = useRouter();
@@ -30,7 +30,7 @@ export function PaymentDetail({ organizationId, payment, allocations, documents,
       : allocation.document_type === "PURCHASE"
         ? documents.purchases
         : documents.expenses;
-    return list.find((document) => document.id === allocation.document_id)?.label ?? allocation.document_id;
+    return list.find((document) => document.id === allocation.document_id)?.label ?? "Document unavailable";
   };
   const allocated = allocations.reduce((sum, a) => sum + Number(a.allocated_amount), 0);
   const remaining = Number(payment.amount) - allocated;
@@ -57,7 +57,7 @@ export function PaymentDetail({ organizationId, payment, allocations, documents,
   }
 
   return <div className="page">
-    <PageHeader eyebrow="Accounting / Payments" title={payment.payment_number ?? "Draft payment"} description="Review and manage payment allocations before confirmation." actions={<PrintDocument organizationName={organizationName} title={payment.payment_type === "RECEIPT" ? "Payment Receipt" : "Payment Voucher"} documentNumber={payment.payment_number ?? "Draft"} issueDate={payment.payment_date} status={payment.status} partyLabel="Contact" partyName={contactName || "No contact"} summary={[{label:"Payment amount",value:money(Number(payment.amount))},{label:"Allocated",value:money(allocated)},{label:"Remaining",value:money(remaining)}]} columns={[{key:"document",label:"Allocated document"},{key:"amount",label:"Allocated amount",align:"right"}]} rows={allocations.map((a) => ({id:a.id,document:documentLabel(a),amount:money(Number(a.allocated_amount))}))} note={payment.description ?? undefined} />} />
+    <PageHeader eyebrow="Accounting / Payments" title={payment.payment_number ?? "Draft payment"} description="Review and manage payment allocations before confirmation." actions={<PrintDocument organizationName={organizationName} title={payment.payment_type === "RECEIPT" ? "Payment Receipt" : "Payment Voucher"} documentNumber={payment.payment_number ?? "Draft"} issueDate={payment.payment_date} status={payment.status} partyLabel="Contact" partyName={contactName} partyContact={partyContact} summary={[{label:"Payment amount",value:money(Number(payment.amount))}]} columns={[{key:"document",label:"Allocated document"},{key:"amount",label:"Allocated amount",align:"right"}]} rows={allocations.map((a) => ({id:a.id,document:documentLabel(a),amount:money(Number(a.allocated_amount))}))} />} />
     <PageSection title="Payment">
       <div className="ui-detail-grid">
         <div><span>Type</span><strong>{payment.payment_type}</strong></div>
