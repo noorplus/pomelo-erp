@@ -47,20 +47,20 @@ export function ProductDetail({ product, unit, inventory, inventoryAccount, sale
     <PageSection title="Purchase history">
       <DataTable rows={activity.purchases} columns={[
         {key:"invoice",header:"Invoice",render:r=><Link href={`/purchase/invoices/${r.purchase_id}`}>{r.purchase.invoice_id??r.purchase_id}</Link>},
-        {key:"date",header:"Date",render:r=>r.purchase.invoice_date},{key:"qty",header:"Qty",render:r=>formatNumber(Number(r.quantity))},{key:"cost",header:"Unit cost",align:"right",render:r=>money(Number(r.unit_cost))},
+        {key:"date",header:"Date",render:r=>formatDate(r.purchase.invoice_date)},{key:"qty",header:"Qty",render:r=>formatNumber(Number(r.quantity))},{key:"cost",header:"Unit cost",align:"right",render:r=>money(Number(r.unit_cost))},
         {key:"total",header:"Total",align:"right",render:r=>money(Number(r.line_total))},{key:"status",header:"Status",render:r=><StatusBadge tone={tone(r.purchase.status)}>{r.purchase.status}</StatusBadge>}
       ]} empty="No purchase lines found." />
     </PageSection>
     <PageSection title="Sales history">
       <DataTable rows={activity.sales} columns={[
         {key:"invoice",header:"Invoice",render:r=><Link href={`/sales/invoices/${r.sales_id}`}>{r.sales.invoice_id??r.sales_id}</Link>},
-        {key:"date",header:"Date",render:r=>r.sales.invoice_date},{key:"qty",header:"Qty",render:r=>formatNumber(Number(r.quantity))},{key:"price",header:"Unit price",align:"right",render:r=>money(Number(r.unit_price))},
-        {key:"cogs",header:"COGS",align:"right",render:r=>money(Number(r.cogs_total))},{key:"total",header:"Total",render:r=>money(Number(r.line_total))},{key:"status",header:"Status",render:r=><StatusBadge tone={tone(r.sales.status)}>{r.sales.status}</StatusBadge>}
+        {key:"date",header:"Date",render:r=>formatDate(r.sales.invoice_date)},{key:"qty",header:"Qty",render:r=>formatNumber(Number(r.quantity))},{key:"price",header:"Unit price",align:"right",render:r=>money(Number(r.unit_price))},
+        {key:"cogs",header:"COGS",align:"right",render:r=>money(Number(r.cogs_total))},{key:"total",header:"Total",align:"right",render:r=>money(Number(r.line_total))},{key:"status",header:"Status",render:r=><StatusBadge tone={tone(r.sales.status)}>{r.sales.status}</StatusBadge>}
       ]} empty="No sales lines found." />
     </PageSection>
     <PageSection title="Returns" description="Return quantities are shown from the frozen return tables; confirmation determines their inventory effect.">
       <DataTable rows={[...activity.purchaseReturns.map(r=>({...r, kind:"Purchase return"})),...activity.salesReturns.map(r=>({...r, kind:"Sales return"}))]} columns={[
-        {key:"kind",header:"Type",render:r=>r.kind},{key:"date",header:"Date",render:r=>"purchase_returns" in r?r.purchase_returns.return_date:r.sales_returns.return_date},
+        {key:"kind",header:"Type",render:r=>r.kind},{key:"date",header:"Date",render:r=>formatDate("purchase_returns" in r?r.purchase_returns.return_date:r.sales_returns.return_date)},
         {key:"qty",header:"Qty",render:r=>formatNumber(Number(r.quantity))},{key:"total",header:"Total",render:r=>money(Number(r.line_total))},
         {key:"status",header:"Status",render:r=>{const s="purchase_returns" in r?r.purchase_returns.status:r.sales_returns.status;return <StatusBadge tone={tone(s)}>{s}</StatusBadge>}}
       ]} empty="No return lines found." />
