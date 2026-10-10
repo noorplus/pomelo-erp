@@ -65,9 +65,8 @@ const modules: { section: string; modules: NavModule[] }[] = [
     ]},
   ]},
   { section: "System", modules: [
-    { id: "administration", label: "Administration", icon: Settings, matchPaths: ["/administration", "/master-data"], items: [
+    { id: "administration", label: "Administration", icon: Settings, matchPaths: ["/administration"], items: [
       { href: "/administration", label: "Administration Overview", icon: Settings },
-      { href: "/master-data", label: "Master Data", icon: Package },
     ]},
   ]},
 ];

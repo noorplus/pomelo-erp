@@ -97,7 +97,7 @@ export function DashboardOverview({
           </div>
         </PageSection>
 
-        <PageSection title="Workspace health" description="Active master data and accounting setup.">
+        <PageSection title="Workspace health" description="Core records and accounting setup.">
           <div className="dashboard-panel dashboard-health-list">
             <Link href="/contacts" className="dashboard-health-row">
               <span className="dashboard-health-icon"><Contact size={17} aria-hidden="true" /></span>

@@ -11,5 +11,5 @@ export default async function ProductsPage() {
     listProducts(client, context.activeOrganization.id),
     listProductUnits(client, context.activeOrganization.id),
   ]);
-  return <Products rows={products} units={units} />;
+  return <Products org={context.activeOrganization.id} rows={products} units={units} />;
 }

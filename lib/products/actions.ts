@@ -12,3 +12,14 @@ export async function updateProduct(s: TypedSupabaseClient, org: string, id: str
   const { error } = await s.from("products").update({ ...input, organization_id: undefined }).eq("organization_id", org).eq("id", id);
   if (error) throwSupabaseError(error, "DATABASE_ERROR", "Unable to update the product.");
 }
+
+export async function createUnit(s: TypedSupabaseClient, org: string, name: string) {
+  const { data, error } = await s.from("units_of_measure").insert({ organization_id: org, name }).select("id").single();
+  if (error) throwSupabaseError(error, "DATABASE_ERROR", "Unable to create the unit.");
+  return data.id;
+}
+
+export async function updateUnit(s: TypedSupabaseClient, org: string, id: string, input: TablesUpdate<"units_of_measure">) {
+  const { error } = await s.from("units_of_measure").update({ ...input, organization_id: undefined }).eq("organization_id", org).eq("id", id);
+  if (error) throwSupabaseError(error, "DATABASE_ERROR", "Unable to update the unit.");
+}

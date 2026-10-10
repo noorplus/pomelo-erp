@@ -20,7 +20,7 @@ export function ContactsList({ rows }: { rows: Contact[] }) {
 
   return (
     <div className="page contacts-page">
-      <PageHeader eyebrow="Master data" title="Contacts" description="Manage the people and businesses referenced by purchasing, sales, expenses and payments." actions={<Link className="button primary" href="/contacts/new">New contact</Link>} />
+      <PageHeader eyebrow="Contacts" title="Contacts" description="Manage the people and businesses referenced by purchasing, sales, expenses and payments." actions={<Link className="button primary" href="/contacts/new">New contact</Link>} />
       <PageSection title="Contacts" description={`${filtered.length} of ${rows.length} contact${rows.length === 1 ? "" : "s"}`} actions={<SearchInput value={query} onChange={setQuery} placeholder="Search number, name, phone, email or address" />}>
         <DataTable
           rows={filtered}
