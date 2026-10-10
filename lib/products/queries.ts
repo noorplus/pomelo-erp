@@ -7,6 +7,16 @@ export async function listProducts(s: TypedSupabaseClient, org: string) {
   return data;
 }
 
+export async function listProductUnits(s: TypedSupabaseClient, org: string) {
+  const { data, error } = await s
+    .from("units_of_measure")
+    .select("id,name")
+    .eq("organization_id", org)
+    .order("name");
+  if (error) throwSupabaseError(error, "DATABASE_ERROR", "Unable to load product units.");
+  return data;
+}
+
 export async function getProduct(s: TypedSupabaseClient, org: string, id: string) {
   const { data, error } = await s.from("products").select("*").eq("organization_id", org).eq("id", id).maybeSingle();
   if (error) throwSupabaseError(error, "DATABASE_ERROR", "Unable to load the product.");

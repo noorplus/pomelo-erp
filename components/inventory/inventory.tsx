@@ -1,8 +1,178 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import Link from"next/link";import{useMemo,useState}from"react";import{DataTable,PageHeader,PageSection,SearchInput,StatusBadge}from"@/components/ui";import{formatCurrency,formatDate,formatNumber}from"@/lib/formatters";
 
-export function InventoryDashboard({balances,recentTransactions,currency="BDT"}:{balances:any[];recentTransactions:any[];currency?:string}){const money=(n:number)=>formatCurrency(n,currency);return <div className="page"><PageHeader eyebrow="Inventory" title="Inventory overview" description="Balances and movements maintained by the frozen inventory engine."/><div className="ui-detail-grid"><div><span>Products in stock</span><strong>{balances.filter(x=>Number(x.quantity)>0).length}</strong></div><div><span>Total quantity</span><strong>{formatNumber(balances.reduce((n,x)=>n+Number(x.quantity),0))}</strong></div><div><span>Inventory value</span><strong>{money(balances.reduce((n,x)=>n+Number(x.inventory_value),0))}</strong></div></div><PageSection title="Current stock"><DataTable rows={balances} columns={[{key:"product",header:"Product",render:x=><Link href={"/inventory/products/"+x.product_id}>{x.product?.product_code?x.product.product_code+" — ":""}{x.product?.name??"—"}</Link>},{key:"qty",header:"Quantity",align:"right",render:x=>formatNumber(Number(x.quantity))},{key:"cost",header:"Average cost",align:"right",render:x=>money(Number(x.average_cost))},{key:"value",header:"Value",align:"right",render:x=>money(Number(x.inventory_value))},{key:"status",header:"Status",render:x=><StatusBadge tone={Number(x.quantity)>0?"success":"neutral"}>{Number(x.quantity)>0?"In stock":"Zero"}</StatusBadge>}]}/></PageSection><PageSection title="Recent movements"><DataTable rows={recentTransactions} columns={[{key:"date",header:"Date",render:x=>formatDate(x.transaction_date)},{key:"number",header:"Transaction",render:x=>x.transaction_number},{key:"product",header:"Product",render:x=>x.product?.name??"—"},{key:"direction",header:"Direction",render:x=>x.direction},{key:"qty",header:"Qty",render:x=>x.quantity},{key:"value",header:"Value",align:"right",render:x=>money(Number(x.total_value))}]}/></PageSection></div>}
-export function InventoryStock({rows,currency="BDT"}:{rows:any[];currency?:string}){const money=(n:number)=>formatCurrency(n,currency);const[q,setQ]=useState("");const f=useMemo(()=>{const x=q.toLowerCase().trim();return!x?rows:rows.filter(r=>[r.product?.product_code??"",r.product?.name??"",r.unit?.name??""].some(v=>String(v).toLowerCase().includes(x)))},[q,rows]);return <div className="page"><PageHeader eyebrow="Inventory" title="Current stock" description="Read-only inventory balances."/><PageSection title="Stock balances" actions={<SearchInput value={q} onChange={setQ} placeholder="Search product or unit"/>}><DataTable rows={f} columns={[{key:"product",header:"Product",render:x=><Link href={"/inventory/products/"+x.product_id}>{x.product?.name}</Link>},{key:"unit",header:"Unit",render:x=>x.unit?.name??"—"},{key:"qty",header:"Quantity",render:x=>formatNumber(Number(x.quantity))},{key:"avg",header:"Average cost",align:"right",render:x=>money(Number(x.average_cost))},{key:"value",header:"Inventory value",align:"right",render:x=>money(Number(x.inventory_value))}]}/></PageSection></div>}
-export function InventoryTransactions({rows,currency="BDT"}:{rows:any[];currency?:string}){const money=(n:number)=>formatCurrency(n,currency);const[q,setQ]=useState("");const f=useMemo(()=>{const x=q.toLowerCase().trim();return!x?rows:rows.filter(r=>[r.transaction_number,r.transaction_type,r.direction,r.product?.name??""].some(v=>String(v).toLowerCase().includes(x)))},[q,rows]);return <div className="page"><PageHeader eyebrow="Inventory" title="Inventory transactions" description="Database-generated movements; direct inventory DML is not used by the app."/><PageSection title="Transactions" actions={<SearchInput value={q} onChange={setQ} placeholder="Search transaction or product"/>}><DataTable rows={f} columns={[{key:"date",header:"Date",render:x=>formatDate(x.transaction_date)},{key:"number",header:"Transaction",render:x=>x.transaction_number},{key:"product",header:"Product",render:x=>x.product?.name??"—"},{key:"type",header:"Type",render:x=>x.transaction_type},{key:"direction",header:"Direction",render:x=><StatusBadge tone={x.direction==="IN"?"success":"danger"}>{x.direction}</StatusBadge>},{key:"qty",header:"Qty",render:x=>x.quantity},{key:"cost",header:"Unit cost",align:"right",render:x=>money(Number(x.unit_cost))},{key:"value",header:"Value",align:"right",render:x=>money(Number(x.total_value))},{key:"avg",header:"Avg after",align:"right",render:x=>money(Number(x.average_cost_after))}]}/></PageSection></div>}
-export function ProductInventory({product,balance,unit,transactions,currency="BDT"}:{product:any;balance:any;unit:any;transactions:any[];currency?:string}){const money=(n:number)=>formatCurrency(n,currency);return <div className="page"><PageHeader eyebrow="Inventory / Product" title={product.name} description={product.product_code??"Product"} actions={<Link className="button" href={"/products/"+product.id}>Product details</Link>}/><div className="ui-detail-grid"><div><span>Quantity</span><strong>{formatNumber(Number(balance?.quantity??0))} {unit.name}</strong></div><div><span>Average cost</span><strong>{money(Number(balance?.average_cost??0))}</strong></div><div><span>Inventory value</span><strong>{money(Number(balance?.inventory_value??0))}</strong></div></div><PageSection title="Movement history"><DataTable rows={transactions} columns={[{key:"date",header:"Date",render:x=>formatDate(x.transaction_date)},{key:"number",header:"Transaction",render:x=>x.transaction_number},{key:"type",header:"Type",render:x=>x.transaction_type},{key:"direction",header:"Direction",render:x=>x.direction},{key:"qty",header:"Qty",render:x=>x.quantity},{key:"cost",header:"Unit cost",align:"right",render:x=>money(Number(x.unit_cost))},{key:"value",header:"Total",align:"right",render:x=>money(Number(x.total_value))},{key:"avg",header:"Avg after",align:"right",render:x=>money(Number(x.average_cost_after))}]}/></PageSection></div>}
+import Link from "next/link";
+import { useMemo, useState } from "react";
+import { DataTable, PageHeader, PageSection, SearchInput, StatusBadge } from "@/components/ui";
+import { formatCurrency, formatDate, formatNumber } from "@/lib/formatters";
+
+type InventoryRow = any;
+
+export function InventoryDashboard({
+  balances,
+  recentTransactions,
+  currency = "BDT",
+}: {
+  balances: InventoryRow[];
+  recentTransactions: InventoryRow[];
+  currency?: string;
+}) {
+  const money = (value: number) => formatCurrency(value, currency);
+  const [movementQuery, setMovementQuery] = useState("");
+  const filteredMovements = useMemo(() => {
+    const query = movementQuery.trim().toLowerCase();
+    if (!query) return recentTransactions;
+    return recentTransactions.filter((row) =>
+      [row.transaction_number, row.transaction_type, row.direction, row.product?.name, row.transaction_date]
+        .some((value) => String(value ?? "").toLowerCase().includes(query)),
+    );
+  }, [movementQuery, recentTransactions]);
+
+  return (
+    <div className="page">
+      <PageHeader
+        eyebrow="Inventory"
+        title="Inventory overview"
+        description="Review current stock balances, inventory value, and the latest database-generated movements."
+      />
+      <PageSection title="Stock summary">
+        <div className="ui-detail-grid">
+          <div><span>Products in stock</span><strong>{balances.filter((row) => Number(row.quantity) > 0).length}</strong></div>
+          <div><span>Stock records</span><strong>{formatNumber(balances.length)}</strong></div>
+          <div><span>Inventory value</span><strong>{money(balances.reduce((sum, row) => sum + Number(row.inventory_value ?? 0), 0))}</strong></div>
+        </div>
+      </PageSection>
+      <PageSection title="Current stock" description={`${balances.length} product balance${balances.length === 1 ? "" : "s"}`}>
+        <DataTable
+          rows={balances}
+          columns={[
+            { key: "product", header: "Product", render: (row) => <Link href={`/inventory/products/${row.product_id}`}>{row.product?.product_code ? row.product.product_code + " — " : ""}{row.product?.name ?? "—"}</Link> },
+            { key: "qty", header: "Quantity", align: "right", render: (row) => formatNumber(Number(row.quantity ?? 0)) },
+            { key: "cost", header: "Average cost", align: "right", render: (row) => money(Number(row.average_cost ?? 0)) },
+            { key: "value", header: "Value", align: "right", render: (row) => money(Number(row.inventory_value ?? 0)) },
+            { key: "status", header: "Status", render: (row) => <StatusBadge tone={Number(row.quantity) > 0 ? "success" : "neutral"}>{Number(row.quantity) > 0 ? "In stock" : "Zero"}</StatusBadge> },
+          ]}
+          empty="No stock balances found."
+        />
+      </PageSection>
+      <PageSection title="Recent movements" description={`${filteredMovements.length} of ${recentTransactions.length} recent movements`} actions={<SearchInput value={movementQuery} onChange={setMovementQuery} placeholder="Search movement, product or direction" />}>
+        <DataTable
+          rows={filteredMovements}
+          columns={[
+            { key: "date", header: "Date", render: (row) => formatDate(row.transaction_date) },
+            { key: "number", header: "Transaction", render: (row) => row.transaction_number ?? "—" },
+            { key: "product", header: "Product", render: (row) => row.product?.name ?? "—" },
+            { key: "direction", header: "Direction", render: (row) => <StatusBadge tone={row.direction === "IN" ? "success" : "danger"}>{row.direction ?? "—"}</StatusBadge> },
+            { key: "qty", header: "Quantity", align: "right", render: (row) => formatNumber(Number(row.quantity ?? 0)) },
+            { key: "value", header: "Value", align: "right", render: (row) => money(Number(row.total_value ?? 0)) },
+          ]}
+          empty="No recent inventory movements match your search."
+        />
+      </PageSection>
+    </div>
+  );
+}
+
+export function InventoryStock({ rows, currency = "BDT" }: { rows: InventoryRow[]; currency?: string }) {
+  const money = (value: number) => formatCurrency(value, currency);
+  const [query, setQuery] = useState("");
+  const filteredRows = useMemo(() => {
+    const value = query.trim().toLowerCase();
+    return value
+      ? rows.filter((row) => [row.product?.product_code, row.product?.name, row.unit?.name]
+          .some((field) => String(field ?? "").toLowerCase().includes(value)))
+      : rows;
+  }, [query, rows]);
+
+  return (
+    <div className="page">
+      <PageHeader eyebrow="Inventory" title="Current stock" description="Read-only inventory balances from the existing inventory engine." />
+      <PageSection title="Stock balances" description={`${filteredRows.length} of ${rows.length} balances`} actions={<SearchInput value={query} onChange={setQuery} placeholder="Search product code, name or unit" />}>
+        <DataTable rows={filteredRows} columns={[
+          { key: "product", header: "Product", render: (row) => <Link href={`/inventory/products/${row.product_id}`}>{row.product?.product_code ? row.product.product_code + " — " : ""}{row.product?.name ?? "—"}</Link> },
+          { key: "unit", header: "Unit", render: (row) => row.unit?.name ?? "—" },
+          { key: "qty", header: "Quantity", align: "right", render: (row) => formatNumber(Number(row.quantity ?? 0)) },
+          { key: "avg", header: "Average cost", align: "right", render: (row) => money(Number(row.average_cost ?? 0)) },
+          { key: "value", header: "Inventory value", align: "right", render: (row) => money(Number(row.inventory_value ?? 0)) },
+        ]} empty="No stock balances match your search." />
+      </PageSection>
+    </div>
+  );
+}
+
+export function InventoryTransactions({ rows, currency = "BDT" }: { rows: InventoryRow[]; currency?: string }) {
+  const money = (value: number) => formatCurrency(value, currency);
+  const [query, setQuery] = useState("");
+  const filteredRows = useMemo(() => {
+    const value = query.trim().toLowerCase();
+    return value
+      ? rows.filter((row) => [row.transaction_number, row.transaction_type, row.direction, row.product?.name]
+          .some((field) => String(field ?? "").toLowerCase().includes(value)))
+      : rows;
+  }, [query, rows]);
+
+  return (
+    <div className="page">
+      <PageHeader eyebrow="Inventory" title="Inventory transactions" description="Database-generated movements; the app does not write directly to inventory transaction records." />
+      <PageSection title="Transactions" description={`${filteredRows.length} of ${rows.length} transactions`} actions={<SearchInput value={query} onChange={setQuery} placeholder="Search transaction, type or product" />}>
+        <DataTable rows={filteredRows} columns={[
+          { key: "date", header: "Date", render: (row) => formatDate(row.transaction_date) },
+          { key: "number", header: "Transaction", render: (row) => row.transaction_number ?? "—" },
+          { key: "product", header: "Product", render: (row) => row.product?.name ?? "—" },
+          { key: "type", header: "Type", render: (row) => row.transaction_type ?? "—" },
+          { key: "direction", header: "Direction", render: (row) => <StatusBadge tone={row.direction === "IN" ? "success" : "danger"}>{row.direction ?? "—"}</StatusBadge> },
+          { key: "qty", header: "Quantity", align: "right", render: (row) => formatNumber(Number(row.quantity ?? 0)) },
+          { key: "cost", header: "Unit cost", align: "right", render: (row) => money(Number(row.unit_cost ?? 0)) },
+          { key: "value", header: "Value", align: "right", render: (row) => money(Number(row.total_value ?? 0)) },
+          { key: "avg", header: "Average after", align: "right", render: (row) => money(Number(row.average_cost_after ?? 0)) },
+        ]} empty="No inventory transactions match your search." />
+      </PageSection>
+    </div>
+  );
+}
+
+export function ProductInventory({
+  product,
+  balance,
+  unit,
+  transactions,
+  currency = "BDT",
+}: {
+  product: InventoryRow;
+  balance: InventoryRow;
+  unit: InventoryRow;
+  transactions: InventoryRow[];
+  currency?: string;
+}) {
+  const money = (value: number) => formatCurrency(value, currency);
+
+  return (
+    <div className="page">
+      <PageHeader
+        eyebrow="Inventory / Product"
+        title={product.name}
+        description={product.product_code ?? "Product"}
+        actions={<Link className="button" href={`/products/${product.id}`}>Product details</Link>}
+      />
+      <PageSection title="Stock summary">
+        <div className="ui-detail-grid">
+          <div><span>Quantity</span><strong>{formatNumber(Number(balance?.quantity ?? 0))}{unit?.name ? ` ${unit.name}` : ""}</strong></div>
+          <div><span>Average cost</span><strong>{money(Number(balance?.average_cost ?? 0))}</strong></div>
+          <div><span>Inventory value</span><strong>{money(Number(balance?.inventory_value ?? 0))}</strong></div>
+        </div>
+      </PageSection>
+      <PageSection title="Movement history" description={`${transactions.length} inventory movements`}>
+        <DataTable rows={transactions} columns={[
+          { key: "date", header: "Date", render: (row) => formatDate(row.transaction_date) },
+          { key: "number", header: "Transaction", render: (row) => row.transaction_number ?? "—" },
+          { key: "type", header: "Type", render: (row) => row.transaction_type ?? "—" },
+          { key: "direction", header: "Direction", render: (row) => <StatusBadge tone={row.direction === "IN" ? "success" : "danger"}>{row.direction ?? "—"}</StatusBadge> },
+          { key: "qty", header: "Quantity", align: "right", render: (row) => formatNumber(Number(row.quantity ?? 0)) },
+          { key: "cost", header: "Unit cost", align: "right", render: (row) => money(Number(row.unit_cost ?? 0)) },
+          { key: "value", header: "Total", align: "right", render: (row) => money(Number(row.total_value ?? 0)) },
+          { key: "avg", header: "Average after", align: "right", render: (row) => money(Number(row.average_cost_after ?? 0)) },
+        ]} empty="No product inventory movements found." />
+      </PageSection>
+    </div>
+  );
+}

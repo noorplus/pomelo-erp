@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { addOrganizationUserByEmail, removeOrganizationUser, updateOrganization } from "@/lib/organizations/actions";
 import { DataTable, FormField, FormActions, StatusBadge } from "@/components/ui";
 import { getErrorMessage } from "@/lib/app/errors";
+import { formatDate } from "@/lib/formatters";
 import type { Organization, OrganizationMembership } from "@/lib/app/types";
 
 type Props = {
@@ -99,7 +100,7 @@ export function Administration({ organization, memberships, userId, creator }: P
   const membershipColumns = [
     { key: "user", header: "User", render: (member: OrganizationMembership) => <>{member.user_id}{member.user_id === userId ? " (you)" : ""}</> },
     { key: "status", header: "Status", render: (member: OrganizationMembership) => <StatusBadge tone={member.is_active ? "success" : "neutral"}>{member.is_active ? "Active" : "Inactive"}</StatusBadge> },
-    { key: "added", header: "Added", render: (member: OrganizationMembership) => new Date(member.created_at).toLocaleDateString() },
+    { key: "added", header: "Added", render: (member: OrganizationMembership) => formatDate(member.created_at) },
     { key: "action", header: "Action", render: (member: OrganizationMembership) => {
       const protectedMember = member.user_id === userId || (creator && member.id === memberships[0]?.id);
       return protectedMember ? <span className="ui-field-hint">Protected</span> : <button className="button" type="button" onClick={() => removeMember(member.user_id)}>Remove</button>;

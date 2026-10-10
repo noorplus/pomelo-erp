@@ -14,9 +14,9 @@ export function Products({ rows }: { rows: Product[] }) {
     const q = query.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((product) =>
-      [product.product_code ?? "", product.name].some((value) => value.toLowerCase().includes(q)),
+      [product.product_code ?? "", product.name, units.find((unit) => unit.id === product.unit_id)?.name ?? ""].some((value) => value.toLowerCase().includes(q)),
     );
-  }, [rows, query]);
+  }, [rows, query, units]);
 
   return (
     <div className="page">
@@ -37,7 +37,7 @@ export function Products({ rows }: { rows: Product[] }) {
           <SearchInput
             value={query}
             onChange={setQuery}
-            placeholder="Search by code or name"
+            placeholder="Search by code, name or unit"
           />
         }
       >
