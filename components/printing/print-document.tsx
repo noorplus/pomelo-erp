@@ -56,12 +56,15 @@ export function PrintDocument({
   const printDateTime = printedAt
     ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(printedAt)
     : "—";
-  const contacts = [
+  const contactFields: Array<[string, string | null | undefined]> = [
     ["Contact no.", partyContact?.contact_number],
     ["Phone", partyContact?.phone],
     ["Email", partyContact?.email],
     ["Address", partyContact?.address],
-  ].filter(([, value]) => typeof value === "string" && value.trim().length > 0) as [string, string][];
+  ];
+  const contacts = contactFields.filter(
+    (entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].trim().length > 0,
+  );
   const printable = (
     <section className="print-document-root" aria-label={`Printable ${title}`}>
       <article className="print-document">
