@@ -8,5 +8,5 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
   if (!c.activeOrganization) return null;
   const p = await searchParams;
   const data = await getFinancialReportData(await createClient(), c.activeOrganization.id, { periodId: p.period, from: p.from, to: p.to });
-  return <FinancialReport title="Profit & Loss" description="Posted revenue and expense activity." rows={data.rows} filter={(r) => r.account_type === "REVENUE" || r.account_type === "EXPENSE"} periods={data.periods} from={data.filters.from} to={data.filters.to} periodId={data.filters.periodId} variant="profit-loss" />;
+  return <FinancialReport title="Profit & Loss" description="Posted revenue and expense activity." rows={data.rows} filter={(r) => r.account_type === "REVENUE" || r.account_type === "EXPENSE"} periods={data.periods} from={data.filters.from} to={data.filters.to} periodId={data.filters.periodId} variant="profit-loss" currency={c.activeOrganization.base_currency} />;
 }

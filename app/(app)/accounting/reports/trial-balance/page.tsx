@@ -8,5 +8,5 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
   if (!c.activeOrganization) return null;
   const p = await searchParams;
   const data = await getFinancialReportData(await createClient(), c.activeOrganization.id, { periodId: p.period, from: p.from, to: p.to });
-  return <FinancialReport title="Trial Balance" description="Posted debit and credit totals by account." rows={data.rows} filter={() => true} periods={data.periods} from={data.filters.from} to={data.filters.to} periodId={data.filters.periodId} variant="trial" />;
+  return <FinancialReport title="Trial Balance" description="Posted debit and credit totals by account." rows={data.rows} filter={() => true} periods={data.periods} from={data.filters.from} to={data.filters.to} periodId={data.filters.periodId} variant="trial" currency={c.activeOrganization.base_currency} />;
 }

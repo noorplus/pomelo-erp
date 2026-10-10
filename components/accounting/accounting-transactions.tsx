@@ -10,6 +10,7 @@ import {
   createExpense, createJournalEntry, createPayment,
 } from "@/lib/accounting/actions";
 import { DataTable, FormActions, FormField, PageHeader, PageSection, Select, StatusBadge } from "@/components/ui";
+import { formatCurrency, formatDate } from "@/lib/formatters";
 
 type Account = { id: string; account_code: string; account_name: string; account_type: string; is_active: boolean; is_postable: boolean };
 type Contact = { id: string; contact_number: string | null; name: string; is_active: boolean };
@@ -22,10 +23,11 @@ const today = () => new Date().toISOString().slice(0, 10);
 const tone = (s: string) => s === "CONFIRMED" ? "success" : s === "CANCELLED" ? "danger" : "neutral";
 
 export function AccountingTransactions({
-  mode, organizationId, rows, accounts, contacts, periods, categories,
+  mode, organizationId, rows, accounts, contacts, periods, categories, currency = "BDT",
 }: {
-  mode: Mode; organizationId: string; rows: any[]; accounts: Account[]; contacts: Contact[]; periods: Period[]; categories: Category[];
+  mode: Mode; organizationId: string; rows: any[]; accounts: Account[]; contacts: Contact[]; periods: Period[]; categories: Category[]; currency?: string;
 }) {
+  const money = (value: number) => formatCurrency(value, currency);
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -129,17 +131,17 @@ export function AccountingTransactions({
     : mode === "payments"
       ? [
           { key: "payment_number", header: "Payment", render: (r: any) => r.payment_number || "Draft" },
-          { key: "payment_date", header: "Date", render: (r: any) => r.payment_date },
+          { key: "payment_date", header: "Date", render: (r: any) => formatDate(r.payment_date) },
           { key: "payment_type", header: "Type", render: (r: any) => r.payment_type },
-          { key: "amount", header: "Amount", render: (r: any) => Number(r.amount).toFixed(2) },
+          { key: "amount", header: "Amount", align: "right", render: (r: any) => money(Number(r.amount)) },
           { key: "status", header: "Status", render: (r: any) => <StatusBadge tone={tone(r.status)}>{r.status}</StatusBadge> },
           { key: "allocation", header: "Allocation", render: (r: any) => <Link href={"/accounting/transactions/payments/" + r.id}>Manage</Link> },
           { key: "actions", header: "Actions", render: (r: any) => r.status === "DRAFT" ? <><button className="button" type="button" disabled={busy} onClick={() => changeStatus(r.id, "confirm")}>Confirm</button><button className="button" type="button" disabled={busy} onClick={() => changeStatus(r.id, "cancel")}>Cancel</button></> : null },
         ]
       : [
           { key: "expense_number", header: "Expense", render: (r: any) => r.expense_number || "Draft" },
-          { key: "expense_date", header: "Date", render: (r: any) => r.expense_date },
-          { key: "amount", header: "Amount", render: (r: any) => Number(r.amount).toFixed(2) },
+          { key: "expense_date", header: "Date", render: (r: any) => formatDate(r.expense_date) },
+          { key: "amount", header: "Amount", align: "right", render: (r: any) => money(Number(r.amount)) },
           { key: "status", header: "Status", render: (r: any) => <StatusBadge tone={tone(r.status)}>{r.status}</StatusBadge> },
           { key: "description", header: "Description", render: (r: any) => r.description || "—" },
           { key: "actions", header: "Actions", render: (r: any) => r.status === "DRAFT" ? <><button className="button" type="button" disabled={busy} onClick={() => changeStatus(r.id, "confirm")}>Confirm</button><button className="button" type="button" disabled={busy} onClick={() => changeStatus(r.id, "cancel")}>Cancel</button></> : null },
