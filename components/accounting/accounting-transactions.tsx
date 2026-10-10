@@ -133,7 +133,7 @@ export function AccountingTransactions({
           { key: "payment_number", header: "Payment", render: (r: any) => r.payment_number || "Draft" },
           { key: "payment_date", header: "Date", render: (r: any) => formatDate(r.payment_date) },
           { key: "payment_type", header: "Type", render: (r: any) => r.payment_type },
-          { key: "amount", header: "Amount", align: "right", render: (r: any) => money(Number(r.amount)) },
+          { key: "amount", header: "Amount", align: "right" as const, render: (r: any) => money(Number(r.amount)) },
           { key: "status", header: "Status", render: (r: any) => <StatusBadge tone={tone(r.status)}>{r.status}</StatusBadge> },
           { key: "allocation", header: "Allocation", render: (r: any) => <Link href={"/accounting/transactions/payments/" + r.id}>Manage</Link> },
           { key: "actions", header: "Actions", render: (r: any) => r.status === "DRAFT" ? <><button className="button" type="button" disabled={busy} onClick={() => changeStatus(r.id, "confirm")}>Confirm</button><button className="button" type="button" disabled={busy} onClick={() => changeStatus(r.id, "cancel")}>Cancel</button></> : null },
@@ -141,7 +141,7 @@ export function AccountingTransactions({
       : [
           { key: "expense_number", header: "Expense", render: (r: any) => r.expense_number || "Draft" },
           { key: "expense_date", header: "Date", render: (r: any) => formatDate(r.expense_date) },
-          { key: "amount", header: "Amount", align: "right", render: (r: any) => money(Number(r.amount)) },
+          { key: "amount", header: "Amount", align: "right" as const, render: (r: any) => money(Number(r.amount)) },
           { key: "status", header: "Status", render: (r: any) => <StatusBadge tone={tone(r.status)}>{r.status}</StatusBadge> },
           { key: "description", header: "Description", render: (r: any) => r.description || "—" },
           { key: "actions", header: "Actions", render: (r: any) => r.status === "DRAFT" ? <><button className="button" type="button" disabled={busy} onClick={() => changeStatus(r.id, "confirm")}>Confirm</button><button className="button" type="button" disabled={busy} onClick={() => changeStatus(r.id, "cancel")}>Cancel</button></> : null },
