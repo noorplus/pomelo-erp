@@ -60,6 +60,11 @@ export function Products({ rows, units }: { rows: Product[]; units: Unit[] }) {
               render: (product) => <Link href={`/products/${product.id}`}>{product.name}</Link>,
             },
             {
+              key: "unit",
+              header: "Unit",
+              render: (product) => units.find((unit) => unit.id === product.unit_id)?.name ?? "—",
+            },
+            {
               key: "status",
               header: "Status",
               render: (product) => (
