@@ -1,41 +1,21 @@
-"use client";
-
-import Link from "next/link";
-import { useOrganizationContext } from "@/components/app/organization-provider";
+import { DashboardOverview } from "@/components/dashboard/dashboard-overview";
 import { OrganizationOnboarding } from "@/components/app/organization-onboarding";
-import { PageHeader, PageSection } from "@/components/ui";
+import { createClient } from "@/lib/supabase/server";
+import { getApplicationContext } from "@/lib/organizations/server";
+import { getDashboardData } from "@/lib/dashboard/queries";
 
-export default function DashboardPage() {
-  const { activeOrganization, organizationState } = useOrganizationContext();
+export default async function DashboardPage() {
+  const context = await getApplicationContext();
 
-  if (organizationState === "no-organization") return <OrganizationOnboarding />;
+  if (!context.activeOrganization) return <OrganizationOnboarding />;
 
-  return (
-    <section className="page">
-      <PageHeader
-        eyebrow="Overview"
-        title="Dashboard"
-        description={
-          activeOrganization
-            ? `Workspace: ${activeOrganization.name}`
-            : undefined
-        }
-        actions={
-          <Link className="button" href="/administration">
-            Administration
-          </Link>
-        }
-      />
-      <PageSection title="Workspace">
-        <div className="content-card">
-          <p className="eyebrow">Organization</p>
-          <h2>{activeOrganization?.name}</h2>
-          <p className="lede">
-            Your organization workspace is connected to the frozen database
-            through the typed application context.
-          </p>
-        </div>
-      </PageSection>
-    </section>
+  const organization = context.activeOrganization;
+  const data = await getDashboardData(
+    await createClient(),
+    organization.id,
+    organization.base_currency ?? "BDT",
+    organization.timezone ?? "Asia/Dhaka",
   );
+
+  return <DashboardOverview organizationName={organization.name} data={data} />;
 }
