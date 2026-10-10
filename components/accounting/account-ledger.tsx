@@ -24,7 +24,11 @@ export function AccountLedger({ accounts, account, rows, currency = "BDT" }: { a
         { key: "description", header: "Description", render: (r) => r.description || "—" },
         { key: "debit", header: "Debit", align: "right", render: (r) => money(Number(r.debit)) },
         { key: "credit", header: "Credit", align: "right", render: (r) => money(Number(r.credit)) },
-        { key: "status", header: "Status", render: (r) => <StatusBadge tone="success">{r.journal_entries?.status ?? "CONFIRMED"}</StatusBadge> },
+        { key: "status", header: "Status", render: (r) => {
+          const status = r.journal_entries?.status;
+          const tone = status === "CONFIRMED" ? "success" : status === "CANCELLED" ? "danger" : "neutral";
+          return <StatusBadge tone={tone}>{status ?? "—"}</StatusBadge>;
+        } },
       ]} empty="No posted ledger transactions found." />
     </PageSection>
   </div>;
