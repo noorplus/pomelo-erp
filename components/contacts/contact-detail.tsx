@@ -38,7 +38,7 @@ export function ContactDetail({ contact, activity, currency = "BDT" }: { contact
     </PageSection>
     <PageSection title="Purchases" description="Documents linked to this contact.">
       <DataTable rows={activity.purchases} columns={[
-        {key:"number",header:"Invoice",render:r=>r.invoice_id??r.id},{key:"date",header:"Date",render:r=>r.invoice_date},{key:"amount",header:"Amount",align:"right",render:r=>money(Number(r.total_amount))},
+        {key:"number",header:"Invoice",render:r=>r.invoice_id??r.id},{key:"date",header:"Date",render:r=>formatDate(r.invoice_date)},{key:"amount",header:"Amount",align:"right",render:r=>money(Number(r.total_amount))},
         {key:"status",header:"Status",render:r=><StatusBadge tone={tone(r.status)}>{r.status}</StatusBadge>},{key:"action",header:"Open",render:r=><Link className="button" href={`/purchase/invoices/${r.id}`}>View</Link>}
       ]} empty="No purchases linked to this contact." />
     </PageSection>
