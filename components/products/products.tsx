@@ -7,8 +7,9 @@ import { DataTable, PageHeader, PageSection, SearchInput, StatusBadge } from "@/
 import type { Tables } from "@/lib/supabase/database";
 
 type Product = Tables<"products">;
+type Unit = { id: string; name: string };
 
-export function Products({ rows }: { rows: Product[] }) {
+export function Products({ rows, units }: { rows: Product[]; units: Unit[] }) {
   const [query, setQuery] = useState("");
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
